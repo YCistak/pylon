@@ -14,9 +14,19 @@ import (
 	"log/slog"
 	"os"
 
+	"github.com/YCistak/pylon/internal/config"
 	"github.com/YCistak/pylon/internal/daemon"
+	"github.com/YCistak/pylon/internal/db"
 	"github.com/YCistak/pylon/internal/ipc"
 )
+
+// configPath is the path to pylon.yaml, overridable via PYLON_CONFIG.
+func configPath() string {
+	if p := os.Getenv("PYLON_CONFIG"); p != "" {
+		return p
+	}
+	return "pylon.yaml"
+}
 
 func main() {
 	if len(os.Args) < 2 {
@@ -56,20 +66,44 @@ usage:
 `)
 }
 
-// cmdStart runs the daemon in the foreground until interrupted.
+// cmdStart loads config, opens the database, and runs the daemon in the
+// foreground until interrupted.
 func cmdStart() error {
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
-	d := daemon.New(daemon.Options{Logger: log})
-	err := d.Run(context.Background())
-	if errors.Is(err, daemon.ErrAlreadyRunning) {
-		return err
+
+	cfg, err := config.Load(configPath())
+	if err != nil {
+		return fmt.Errorf("config: %w", err)
 	}
-	return err
+
+	database, err := db.Open(cfg.Paths.DB)
+	if err != nil {
+		return fmt.Errorf("database: %w", err)
+	}
+	defer database.Close()
+	log.Info("database ready", "path", cfg.Paths.DB)
+
+	d := daemon.New(daemon.Options{
+		SocketPath: cfg.Paths.Socket,
+		PIDPath:    cfg.Paths.PID,
+		Logger:     log,
+		DB:         database,
+	})
+	return d.Run(context.Background())
+}
+
+// socketPath resolves the daemon socket from config, falling back to the default.
+func socketPath() string {
+	cfg, err := config.Load(configPath())
+	if err != nil {
+		return ipc.DefaultSocketPath
+	}
+	return cfg.Paths.Socket
 }
 
 // cmdStop asks the running daemon to shut down.
 func cmdStop() error {
-	resp, err := daemon.Send(ipc.DefaultSocketPath, ipc.Request{Cmd: "stop"})
+	resp, err := daemon.Send(socketPath(), ipc.Request{Cmd: "stop"})
 	if err != nil {
 		return fmt.Errorf("daemon not reachable: %w", err)
 	}
@@ -82,7 +116,7 @@ func cmdStop() error {
 
 // cmdStatus reports whether the daemon is running.
 func cmdStatus() error {
-	resp, err := daemon.Send(ipc.DefaultSocketPath, ipc.Request{Cmd: "status"})
+	resp, err := daemon.Send(socketPath(), ipc.Request{Cmd: "status"})
 	if err != nil {
 		fmt.Println("not running")
 		return nil

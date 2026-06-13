@@ -79,6 +79,11 @@ Core daemon, intent engine, SQLite, Gemini API — no platform difference.
 
 ### Modules
 
+**1.0 Foundation** — ✅ done & tested
+- [x] Config loader (`internal/config`): `pylon.yaml` with defaults overlay, `${ENV}` expansion for secrets, validation. Tested.
+- [x] SQLite layer (`internal/db`): pure-Go `modernc.org/sqlite` (no CGo → cross-compiles), versioned migrations, schema for `tasks`/`context`/`persona`/`sessions`. Tested.
+- [x] Wired into daemon startup: `start` loads config → opens DB → injects into daemon; `status` reports pending task count.
+
 **1.1 Daemon** — ✅ done & tested
 - [x] Go daemon, Unix socket IPC (`/tmp/pylon.sock`)
 - [x] PID file, signal handler (SIGINT/SIGTERM → clean shutdown), stale-socket reclaim, second-instance refusal
@@ -114,10 +119,10 @@ Core daemon, intent engine, SQLite, Gemini API — no platform difference.
 - Process exits → check task queue → voice reminder
 - Default list: `code`, `cs2`, `steam`
 
-**1.7 Task Queue**
-- SQLite: `tasks(id, content, trigger_process, trigger_time, done, created_at)`
-- "Remind me to message my teacher when I close VSCode" → adds task
-- On process exit → fetches related tasks, reads them aloud
+**1.7 Task Queue** — 🟡 storage done, wiring pending
+- [x] SQLite: `tasks(id, content, trigger_process, trigger_time, done, created_at)` — typed store (`internal/db`): add / pending-for-process / complete, tested
+- [ ] "Remind me to message my teacher when I close VSCode" → adds task (needs intent)
+- [ ] On process exit → fetches related tasks, reads them aloud (needs watcher + TTS)
 
 **1.8 Context Memory**
 - SQLite: `context(id, key, value, updated_at)`

@@ -16,6 +16,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/YCistak/pylon/internal/db"
 	"github.com/YCistak/pylon/internal/ipc"
 )
 
@@ -24,6 +25,7 @@ type Daemon struct {
 	socketPath string
 	pidPath    string
 	log        *slog.Logger
+	db         *db.DB
 	startedAt  time.Time
 
 	ln  net.Listener
@@ -37,9 +39,10 @@ type Handler func(req ipc.Request) ipc.Response
 
 // Options configures a Daemon.
 type Options struct {
-	SocketPath string // defaults to ipc.DefaultSocketPath
-	PIDPath    string // defaults to /tmp/pylon.pid
+	SocketPath string  // defaults to ipc.DefaultSocketPath
+	PIDPath    string  // defaults to /tmp/pylon.pid
 	Logger     *slog.Logger
+	DB         *db.DB  // optional persistence handle for handlers
 }
 
 // New constructs a Daemon. It does not touch the filesystem or network yet;
@@ -58,6 +61,7 @@ func New(opts Options) *Daemon {
 		socketPath: opts.SocketPath,
 		pidPath:    opts.PIDPath,
 		log:        opts.Logger,
+		db:         opts.DB,
 		hnd:        make(map[string]Handler),
 	}
 	d.registerBuiltins()
@@ -78,7 +82,13 @@ func (d *Daemon) registerBuiltins() {
 	})
 	d.Handle("status", func(ipc.Request) ipc.Response {
 		up := time.Since(d.startedAt).Round(time.Second)
-		return ipc.Response{OK: true, Text: fmt.Sprintf("running (pid %d, uptime %s)", os.Getpid(), up)}
+		text := fmt.Sprintf("running (pid %d, uptime %s)", os.Getpid(), up)
+		if d.db != nil {
+			if pending, err := d.db.PendingTasks(); err == nil {
+				text += fmt.Sprintf(", %d pending task(s)", len(pending))
+			}
+		}
+		return ipc.Response{OK: true, Text: text}
 	})
 	d.Handle("stop", func(ipc.Request) ipc.Response {
 		// Acknowledge first; the actual shutdown is triggered by the caller of
