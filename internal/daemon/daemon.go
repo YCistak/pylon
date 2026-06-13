@@ -1,0 +1,186 @@
+// Package daemon implements the long-running Pylon process: it owns the Unix
+// socket, dispatches CLI requests, and shuts down cleanly on SIGTERM/SIGINT.
+package daemon
+
+import (
+	"bufio"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"log/slog"
+	"net"
+	"os"
+	"os/signal"
+	"sync"
+	"syscall"
+	"time"
+
+	"github.com/YCistak/pylon/internal/ipc"
+)
+
+// Daemon is the core Pylon process.
+type Daemon struct {
+	socketPath string
+	pidPath    string
+	log        *slog.Logger
+	startedAt  time.Time
+
+	ln  net.Listener
+	wg  sync.WaitGroup
+	mu  sync.Mutex // guards handlers
+	hnd map[string]Handler
+}
+
+// Handler processes a single request and returns a response.
+type Handler func(req ipc.Request) ipc.Response
+
+// Options configures a Daemon.
+type Options struct {
+	SocketPath string // defaults to ipc.DefaultSocketPath
+	PIDPath    string // defaults to /tmp/pylon.pid
+	Logger     *slog.Logger
+}
+
+// New constructs a Daemon. It does not touch the filesystem or network yet;
+// call Run to start listening.
+func New(opts Options) *Daemon {
+	if opts.SocketPath == "" {
+		opts.SocketPath = ipc.DefaultSocketPath
+	}
+	if opts.PIDPath == "" {
+		opts.PIDPath = "/tmp/pylon.pid"
+	}
+	if opts.Logger == nil {
+		opts.Logger = slog.New(slog.NewTextHandler(os.Stderr, nil))
+	}
+	d := &Daemon{
+		socketPath: opts.SocketPath,
+		pidPath:    opts.PIDPath,
+		log:        opts.Logger,
+		hnd:        make(map[string]Handler),
+	}
+	d.registerBuiltins()
+	return d
+}
+
+// Handle registers a handler for a command name, overriding any existing one.
+func (d *Daemon) Handle(cmd string, h Handler) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.hnd[cmd] = h
+}
+
+// registerBuiltins wires up the commands every daemon must answer.
+func (d *Daemon) registerBuiltins() {
+	d.Handle("ping", func(ipc.Request) ipc.Response {
+		return ipc.Response{OK: true, Text: "pong"}
+	})
+	d.Handle("status", func(ipc.Request) ipc.Response {
+		up := time.Since(d.startedAt).Round(time.Second)
+		return ipc.Response{OK: true, Text: fmt.Sprintf("running (pid %d, uptime %s)", os.Getpid(), up)}
+	})
+	d.Handle("stop", func(ipc.Request) ipc.Response {
+		// Acknowledge first; the actual shutdown is triggered by the caller of
+		// Run via the returned stop signal. We close the listener to break Accept.
+		go func() {
+			time.Sleep(50 * time.Millisecond)
+			_ = d.ln.Close()
+		}()
+		return ipc.Response{OK: true, Text: "stopping"}
+	})
+}
+
+// Run starts the daemon: writes the PID file, opens the socket, and serves
+// requests until ctx is cancelled or a shutdown signal arrives. It blocks.
+func (d *Daemon) Run(ctx context.Context) error {
+	if err := d.writePIDFile(); err != nil {
+		return err
+	}
+	defer d.removePIDFile()
+
+	// Remove a stale socket from an unclean previous shutdown.
+	if err := d.clearStaleSocket(); err != nil {
+		return err
+	}
+
+	ln, err := net.Listen("unix", d.socketPath)
+	if err != nil {
+		return fmt.Errorf("listen on %s: %w", d.socketPath, err)
+	}
+	d.ln = ln
+	d.startedAt = time.Now()
+	d.log.Info("pylon daemon started", "socket", d.socketPath, "pid", os.Getpid())
+
+	// Translate signals and ctx cancellation into a listener close.
+	ctx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+	go func() {
+		<-ctx.Done()
+		d.log.Info("shutdown signal received")
+		_ = d.ln.Close()
+	}()
+
+	d.serve()
+
+	d.wg.Wait()
+	_ = os.Remove(d.socketPath)
+	d.log.Info("pylon daemon stopped")
+	return nil
+}
+
+// serve accepts connections until the listener is closed.
+func (d *Daemon) serve() {
+	for {
+		conn, err := d.ln.Accept()
+		if err != nil {
+			if errors.Is(err, net.ErrClosed) {
+				return
+			}
+			d.log.Warn("accept failed", "err", err)
+			continue
+		}
+		d.wg.Add(1)
+		go func() {
+			defer d.wg.Done()
+			d.handleConn(conn)
+		}()
+	}
+}
+
+// handleConn reads one request, dispatches it, and writes the response.
+func (d *Daemon) handleConn(conn net.Conn) {
+	defer conn.Close()
+	_ = conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+
+	scanner := bufio.NewScanner(conn)
+	if !scanner.Scan() {
+		return
+	}
+	var req ipc.Request
+	if err := json.Unmarshal(scanner.Bytes(), &req); err != nil {
+		d.writeResponse(conn, ipc.Response{OK: false, Error: "bad request: " + err.Error()})
+		return
+	}
+
+	d.mu.Lock()
+	h, ok := d.hnd[req.Cmd]
+	d.mu.Unlock()
+	if !ok {
+		d.writeResponse(conn, ipc.Response{OK: false, Error: "unknown command: " + req.Cmd})
+		return
+	}
+	d.writeResponse(conn, h(req))
+}
+
+func (d *Daemon) writeResponse(conn net.Conn, resp ipc.Response) {
+	b, err := json.Marshal(resp)
+	if err != nil {
+		d.log.Error("marshal response", "err", err)
+		return
+	}
+	_ = conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
+	if _, err := conn.Write(append(b, '\n')); err != nil {
+		d.log.Warn("write response", "err", err)
+	}
+}

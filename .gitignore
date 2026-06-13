@@ -1,0 +1,21 @@
+# Binaries
+/pylon
+/tmp/
+*.exe
+
+# Runtime artifacts
+*.sock
+*.pid
+*.db
+*.sqlite
+
+# Local config / secrets
+pylon.local.yaml
+.env
+
+# Editor
+.vscode/
+.idea/
+
+# OS
+.DS_Store
