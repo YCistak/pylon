@@ -13,10 +13,12 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strings"
 
 	"github.com/YCistak/pylon/internal/config"
 	"github.com/YCistak/pylon/internal/daemon"
 	"github.com/YCistak/pylon/internal/db"
+	"github.com/YCistak/pylon/internal/intent"
 	"github.com/YCistak/pylon/internal/ipc"
 	"github.com/YCistak/pylon/internal/watcher"
 )
@@ -43,6 +45,8 @@ func main() {
 		err = cmdStop()
 	case "status":
 		err = cmdStatus()
+	case "say":
+		err = cmdSay(os.Args[2:])
 	case "-h", "--help", "help":
 		usage()
 	default:
@@ -61,9 +65,10 @@ func usage() {
 	fmt.Fprint(os.Stderr, `pylon — personal AI assistant daemon
 
 usage:
-  pylon start    run the daemon (foreground)
-  pylon stop     stop a running daemon
-  pylon status   show daemon status
+  pylon start         run the daemon (foreground)
+  pylon stop          stop a running daemon
+  pylon status        show daemon status
+  pylon say <text>    send a text command through the intent engine
 `)
 }
 
@@ -92,8 +97,46 @@ func cmdStart() error {
 	})
 
 	registerWatcher(d, cfg, database, log)
+	registerIntent(d, cfg, database, log)
 
 	return d.Run(context.Background())
+}
+
+// registerIntent wires the local intent router into the daemon's "say" command.
+// Resolved commands are acted on (remind-on-exit adds a task); unresolved input
+// is reported as deferred to Gemini (the cloud fallback lands next).
+func registerIntent(d *daemon.Daemon, cfg config.Config, database *db.DB, log *slog.Logger) {
+	router := intent.NewRouter(cfg.Intent.RouterThreshold)
+
+	d.Handle("say", func(req ipc.Request) ipc.Response {
+		text := strings.TrimSpace(strings.Join(req.Args, " "))
+		if text == "" {
+			return ipc.Response{OK: false, Error: "empty command"}
+		}
+		cmd := router.Resolve(text)
+		log.Info("intent", "text", text, "action", string(cmd.Action), "confidence", cmd.Confidence)
+
+		if !cmd.Resolved() {
+			return ipc.Response{OK: true, Text: fmt.Sprintf("→ Gemini'ye devredilecek (lokal eşleşme %.2f) [henüz bağlı değil]", cmd.Confidence)}
+		}
+
+		switch cmd.Action {
+		case intent.ActionRemindOnExit:
+			id, err := database.AddTask(db.Task{
+				Content:        cmd.Args["content"],
+				TriggerProcess: cmd.Args["process"],
+			})
+			if err != nil {
+				return ipc.Response{OK: false, Error: "task eklenemedi: " + err.Error()}
+			}
+			return ipc.Response{OK: true, Text: fmt.Sprintf(
+				"tamam — '%s' kapanınca hatırlatacağım: %q (task #%d)",
+				cmd.Args["process"], cmd.Args["content"], id)}
+		default:
+			// System/media actions are executed by the system module (Phase 3).
+			return ipc.Response{OK: true, Text: fmt.Sprintf("komut anlaşıldı: %s (conf %.2f) — eylem Faz 3'te bağlanacak", cmd.Action, cmd.Confidence)}
+		}
+	})
 }
 
 // registerWatcher wires a process watcher into the daemon: when a watched
@@ -138,6 +181,22 @@ func socketPath() string {
 		return ipc.DefaultSocketPath
 	}
 	return cfg.Paths.Socket
+}
+
+// cmdSay sends a text command to the daemon's intent engine.
+func cmdSay(args []string) error {
+	if len(args) == 0 {
+		return errors.New("usage: pylon say <text>")
+	}
+	resp, err := daemon.Send(socketPath(), ipc.Request{Cmd: "say", Args: args})
+	if err != nil {
+		return fmt.Errorf("daemon not reachable: %w", err)
+	}
+	if !resp.OK {
+		return errors.New(resp.Error)
+	}
+	fmt.Println(resp.Text)
+	return nil
 }
 
 // cmdStop asks the running daemon to shut down.

@@ -99,11 +99,12 @@ Core daemon, intent engine, SQLite, Gemini API — no platform difference.
 - Piper TTS integration
 - Text → speech pipeline
 
-**1.4 Intent Router (local, no API)**
-- First stop for every transcript — runs before any API call
-- Frequent commands resolved by keyword + fuzzy match (Levenshtein/normalized): play, pause, next, volume, lock screen, "remind me when X closes", etc.
-- High-confidence match → execute directly, zero cost
-- Low confidence / novel input → fall back to Intent Engine (Gemini)
+**1.4 Intent Router (local, no API)** — ✅ done & tested
+- [x] First stop for every transcript — runs before any API call (`internal/intent`)
+- [x] Frequent commands resolved by token-level fuzzy match (Turkish-aware normalize + Levenshtein): play, pause, next/prev, volume up/down, mute, lock screen
+- [x] Parameterized "remind me when X closes" heuristic → adds task (process alias map vscode/kod→code; question-particle guard)
+- [x] High-confidence match → resolved Command; low confidence / novel input → ActionUnknown (defer to Gemini)
+- [x] `pylon say <text>` CLI + "say" IPC command exercise the whole path with text (before voice exists). Unit tests + e2e verified
 - Goal: ~80% of commands never hit the cloud
 
 **1.5 Intent Engine (Gemini fallback)**
