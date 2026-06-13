@@ -1,21 +1,63 @@
-# Binaries
+# ---- Binaries & build output ----
 /pylon
-/tmp/
+/dist/
+/build/
 *.exe
+*.dll
+*.so
+*.dylib
+# Cross-compiled artifacts
+pylon-linux-*
+pylon-windows-*
+pylon-darwin-*
 
-# Runtime artifacts
+# ---- Go ----
+# Test binaries / coverage
+*.test
+*.out
+coverage.txt
+coverage.html
+# Go workspace file (machine-local)
+go.work
+go.work.sum
+# Build / module cache (only if vendored locally)
+/vendor/
+
+# ---- Runtime artifacts ----
 *.sock
 *.pid
 *.db
+*.db-wal
+*.db-shm
 *.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.log
 
-# Local config / secrets
+# ---- Local config / secrets ----
 pylon.local.yaml
+*.local.yaml
 .env
+.env.*
+!.env.example
+# Voice models (large, fetched separately)
+/models/
+*.bin
+*.onnx
 
-# Editor
+# ---- OAuth / credential tokens ----
+token.json
+*.token
+credentials.json
+
+# ---- Editor / IDE ----
 .vscode/
 .idea/
+*.swp
+*.swo
+*~
 
-# OS
+# ---- OS ----
 .DS_Store
+Thumbs.db
+desktop.ini
