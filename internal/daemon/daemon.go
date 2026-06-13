@@ -28,14 +28,22 @@ type Daemon struct {
 	db         *db.DB
 	startedAt  time.Time
 
-	ln  net.Listener
-	wg  sync.WaitGroup
-	mu  sync.Mutex // guards handlers
-	hnd map[string]Handler
+	ln       net.Listener
+	cancel   context.CancelFunc // cancels the run context (set in Run)
+	wg       sync.WaitGroup
+	mu       sync.Mutex // guards handlers
+	hnd      map[string]Handler
+	services []service
 }
 
 // Handler processes a single request and returns a response.
 type Handler func(req ipc.Request) ipc.Response
+
+// service is a long-running background task tied to the daemon lifecycle.
+type service struct {
+	name string
+	run  func(context.Context) error
+}
 
 // Options configures a Daemon.
 type Options struct {
@@ -75,6 +83,13 @@ func (d *Daemon) Handle(cmd string, h Handler) {
 	d.hnd[cmd] = h
 }
 
+// Register adds a background service that runs under the daemon's context for
+// the lifetime of Run. Call before Run. The service should return when its
+// context is cancelled (on stop / signal).
+func (d *Daemon) Register(name string, run func(context.Context) error) {
+	d.services = append(d.services, service{name: name, run: run})
+}
+
 // registerBuiltins wires up the commands every daemon must answer.
 func (d *Daemon) registerBuiltins() {
 	d.Handle("ping", func(ipc.Request) ipc.Response {
@@ -91,11 +106,13 @@ func (d *Daemon) registerBuiltins() {
 		return ipc.Response{OK: true, Text: text}
 	})
 	d.Handle("stop", func(ipc.Request) ipc.Response {
-		// Acknowledge first; the actual shutdown is triggered by the caller of
-		// Run via the returned stop signal. We close the listener to break Accept.
+		// Acknowledge first, then cancel the run context: that closes the
+		// listener and stops every background service uniformly.
 		go func() {
 			time.Sleep(50 * time.Millisecond)
-			_ = d.ln.Close()
+			if d.cancel != nil {
+				d.cancel()
+			}
 		}()
 		return ipc.Response{OK: true, Text: "stopping"}
 	})
@@ -122,21 +139,43 @@ func (d *Daemon) Run(ctx context.Context) error {
 	d.startedAt = time.Now()
 	d.log.Info("pylon daemon started", "socket", d.socketPath, "pid", os.Getpid())
 
-	// Translate signals and ctx cancellation into a listener close.
+	// One cancellable context drives shutdown: signals, an explicit stop
+	// command (via d.cancel), or serve() returning all converge here.
 	ctx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
+	ctx, cancel := context.WithCancel(ctx)
+	d.cancel = cancel
+	defer cancel()
+
 	go func() {
 		<-ctx.Done()
-		d.log.Info("shutdown signal received")
+		d.log.Info("shutdown initiated")
 		_ = d.ln.Close()
 	}()
 
+	d.startServices(ctx)
+
 	d.serve()
+	cancel() // serve() returned (e.g. listener closed) → stop services too
 
 	d.wg.Wait()
 	_ = os.Remove(d.socketPath)
 	d.log.Info("pylon daemon stopped")
 	return nil
+}
+
+// startServices launches every registered background service under ctx.
+func (d *Daemon) startServices(ctx context.Context) {
+	for _, svc := range d.services {
+		d.wg.Add(1)
+		go func(s service) {
+			defer d.wg.Done()
+			d.log.Info("service started", "name", s.name)
+			if err := s.run(ctx); err != nil && !errors.Is(err, context.Canceled) {
+				d.log.Warn("service exited", "name", s.name, "err", err)
+			}
+		}(svc)
+	}
 }
 
 // serve accepts connections until the listener is closed.

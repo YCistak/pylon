@@ -18,6 +18,7 @@ import (
 	"github.com/YCistak/pylon/internal/daemon"
 	"github.com/YCistak/pylon/internal/db"
 	"github.com/YCistak/pylon/internal/ipc"
+	"github.com/YCistak/pylon/internal/watcher"
 )
 
 // configPath is the path to pylon.yaml, overridable via PYLON_CONFIG.
@@ -89,7 +90,45 @@ func cmdStart() error {
 		Logger:     log,
 		DB:         database,
 	})
+
+	registerWatcher(d, cfg, database, log)
+
 	return d.Run(context.Background())
+}
+
+// registerWatcher wires a process watcher into the daemon: when a watched
+// process with tasks_on_exit set exits, its pending tasks are pulled from the
+// queue and (for now) logged — TTS read-aloud lands with the voice module.
+func registerWatcher(d *daemon.Daemon, cfg config.Config, database *db.DB, log *slog.Logger) {
+	var names []string
+	onExit := make(map[string]bool)
+	for _, p := range cfg.WatchProcesses {
+		names = append(names, p.Name)
+		onExit[p.Name] = p.TasksOnExit
+	}
+	if len(names) == 0 {
+		return
+	}
+
+	w := watcher.New(watcher.Options{
+		Names:  names,
+		Logger: log,
+		OnEvent: func(e watcher.Event) {
+			if e.Kind != watcher.Exited || !onExit[e.Name] {
+				return
+			}
+			tasks, err := database.PendingForProcess(e.Name)
+			if err != nil {
+				log.Warn("watcher: fetch tasks failed", "process", e.Name, "err", err)
+				return
+			}
+			for _, t := range tasks {
+				log.Info("reminder", "process", e.Name, "task", t.Content)
+			}
+		},
+	})
+
+	d.Register("watcher", w.Run)
 }
 
 // socketPath resolves the daemon socket from config, falling back to the default.
