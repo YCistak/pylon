@@ -14,6 +14,7 @@ import (
 	"log/slog"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/YCistak/pylon/internal/config"
 	"github.com/YCistak/pylon/internal/daemon"
@@ -102,41 +103,79 @@ func cmdStart() error {
 	return d.Run(context.Background())
 }
 
-// registerIntent wires the local intent router into the daemon's "say" command.
-// Resolved commands are acted on (remind-on-exit adds a task); unresolved input
-// is reported as deferred to Gemini (the cloud fallback lands next).
+// registerIntent wires the two-tier intent path into the daemon's "say"
+// command: the local Router runs first (free), and only unresolved input falls
+// back to the Gemini engine (if an API key is configured).
 func registerIntent(d *daemon.Daemon, cfg config.Config, database *db.DB, log *slog.Logger) {
 	router := intent.NewRouter(cfg.Intent.RouterThreshold)
+	engine := intent.NewEngine(intent.EngineOptions{
+		APIKey: os.Getenv(cfg.Intent.GeminiAPIKeyEnv),
+		Model:  cfg.Intent.ModelRoutine,
+	})
+	if engine.Configured() {
+		log.Info("intent: gemini fallback enabled", "model", cfg.Intent.ModelRoutine)
+	} else {
+		log.Info("intent: gemini fallback disabled (no API key)")
+	}
 
 	d.Handle("say", func(req ipc.Request) ipc.Response {
 		text := strings.TrimSpace(strings.Join(req.Args, " "))
 		if text == "" {
 			return ipc.Response{OK: false, Error: "empty command"}
 		}
+
 		cmd := router.Resolve(text)
-		log.Info("intent", "text", text, "action", string(cmd.Action), "confidence", cmd.Confidence)
-
+		source := "local"
 		if !cmd.Resolved() {
-			return ipc.Response{OK: true, Text: fmt.Sprintf("→ Gemini'ye devredilecek (lokal eşleşme %.2f) [henüz bağlı değil]", cmd.Confidence)}
-		}
-
-		switch cmd.Action {
-		case intent.ActionRemindOnExit:
-			id, err := database.AddTask(db.Task{
-				Content:        cmd.Args["content"],
-				TriggerProcess: cmd.Args["process"],
-			})
-			if err != nil {
-				return ipc.Response{OK: false, Error: "task eklenemedi: " + err.Error()}
+			if !engine.Configured() {
+				return ipc.Response{OK: true, Text: fmt.Sprintf("anlayamadım (lokal eşleşme %.2f) ve Gemini bağlı değil", cmd.Confidence)}
 			}
-			return ipc.Response{OK: true, Text: fmt.Sprintf(
-				"tamam — '%s' kapanınca hatırlatacağım: %q (task #%d)",
-				cmd.Args["process"], cmd.Args["content"], id)}
-		default:
-			// System/media actions are executed by the system module (Phase 3).
-			return ipc.Response{OK: true, Text: fmt.Sprintf("komut anlaşıldı: %s (conf %.2f) — eylem Faz 3'te bağlanacak", cmd.Action, cmd.Confidence)}
+			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+			defer cancel()
+			var err error
+			cmd, err = engine.Parse(ctx, text, "" /* style card: persona engine pending */)
+			if err != nil {
+				log.Warn("intent: gemini failed", "err", err)
+				return ipc.Response{OK: false, Error: "gemini hatası: " + err.Error()}
+			}
+			source = "gemini"
 		}
+		log.Info("intent", "text", text, "action", string(cmd.Action), "confidence", cmd.Confidence, "source", source)
+
+		return executeCommand(cmd, database)
 	})
+}
+
+// executeCommand acts on a resolved Command and produces a user-facing response.
+// Shared by the local router and the Gemini fallback so both behave identically.
+func executeCommand(cmd intent.Command, database *db.DB) ipc.Response {
+	switch cmd.Action {
+	case intent.ActionRemindOnExit:
+		if cmd.Args["process"] == "" || cmd.Args["content"] == "" {
+			return ipc.Response{OK: false, Error: "hatırlatma için process ve içerik gerekli"}
+		}
+		id, err := database.AddTask(db.Task{
+			Content:        cmd.Args["content"],
+			TriggerProcess: cmd.Args["process"],
+		})
+		if err != nil {
+			return ipc.Response{OK: false, Error: "task eklenemedi: " + err.Error()}
+		}
+		return ipc.Response{OK: true, Text: fmt.Sprintf(
+			"tamam — '%s' kapanınca hatırlatacağım: %q (task #%d)",
+			cmd.Args["process"], cmd.Args["content"], id)}
+
+	case intent.ActionChat:
+		reply := cmd.Args["reply"]
+		if reply == "" {
+			reply = "hımm, ne demek istedin tam anlamadım"
+		}
+		return ipc.Response{OK: true, Text: reply}
+
+	default:
+		// System/media actions are executed by the system module (Phase 3).
+		return ipc.Response{OK: true, Text: fmt.Sprintf("komut anlaşıldı: %s (conf %.2f) — eylem Faz 3'te bağlanacak", cmd.Action, cmd.Confidence)}
+	}
 }
 
 // registerWatcher wires a process watcher into the daemon: when a watched

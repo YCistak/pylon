@@ -23,7 +23,9 @@ func Send(socketPath string, req ipc.Request) (ipc.Response, error) {
 	if err != nil {
 		return ipc.Response{}, err
 	}
-	_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
+	// Generous deadline: a "say" may trigger a Gemini round-trip on the daemon
+	// side, which can take many seconds.
+	_ = conn.SetDeadline(time.Now().Add(30 * time.Second))
 	if _, err := conn.Write(append(b, '\n')); err != nil {
 		return ipc.Response{}, fmt.Errorf("send request: %w", err)
 	}

@@ -50,7 +50,8 @@ func matchRemindOnExit(norm string) (Command, bool) {
 		}
 		content = append(content, t)
 	}
-	if len(content) == 0 {
+	body := trimSpeechTail(strings.Join(content, " "))
+	if body == "" {
 		return Command{}, false
 	}
 
@@ -59,7 +60,7 @@ func matchRemindOnExit(norm string) (Command, bool) {
 		Confidence: 0.85,
 		Args: map[string]string{
 			"process": process,
-			"content": strings.Join(content, " "),
+			"content": body,
 		},
 	}, true
 }

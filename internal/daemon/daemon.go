@@ -47,10 +47,10 @@ type service struct {
 
 // Options configures a Daemon.
 type Options struct {
-	SocketPath string  // defaults to ipc.DefaultSocketPath
-	PIDPath    string  // defaults to /tmp/pylon.pid
+	SocketPath string // defaults to ipc.DefaultSocketPath
+	PIDPath    string // defaults to /tmp/pylon.pid
 	Logger     *slog.Logger
-	DB         *db.DB  // optional persistence handle for handlers
+	DB         *db.DB // optional persistence handle for handlers
 }
 
 // New constructs a Daemon. It does not touch the filesystem or network yet;

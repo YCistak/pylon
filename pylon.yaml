@@ -8,9 +8,9 @@ voice:
   hotkey: "super+p"
 
 intent:
-  gemini_api_key_env: GEMINI_API_KEY   # env var holding the Gemini API key
-  model_routine: gemini-flash-lite     # cheap/fast fallback
-  model_complex: gemini-flash          # conversational / complex parsing
+  gemini_api_key_env: GEMINI_API_KEY        # env var holding the Gemini API key
+  model_routine: gemini-flash-lite-latest   # cheap/fast fallback
+  model_complex: gemini-flash-latest        # conversational / complex parsing
   router_threshold: 0.8                # local match confidence to skip the API
 
 persona:

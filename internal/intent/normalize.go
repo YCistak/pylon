@@ -34,12 +34,38 @@ func turkishLower(s string) string {
 	return strings.ToLower(r.Replace(s))
 }
 
+// speechTail are trailing speech-marker words Gemini sometimes leaves on a
+// reminder body ("anneni ara de", "annene söyle") — they tell Pylon to speak,
+// not part of the reminder itself, so they are stripped before storage.
+var speechTail = map[string]bool{
+	"de": true, "diye": true, "söyle": true, "söyler": true,
+	"der": true, "dersin": true, "demiştim": true,
+}
+
+// trimSpeechTail removes trailing speech-marker words from s, keeping at least
+// one word so a reminder is never emptied.
+func trimSpeechTail(s string) string {
+	f := strings.Fields(s)
+	for len(f) > 1 && speechTail[normalize(f[len(f)-1])] {
+		f = f[:len(f)-1]
+	}
+	return strings.Join(f, " ")
+}
+
 // tokens splits normalized text into words.
 func tokens(s string) []string {
 	if s == "" {
 		return nil
 	}
 	return strings.Fields(s)
+}
+
+// firstToken returns the first whitespace-separated word of s, or "".
+func firstToken(s string) string {
+	if f := strings.Fields(s); len(f) > 0 {
+		return f[0]
+	}
+	return ""
 }
 
 // levenshtein returns the edit distance between a and b.

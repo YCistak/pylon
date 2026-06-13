@@ -11,7 +11,7 @@ func TestLoadMissingFileReturnsDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatalf("missing file should not error: %v", err)
 	}
-	if cfg.Intent.ModelRoutine != "gemini-flash-lite" {
+	if cfg.Intent.ModelRoutine != "gemini-flash-lite-latest" {
 		t.Fatalf("expected default model, got %q", cfg.Intent.ModelRoutine)
 	}
 	if cfg.Persona.DecayHalfLifeDays != 14 {
@@ -45,7 +45,7 @@ persona:
 		t.Fatalf("adopt override failed: %v", cfg.Persona.AdoptThreshold)
 	}
 	// Untouched fields keep their defaults.
-	if cfg.Intent.ModelComplex != "gemini-flash" {
+	if cfg.Intent.ModelComplex != "gemini-flash-latest" {
 		t.Fatalf("default should remain, got %q", cfg.Intent.ModelComplex)
 	}
 }

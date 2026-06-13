@@ -86,8 +86,8 @@ func Default() Config {
 		},
 		Intent: Intent{
 			GeminiAPIKeyEnv: "GEMINI_API_KEY",
-			ModelRoutine:    "gemini-flash-lite",
-			ModelComplex:    "gemini-flash",
+			ModelRoutine:    "gemini-flash-lite-latest", // cheap/fast fallback
+			ModelComplex:    "gemini-flash-latest",      // complex/conversational
 			RouterThreshold: 0.8,
 		},
 		Persona: Persona{
