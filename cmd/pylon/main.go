@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -21,6 +22,7 @@ import (
 	"github.com/YCistak/pylon/internal/db"
 	"github.com/YCistak/pylon/internal/intent"
 	"github.com/YCistak/pylon/internal/ipc"
+	"github.com/YCistak/pylon/internal/profile"
 	"github.com/YCistak/pylon/internal/watcher"
 )
 
@@ -48,6 +50,8 @@ func main() {
 		err = cmdStatus()
 	case "say":
 		err = cmdSay(os.Args[2:])
+	case "recall":
+		err = cmdRecall(os.Args[2:])
 	case "-h", "--help", "help":
 		usage()
 	default:
@@ -70,6 +74,7 @@ usage:
   pylon stop          stop a running daemon
   pylon status        show daemon status
   pylon say <text>    send a text command through the intent engine
+  pylon recall [n]    show the last n remembered turns (default 5)
 `)
 }
 
@@ -116,10 +121,25 @@ func registerIntent(d *daemon.Daemon, cfg config.Config, database *db.DB, log *s
 		log.Info("intent: llm fallback disabled (no usable models)")
 	}
 
+	var persona *profile.Engine
+	if cfg.Persona.Enabled {
+		persona = profile.NewEngine(database, cfg.Persona.DecayHalfLifeDays, cfg.Persona.AdoptThreshold, cfg.Persona.StyleCardRefreshN)
+		log.Info("persona: style learning enabled")
+	}
+
 	d.Handle("say", func(req ipc.Request) ipc.Response {
 		text := strings.TrimSpace(strings.Join(req.Args, " "))
 		if text == "" {
 			return ipc.Response{OK: false, Error: "empty command"}
+		}
+
+		// Persona learns from every utterance and shapes conversational replies.
+		var styleCard string
+		if persona != nil {
+			if err := persona.Observe(text); err != nil {
+				log.Warn("persona: observe failed", "err", err)
+			}
+			styleCard = persona.StyleCard()
 		}
 
 		cmd := router.Resolve(text)
@@ -131,7 +151,7 @@ func registerIntent(d *daemon.Daemon, cfg config.Config, database *db.DB, log *s
 			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 			defer cancel()
 			var err error
-			cmd, source, err = chain.Parse(ctx, text, "" /* style card: persona engine pending */)
+			cmd, source, err = chain.Parse(ctx, text, styleCard)
 			if err != nil {
 				log.Warn("intent: llm chain failed", "err", err)
 				return ipc.Response{OK: false, Error: "model hatası: " + err.Error()}
@@ -139,7 +159,47 @@ func registerIntent(d *daemon.Daemon, cfg config.Config, database *db.DB, log *s
 		}
 		log.Info("intent", "text", text, "action", string(cmd.Action), "confidence", cmd.Confidence, "source", source)
 
-		return executeCommand(cmd, database)
+		resp := executeCommand(cmd, database)
+		rememberTurn(database, text, resp, log)
+		return resp
+	})
+
+	registerRecall(d, database)
+}
+
+// rememberTurn records the exchange in context memory (Phase 1.8) so Pylon can
+// answer "what did we talk about". Each turn is a timestamped entry.
+func rememberTurn(database *db.DB, text string, resp ipc.Response, log *slog.Logger) {
+	if !resp.OK {
+		return
+	}
+	key := fmt.Sprintf("turn:%d", time.Now().UnixNano())
+	if err := database.SetContext(key, text+" ⟶ "+resp.Text); err != nil {
+		log.Warn("context: remember failed", "err", err)
+	}
+}
+
+// registerRecall serves recent conversation memory over IPC.
+func registerRecall(d *daemon.Daemon, database *db.DB) {
+	d.Handle("recall", func(req ipc.Request) ipc.Response {
+		limit := 5
+		if len(req.Args) > 0 {
+			if n, err := strconv.Atoi(req.Args[0]); err == nil && n > 0 {
+				limit = n
+			}
+		}
+		entries, err := database.RecentContext(limit)
+		if err != nil {
+			return ipc.Response{OK: false, Error: "hafıza okunamadı: " + err.Error()}
+		}
+		if len(entries) == 0 {
+			return ipc.Response{OK: true, Text: "henüz konuşma geçmişi yok"}
+		}
+		var b strings.Builder
+		for _, e := range entries {
+			fmt.Fprintf(&b, "%s — %s\n", e.UpdatedAt.Local().Format("15:04"), e.Value)
+		}
+		return ipc.Response{OK: true, Text: strings.TrimRight(b.String(), "\n")}
 	})
 }
 
@@ -249,6 +309,19 @@ func cmdSay(args []string) error {
 		return errors.New("usage: pylon say <text>")
 	}
 	resp, err := daemon.Send(socketPath(), ipc.Request{Cmd: "say", Args: args})
+	if err != nil {
+		return fmt.Errorf("daemon not reachable: %w", err)
+	}
+	if !resp.OK {
+		return errors.New(resp.Error)
+	}
+	fmt.Println(resp.Text)
+	return nil
+}
+
+// cmdRecall prints recent conversation memory from the daemon.
+func cmdRecall(args []string) error {
+	resp, err := daemon.Send(socketPath(), ipc.Request{Cmd: "recall", Args: args})
 	if err != nil {
 		return fmt.Errorf("daemon not reachable: %w", err)
 	}
