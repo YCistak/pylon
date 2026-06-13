@@ -105,17 +105,15 @@ func cmdStart() error {
 
 // registerIntent wires the two-tier intent path into the daemon's "say"
 // command: the local Router runs first (free), and only unresolved input falls
-// back to the Gemini engine (if an API key is configured).
+// back to the configured LLM chain, which tries each model in order and falls
+// through on quota/rate-limit.
 func registerIntent(d *daemon.Daemon, cfg config.Config, database *db.DB, log *slog.Logger) {
 	router := intent.NewRouter(cfg.Intent.RouterThreshold)
-	engine := intent.NewEngine(intent.EngineOptions{
-		APIKey: os.Getenv(cfg.Intent.GeminiAPIKeyEnv),
-		Model:  cfg.Intent.ModelRoutine,
-	})
-	if engine.Configured() {
-		log.Info("intent: gemini fallback enabled", "model", cfg.Intent.ModelRoutine)
+	chain := buildIntentChain(cfg, log)
+	if chain.Configured() {
+		log.Info("intent: llm fallback enabled", "models", len(cfg.Intent.Models))
 	} else {
-		log.Info("intent: gemini fallback disabled (no API key)")
+		log.Info("intent: llm fallback disabled (no usable models)")
 	}
 
 	d.Handle("say", func(req ipc.Request) ipc.Response {
@@ -127,23 +125,46 @@ func registerIntent(d *daemon.Daemon, cfg config.Config, database *db.DB, log *s
 		cmd := router.Resolve(text)
 		source := "local"
 		if !cmd.Resolved() {
-			if !engine.Configured() {
-				return ipc.Response{OK: true, Text: fmt.Sprintf("anlayamadım (lokal eşleşme %.2f) ve Gemini bağlı değil", cmd.Confidence)}
+			if !chain.Configured() {
+				return ipc.Response{OK: true, Text: fmt.Sprintf("anlayamadım (lokal eşleşme %.2f) ve model bağlı değil", cmd.Confidence)}
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 			defer cancel()
 			var err error
-			cmd, err = engine.Parse(ctx, text, "" /* style card: persona engine pending */)
+			cmd, source, err = chain.Parse(ctx, text, "" /* style card: persona engine pending */)
 			if err != nil {
-				log.Warn("intent: gemini failed", "err", err)
-				return ipc.Response{OK: false, Error: "gemini hatası: " + err.Error()}
+				log.Warn("intent: llm chain failed", "err", err)
+				return ipc.Response{OK: false, Error: "model hatası: " + err.Error()}
 			}
-			source = "gemini"
 		}
 		log.Info("intent", "text", text, "action", string(cmd.Action), "confidence", cmd.Confidence, "source", source)
 
 		return executeCommand(cmd, database)
 	})
+}
+
+// buildIntentChain constructs the LLM fallback chain from config, resolving each
+// model's API key from the environment and skipping entries that are unusable
+// (missing key or unknown provider).
+func buildIntentChain(cfg config.Config, log *slog.Logger) *intent.Chain {
+	var parsers []intent.Parser
+	for _, m := range cfg.Intent.Models {
+		key := os.Getenv(m.APIKeyEnv)
+		if key == "" {
+			log.Warn("intent: skipping model, no API key", "provider", m.Provider, "model", m.Model, "env", m.APIKeyEnv)
+			continue
+		}
+		p, err := intent.NewParser(intent.ProviderSpec{
+			Provider: m.Provider, Model: m.Model, APIKey: key, BaseURL: m.BaseURL,
+		}, 15*time.Second)
+		if err != nil {
+			log.Warn("intent: skipping model", "provider", m.Provider, "model", m.Model, "err", err)
+			continue
+		}
+		parsers = append(parsers, p)
+		log.Info("intent: model enabled", "name", p.Name())
+	}
+	return intent.NewChain(parsers, log)
 }
 
 // executeCommand acts on a resolved Command and produces a user-facing response.

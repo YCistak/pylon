@@ -8,10 +8,23 @@ voice:
   hotkey: "super+p"
 
 intent:
-  gemini_api_key_env: GEMINI_API_KEY        # env var holding the Gemini API key
-  model_routine: gemini-flash-lite-latest   # cheap/fast fallback
-  model_complex: gemini-flash-latest        # conversational / complex parsing
   router_threshold: 0.8                # local match confidence to skip the API
+  # LLM fallback chain. Models are tried top-to-bottom; when one hits its quota
+  # (HTTP 429) or errors, the next is used. Each provider has its own quota
+  # bucket, so mixing providers spreads load. List one model or many.
+  models:
+    - provider: gemini
+      model: gemini-flash-lite-latest    # cheap/fast — first choice
+      api_key_env: GEMINI_API_KEY
+    - provider: gemini
+      model: gemini-flash-latest         # used when flash-lite is exhausted
+      api_key_env: GEMINI_API_KEY
+    # - provider: openai
+    #   model: gpt-4o-mini
+    #   api_key_env: OPENAI_API_KEY
+    # - provider: anthropic
+    #   model: claude-haiku-4-5
+    #   api_key_env: ANTHROPIC_API_KEY
 
 persona:
   enabled: true

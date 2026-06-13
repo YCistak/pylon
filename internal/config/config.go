@@ -35,12 +35,20 @@ type Voice struct {
 	Hotkey string `yaml:"hotkey"` // push-to-talk binding
 }
 
-// Intent configures the local router and the Gemini fallback.
+// Intent configures the local router and the LLM fallback chain.
 type Intent struct {
-	GeminiAPIKeyEnv string  `yaml:"gemini_api_key_env"` // env var name holding the key
-	ModelRoutine    string  `yaml:"model_routine"`      // cheap/fast fallback
-	ModelComplex    string  `yaml:"model_complex"`      // conversational/complex
-	RouterThreshold float64 `yaml:"router_threshold"`   // local match confidence to skip the API
+	RouterThreshold float64     `yaml:"router_threshold"` // local match confidence to skip the API
+	Models          []ModelSpec `yaml:"models"`           // fallback chain, tried in order
+}
+
+// ModelSpec is one entry in the intent fallback chain. Models are tried in the
+// order listed; when one hits its quota (HTTP 429) or errors, the next is used.
+// Mixing providers lets the chain spread load across independent quota buckets.
+type ModelSpec struct {
+	Provider  string `yaml:"provider"`           // "gemini" | "openai" | "anthropic"
+	Model     string `yaml:"model"`              // provider-specific model id
+	APIKeyEnv string `yaml:"api_key_env"`        // env var name holding the key
+	BaseURL   string `yaml:"base_url,omitempty"` // optional endpoint override
 }
 
 // Persona configures the local style-learning engine.
@@ -85,10 +93,12 @@ func Default() Config {
 			Hotkey: "super+p",
 		},
 		Intent: Intent{
-			GeminiAPIKeyEnv: "GEMINI_API_KEY",
-			ModelRoutine:    "gemini-flash-lite-latest", // cheap/fast fallback
-			ModelComplex:    "gemini-flash-latest",      // complex/conversational
 			RouterThreshold: 0.8,
+			// Default chain: cheap flash-lite first, then flash on quota/error.
+			Models: []ModelSpec{
+				{Provider: "gemini", Model: "gemini-flash-lite-latest", APIKeyEnv: "GEMINI_API_KEY"},
+				{Provider: "gemini", Model: "gemini-flash-latest", APIKeyEnv: "GEMINI_API_KEY"},
+			},
 		},
 		Persona: Persona{
 			Enabled:           true,

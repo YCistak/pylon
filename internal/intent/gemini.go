@@ -45,24 +45,19 @@ func NewEngine(opts EngineOptions) *Engine {
 	if opts.Model == "" {
 		opts.Model = "gemini-flash-lite"
 	}
-	hc := opts.HTTP
-	if hc == nil {
-		to := opts.Timeout
-		if to == 0 {
-			to = 15 * time.Second
-		}
-		hc = &http.Client{Timeout: to}
-	}
 	return &Engine{
 		apiKey:  opts.APIKey,
 		model:   opts.Model,
 		baseURL: strings.TrimRight(opts.BaseURL, "/"),
-		http:    hc,
+		http:    httpClientOr(opts.HTTP, opts.Timeout),
 	}
 }
 
 // Configured reports whether the engine has an API key and can be called.
 func (e *Engine) Configured() bool { return e != nil && e.apiKey != "" }
+
+// Name identifies this parser in logs, e.g. "gemini:gemini-flash-lite-latest".
+func (e *Engine) Name() string { return "gemini:" + e.model }
 
 // Parse sends transcript to Gemini and returns a structured Command. styleCard
 // is the persona style hint (may be empty) injected into the system prompt so
@@ -102,7 +97,7 @@ func (e *Engine) Parse(ctx context.Context, transcript, styleCard string) (Comma
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 
 	if resp.StatusCode != http.StatusOK {
-		return Command{}, fmt.Errorf("gemini API %d: %s", resp.StatusCode, geminiErrorMessage(body))
+		return Command{}, &apiError{Provider: "gemini", Status: resp.StatusCode, Msg: geminiErrorMessage(body)}
 	}
 	return parseGeminiResponse(body)
 }
@@ -127,22 +122,7 @@ func parseGeminiResponse(body []byte) (Command, error) {
 	if err := json.Unmarshal([]byte(raw), &parsed); err != nil {
 		return Command{}, fmt.Errorf("decode gemini command %q: %w", raw, err)
 	}
-
-	cmd := Command{Action: Action(parsed.Action), Confidence: 1, Args: map[string]string{}}
-	if parsed.Process != "" {
-		// Reduce to the first normalized token so "Steam"/"steam'i" → "steam".
-		cmd.Args["process"] = canonicalProcess(firstToken(normalize(parsed.Process)))
-	}
-	if c := trimSpeechTail(parsed.Content); c != "" {
-		cmd.Args["content"] = c
-	}
-	if parsed.Reply != "" {
-		cmd.Args["reply"] = parsed.Reply
-	}
-	if len(cmd.Args) == 0 {
-		cmd.Args = nil
-	}
-	return cmd, nil
+	return decodeCommandFields(parsed.Action, parsed.Process, parsed.Content, parsed.Reply), nil
 }
 
 func ptr[T any](v T) *T { return &v }
