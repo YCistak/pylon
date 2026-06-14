@@ -23,8 +23,12 @@ import (
 	"github.com/YCistak/pylon/internal/intent"
 	"github.com/YCistak/pylon/internal/ipc"
 	"github.com/YCistak/pylon/internal/profile"
+	"github.com/YCistak/pylon/internal/voice"
 	"github.com/YCistak/pylon/internal/watcher"
 )
+
+// version is set at build time via -ldflags "-X main.version=...".
+var version = "dev"
 
 // configPath is the path to pylon.yaml, overridable via PYLON_CONFIG.
 func configPath() string {
@@ -52,6 +56,10 @@ func main() {
 		err = cmdSay(os.Args[2:])
 	case "recall":
 		err = cmdRecall(os.Args[2:])
+	case "listen":
+		err = cmdListen()
+	case "version", "--version", "-v":
+		fmt.Println("pylon", version)
 	case "-h", "--help", "help":
 		usage()
 	default:
@@ -75,6 +83,7 @@ usage:
   pylon status        show daemon status
   pylon say <text>    send a text command through the intent engine
   pylon recall [n]    show the last n remembered turns (default 5)
+  pylon listen        push-to-talk: record, transcribe, run, speak the reply
 `)
 }
 
@@ -216,7 +225,7 @@ func buildIntentChain(cfg config.Config, log *slog.Logger) *intent.Chain {
 		}
 		p, err := intent.NewParser(intent.ProviderSpec{
 			Provider: m.Provider, Model: m.Model, APIKey: key, BaseURL: m.BaseURL,
-		}, 15*time.Second)
+		}, 10*time.Second) // voice is interactive — a stalled model should fall through fast
 		if err != nil {
 			log.Warn("intent: skipping model", "provider", m.Provider, "model", m.Model, "err", err)
 			continue
@@ -316,6 +325,58 @@ func cmdSay(args []string) error {
 		return errors.New(resp.Error)
 	}
 	fmt.Println(resp.Text)
+	return nil
+}
+
+// cmdListen runs one push-to-talk cycle: record from the mic, transcribe it,
+// send the text through the daemon's intent engine, and speak the reply. Bind
+// this to a hotkey in your DE/OS (hyprland, AutoHotkey, Hammerspoon, ...).
+func cmdListen() error {
+	cfg, err := config.Load(configPath())
+	if err != nil {
+		return fmt.Errorf("config: %w", err)
+	}
+	pipe := voice.NewPipeline(voice.Options{
+		STTBin:        cfg.Voice.STTBin,
+		STTModel:      cfg.Voice.STTModel,
+		Language:      cfg.Voice.Language,
+		TTSCmd:        cfg.Voice.TTSCmd,
+		RecordCmd:     cfg.Voice.RecordCmd,
+		RecordSeconds: cfg.Voice.RecordSeconds,
+		PlayCmd:       cfg.Voice.PlayCmd,
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	secs := cfg.Voice.RecordSeconds
+	if secs <= 0 {
+		secs = 5
+	}
+	fmt.Fprintf(os.Stderr, "dinliyorum (%d sn) — konuş ve bekle, Ctrl+C YAPMA...\n", secs)
+	text, err := pipe.Capture(ctx)
+	if err != nil {
+		return err
+	}
+	text = strings.TrimSpace(text)
+	if text == "" {
+		fmt.Fprintln(os.Stderr, "ses algılanamadı")
+		return nil
+	}
+	fmt.Printf("» %s\n", text)
+
+	resp, err := daemon.Send(cfg.Paths.Socket, ipc.Request{Cmd: "say", Args: []string{text}})
+	if err != nil {
+		return fmt.Errorf("daemon not reachable: %w", err)
+	}
+	if !resp.OK {
+		return errors.New(resp.Error)
+	}
+	fmt.Println(resp.Text)
+	if err := pipe.Speak(ctx, resp.Text); err != nil {
+		// Speaking is best-effort; the text reply already printed.
+		fmt.Fprintln(os.Stderr, "seslendirme hatası:", err)
+	}
 	return nil
 }
 

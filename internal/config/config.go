@@ -28,11 +28,25 @@ type Config struct {
 	Paths Paths `yaml:"paths"`
 }
 
-// Voice holds STT/TTS settings.
+// Voice holds STT/TTS and audio I/O settings. STT/TTS run as subprocesses
+// (whisper.cpp / piper) so the daemon stays CGo-free and cross-compiles. Audio
+// capture/playback commands default per-OS (see internal/voice) and are fully
+// overridable here; "{file}" and "{seconds}" placeholders are substituted.
 type Voice struct {
-	STT    string `yaml:"stt"`    // path to whisper.cpp model
-	TTS    string `yaml:"tts"`    // path to piper model
-	Hotkey string `yaml:"hotkey"` // push-to-talk binding
+	STTBin   string `yaml:"stt_bin"`   // whisper.cpp CLI binary (e.g. whisper-cli)
+	STTModel string `yaml:"stt_model"` // ggml model path (e.g. ggml-large-v3.bin)
+	Language string `yaml:"language"`  // "auto" (detect) or ISO code: tr, en, ...
+
+	// TTSCmd is the synthesis command: receives the text on stdin and must write
+	// a WAV to the "{file}" placeholder. Engine-agnostic — piper, an XTTS server
+	// client (curl), espeak, etc. Empty disables spoken replies.
+	TTSCmd []string `yaml:"tts_cmd"`
+
+	RecordCmd     []string `yaml:"record_cmd"`     // empty → per-OS default
+	RecordSeconds int      `yaml:"record_seconds"` // push-to-talk capture window
+	PlayCmd       []string `yaml:"play_cmd"`       // empty → per-OS default
+
+	Hotkey string `yaml:"hotkey"` // informational; bind `pylon listen` in your DE/OS
 }
 
 // Intent configures the local router and the LLM fallback chain.
@@ -88,16 +102,21 @@ type Paths struct {
 func Default() Config {
 	return Config{
 		Voice: Voice{
-			STT:    "whisper",
-			TTS:    "piper",
-			Hotkey: "super+p",
+			STTBin:        "whisper-cli",
+			Language:      "auto",
+			RecordSeconds: 5,
+			Hotkey:        "super+p",
+			// STTModel + TTSCmd are user-specific (no default); RecordCmd/PlayCmd
+			// empty → internal/voice fills the per-OS default.
 		},
 		Intent: Intent{
 			RouterThreshold: 0.8,
-			// Default chain: cheap flash-lite first, then flash on quota/error.
+			// Default chain: flash first (fast, consistent ~2s), flash-lite as a
+			// fallback. flash-lite's "latest" preview has shown bad tail latency
+			// (frequent 15-20s), so it must not be the primary for voice.
 			Models: []ModelSpec{
-				{Provider: "gemini", Model: "gemini-flash-lite-latest", APIKeyEnv: "GEMINI_API_KEY"},
 				{Provider: "gemini", Model: "gemini-flash-latest", APIKeyEnv: "GEMINI_API_KEY"},
+				{Provider: "gemini", Model: "gemini-flash-lite-latest", APIKeyEnv: "GEMINI_API_KEY"},
 			},
 		},
 		Persona: Persona{

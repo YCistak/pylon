@@ -75,6 +75,26 @@ Core daemon, intent engine, SQLite, LLM provider APIs — no platform difference
 
 ---
 
+## Status — 2026-06-14
+
+Phase 1 (1.0–1.9) is **code-complete**; all `go test ./...` pass, `go vet` clean.
+The intent fallback is a configurable multi-provider chain (Gemini/OpenAI/Anthropic),
+persona + context memory work, and voice runs end-to-end: whisper.cpp (Vulkan GPU)
+STT → intent → **Gemini "Charon" voice** TTS (`scripts/gemini_tts.py`).
+
+Phase 1 is **fully working end-to-end on real hardware**: `pylon listen` →
+whisper STT → intent → spoken reply via **Edge TTS (tr-TR-EmelNeural)**, user-verified
+2026-06-14. Voice quality + latency settled (Edge TTS, free/no-server). Daemon needs
+`GEMINI_API_KEY` in its env (tip: `set -Ux GEMINI_API_KEY …` so fish remembers it).
+
+**Next session:**
+1. A large amount of work is **uncommitted** (provider chain, persona, context, voice,
+   Makefile, edge/xtts/gemini TTS scripts, concise-reply prompt) — user commits.
+2. Then choose: **Phase 2** (service integrations) or polish (VAD to cut the 5s record
+   window; `pylon live` real-time mode — see Backlog).
+
+---
+
 ## Phase 1 — Core + Voice + Process Watcher
 
 **Goal:** Pylon starts, understands voice, watches processes, reminds you.
@@ -92,14 +112,19 @@ Core daemon, intent engine, SQLite, LLM provider APIs — no platform difference
 - [x] CLI: `pylon start` / `pylon stop` / `pylon status`
 - [x] Tests: `go test ./internal/daemon/...` (7 tests) + manual start/status/stop end-to-end
 
-**1.2 Voice Input (STT)**
-- Whisper.cpp integration (CGo or subprocess)
-- Hotkey trigger (Linux: hyprland bind)
-- Push-to-talk mode
+**1.2 Voice Input (STT)** — ✅ done & live-verified
+- [x] Whisper.cpp via **subprocess** (`internal/voice/stt.go`) — no CGo, cross-compiles. Binary + model path + language ("auto" detect, any language) from config
+- [x] Mic capture (`record.go`): configurable command with per-OS defaults (Linux PipeWire `pw-record`, macOS `sox`, Windows `ffmpeg`); self-terminating recorders use `{seconds}`, others stopped with SIGINT so the WAV finalizes
+- [x] Push-to-talk: `pylon listen` runs record → transcribe → intent → speak. Hotkey binding is left to the DE/OS (hyprland bind / AutoHotkey / Hammerspoon) so it stays cross-platform
+- [x] Live-verified end-to-end on real mic (whisper.cpp **Vulkan** build, large-v3-turbo on RTX 4060): real Turkish speech transcribed accurately in ~1-2s. Note: large models need a **GPU build** — CPU is ~30s/clip
 
-**1.3 Voice Output (TTS)**
-- Piper TTS integration
-- Text → speech pipeline
+**1.3 Voice Output (TTS)** — ✅ done & live-verified
+- [x] **Engine-agnostic** (`internal/voice/tts.go`): `tts_cmd` is any command that takes text on stdin and writes a WAV to `{file}`.
+- [x] **Default: Microsoft Edge neural TTS** (`scripts/edge_tts.sh`, the `edge-tts` package) — **free, no API key, no quota, no server, no GPU**, natural Turkish + multilingual, ~1s. Voice is the 3rd `tts_cmd` arg. Turkish default `tr-TR-EmelNeural` (F) / `tr-TR-AhmetNeural` (M); English `en-GB-RyanNeural`, `en-US-ChristopherNeural`; **Multilingual one-voice TR+EN** `en-US-AndrewMultilingualNeural` / `BrianMultilingual`
+- [x] Alternatives kept (engine-agnostic): local **XTTS v2** server (`scripts/xtts_server.py` + `xtts-serve.sh` — natural but had Turkish artifacts/wobble); **Gemini "Charon"** (`scripts/gemini_tts.py` — great voice but ~3s + tight quota); piper
+- [x] Wired into `pylon listen`; replies tuned **short & to the point (JARVIS tone)** in the system prompt
+- [x] **Live-verified on real mic**: Turkish STT → intent → spoken reply. Settled on Edge TTS after the user found XTTS Turkish artifact-prone; Edge is clean, free, and needs no running server
+- Latency note: text→speech ~1s. Remaining levers: 5s record window (→ VAD) and STT/intent (~2s each). For foreign names, spell phonetically (e.g. "Paylon")
 
 **1.4 Intent Router (local, no API)** — ✅ done & tested
 - [x] First stop for every transcript — runs before any API call (`internal/intent`)
@@ -455,6 +480,8 @@ pylon/
 
 ## Backlog (Future Versions)
 
+- **`pylon live` — real-time Gemini Live (native audio) mode.** A continuous bidirectional voice session (`gemini-2.5-flash-native-audio-latest`): streams mic audio to Gemini, which does STT+LLM+TTS natively and streams back interruptible audio (same "Charon" voice). The most natural "JARVIS conversation" feel. It bypasses the local router/intent/persona, so it's a *separate mode* alongside the command pipeline, not a replacement. (The current `pylon listen` already delivers the Charon voice for the turn-based pipeline.)
+- **Packaging / installer that pulls voice dependencies.** Installing pylon (AUR package, install script, or release artifact) should also provision whisper.cpp (`whisper-cli`, **built with GPU acceleration — Vulkan/CUDA — since large models are ~30s/clip on CPU vs ~1-2s on GPU**) + a ggml model, and piper + a voice, then write their paths into config — so voice works out of the box. (A throwaway `setup-voice.sh` did this during dev; deps land in `~/.local/share/pylon`.)
 - Local intent classifier (small embedding model) to replace fuzzy router and cut more Gemini calls
 - Per-context persona profiles (work vs gaming tone)
 - Pomodoro mode

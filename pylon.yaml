@@ -3,9 +3,21 @@
 # so secrets (API keys) stay out of this file.
 
 voice:
-  stt: whisper          # path to whisper.cpp model
-  tts: piper            # path to piper model
-  hotkey: "super+p"
+  stt_bin: whisper-cli              # whisper.cpp CLI binary (in PATH or absolute)
+  stt_model: ""                     # ggml model path, e.g. ~/models/ggml-large-v3.bin
+  language: auto                    # auto-detect, or ISO code: tr, en, de, ...
+  record_seconds: 5                 # push-to-talk capture window
+  # tts_cmd: synthesis command — text on stdin, write a WAV to {file}. Engine-
+  # agnostic. Examples:
+  #   piper:  ["piper", "-m", "/path/voice.onnx", "-f", "{file}"]
+  #   XTTS server (natural, GPU): a curl client posting text to the local server:
+  #     ["curl", "-sf", "--data-binary", "@-", "-o", "{file}", "http://127.0.0.1:5067/tts"]
+  tts_cmd: []                       # empty → spoken replies disabled (text still printed)
+  # record_cmd / play_cmd default per-OS (Linux: pw-record/pw-play). Override if
+  # needed; {file} and {seconds} are substituted. Examples:
+  #   record_cmd: ["arecord", "-q", "-f", "S16_LE", "-r", "16000", "-c", "1", "-d", "{seconds}", "{file}"]
+  #   play_cmd:   ["paplay", "{file}"]
+  hotkey: "super+p"                 # informational — bind `pylon listen` in your DE/OS
 
 intent:
   router_threshold: 0.8                # local match confidence to skip the API

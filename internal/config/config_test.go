@@ -11,7 +11,7 @@ func TestLoadMissingFileReturnsDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatalf("missing file should not error: %v", err)
 	}
-	if len(cfg.Intent.Models) == 0 || cfg.Intent.Models[0].Model != "gemini-flash-lite-latest" {
+	if len(cfg.Intent.Models) == 0 || cfg.Intent.Models[0].Model != "gemini-flash-latest" {
 		t.Fatalf("expected default model chain, got %+v", cfg.Intent.Models)
 	}
 	if cfg.Persona.DecayHalfLifeDays != 14 {
