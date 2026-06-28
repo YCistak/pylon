@@ -63,6 +63,8 @@ func main() {
 		err = cmdStatus()
 	case "say":
 		err = cmdSay(os.Args[2:])
+	case "do":
+		err = cmdDo(os.Args[2:])
 	case "recall":
 		err = cmdRecall(os.Args[2:])
 	case "listen":
@@ -194,6 +196,32 @@ func registerIntent(d *daemon.Daemon, cfg config.Config, database *db.DB, log *s
 		resp := executeCommand(cmd, database, registry)
 		rememberTurn(database, text, resp, log)
 		return resp
+	})
+
+	// "do" runs a service action directly (no LLM), for the GUI's widgets and
+	// scripted use: `do <action> [k=v ...]`. It dispatches through the same
+	// service registry as "say", so any service action is reachable.
+	d.Handle("do", func(req ipc.Request) ipc.Response {
+		if len(req.Args) == 0 {
+			return ipc.Response{OK: false, Error: "usage: do <action> [k=v ...]"}
+		}
+		args := map[string]string{}
+		for _, a := range req.Args[1:] {
+			if k, v, ok := strings.Cut(a, "="); ok {
+				args[k] = v
+			}
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		text, ok, err := registry.Dispatch(ctx, intent.Command{Action: intent.Action(req.Args[0]), Args: args})
+		switch {
+		case err != nil:
+			return ipc.Response{OK: false, Error: err.Error()}
+		case !ok:
+			return ipc.Response{OK: false, Error: "bilinmeyen/servissiz aksiyon: " + req.Args[0]}
+		default:
+			return ipc.Response{OK: true, Text: text}
+		}
 	})
 
 	registerRecall(d, database)
@@ -495,6 +523,23 @@ func cmdSay(args []string) error {
 		return errors.New("usage: pylon say <text>")
 	}
 	resp, err := daemon.Send(socketPath(), ipc.Request{Cmd: "say", Args: args})
+	if err != nil {
+		return fmt.Errorf("daemon not reachable: %w", err)
+	}
+	if !resp.OK {
+		return errors.New(resp.Error)
+	}
+	fmt.Println(resp.Text)
+	return nil
+}
+
+// cmdDo runs a service action directly (no LLM): `pylon do <action> [k=v ...]`.
+// Same path the GUI widgets use over IPC.
+func cmdDo(args []string) error {
+	if len(args) == 0 {
+		return errors.New("usage: pylon do <action> [k=v ...]")
+	}
+	resp, err := daemon.Send(socketPath(), ipc.Request{Cmd: "do", Args: args})
 	if err != nil {
 		return fmt.Errorf("daemon not reachable: %w", err)
 	}

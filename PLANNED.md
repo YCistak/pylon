@@ -247,7 +247,7 @@ go test ./db/...        → add/fetch/complete task
 - [x] Powers GitHub's PR poll + commit reminder now; ready for Phase 3 briefing (DailyAt) and
   weekly report (WeeklyAt).
 
-**2.3 FreshRSS** — ✅ built & unit-tested (live test pending user's instance)
+**2.3 FreshRSS** — ✅ done & live-verified
 - [x] **Connect via Fever API** (`internal/services/freshrss`): plain `net/http` behind a small
   `feverAPI` interface (fake-tested), mirroring the other services. Auth is the Fever api_key —
   `md5("username:api_password")`, or a precomputed key. Config: `services.freshrss`
@@ -256,9 +256,11 @@ go test ./db/...        → add/fetch/complete task
   `?api&unread_item_ids`, checks `auth==1`, counts the returned ids → "%d okunmamış haberin var."
 - [x] **Unread count exposed for the morning briefing** via `FreshRSS.UnreadCount(ctx) int`
   (Phase 3 briefing reuses it directly, no intent round-trip). Briefing *wiring* lands in 3.1.
-- [ ] **Pending: point at the user's FreshRSS instance + Fever credentials → live test**
-  ("kaç okunmamış haberim var"). Set `services.freshrss.url`/`username`, save the API password
-  with `pylon secret set freshrss` (config: `api_password: keyring:freshrss`).
+- [x] **Live-verified 2026-06-28** against the user's local FreshRSS (localhost:8080): "kaç
+  okunmamış haberim var" / "RSS'te kaç okunmamış var" → `freshrss.unread_count` → **5206 unread**
+  (stable across phrasings). API password came from the encrypted vault (`secret:freshrss`).
+  Cross-checked auth gating: a wrong api_key returns `{"auth":0}`, so a real count proves the
+  stored credential authenticated. LLM fallback also exercised (flash-latest timeout → flash-lite).
 
 **2.4 Spotify**
 - OAuth2, refresh token management
