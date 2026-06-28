@@ -75,26 +75,6 @@ Core daemon, intent engine, SQLite, LLM provider APIs — no platform difference
 
 ---
 
-## Status — 2026-06-14
-
-Phase 1 (1.0–1.9) is **code-complete**; all `go test ./...` pass, `go vet` clean.
-The intent fallback is a configurable multi-provider chain (Gemini/OpenAI/Anthropic),
-persona + context memory work, and voice runs end-to-end: whisper.cpp (Vulkan GPU)
-STT → intent → **Gemini "Charon" voice** TTS (`scripts/gemini_tts.py`).
-
-Phase 1 is **fully working end-to-end on real hardware**: `pylon listen` →
-whisper STT → intent → spoken reply via **Edge TTS (tr-TR-EmelNeural)**, user-verified
-2026-06-14. Voice quality + latency settled (Edge TTS, free/no-server). Daemon needs
-`GEMINI_API_KEY` in its env (tip: `set -Ux GEMINI_API_KEY …` so fish remembers it).
-
-**Next session:**
-1. A large amount of work is **uncommitted** (provider chain, persona, context, voice,
-   Makefile, edge/xtts/gemini TTS scripts, concise-reply prompt) — user commits.
-2. Then choose: **Phase 2** (service integrations) or polish (VAD to cut the 5s record
-   window; `pylon live` real-time mode — see Backlog).
-
----
-
 ## Phase 1 — Core + Voice + Process Watcher
 
 **Goal:** Pylon starts, understands voice, watches processes, reminds you.
@@ -185,10 +165,10 @@ go test ./db/...        → add/fetch/complete task
 5. Say "kanka" repeatedly across several sessions → after the threshold, replies start using "kanka"; common commands (e.g. "lock screen") resolve with no API call (check logs)
 
 ### Completion Criteria
-- All automated tests pass
-- 5/5 manual tests work
-- Daemon stays up for 1 hour without crashing
-- Local router handles routine commands without a Gemini call
+- [x] All automated tests pass — verified 2026-06-14 (`go test ./...`, vet clean)
+- [x] 5/5 manual tests work — all mechanisms verified 2026-06-14: (1) start→status, (2) "X kapanınca hatırlat" adds task, (3) on-exit reminder **spoken via edge-tts** (watcher wired to TTS + marks task done), (4) stop→socket deleted, (5) persona adopts "kanka" over messages + local commands resolve `source=local`
+- [ ] Daemon stays up for 1 hour without crashing — **soak test pending** (leave daemon running, check `status` uptime)
+- [x] Local router handles routine commands without a Gemini call — verified (lock/volume/mute → `source=local`, no API key)
 
 ---
 
@@ -198,17 +178,54 @@ go test ./db/...        → add/fetch/complete task
 
 ### Modules
 
-**2.1 Google Calendar**
-- OAuth2 flow (browser opens on first run, token saved)
-- Read: fetch today's events
-- Write: "add a meeting tomorrow at 3pm" → writes to Calendar
-- Library: `google.golang.org/api/calendar/v3`
+**2.0 Service framework** — ✅ done & tested
+- [x] **Extensible action vocabulary** (`internal/intent`): `ActionSpec` + a catalog
+  (built-ins + `SetActions(...)` for services); the LLM enum/schema/system-prompt are
+  built from the catalog. Added a `datetime` arg field + current date in the prompt
+  (so the model resolves "yarın 3'te" → ISO-8601).
+- [x] **`Service` interface + `Registry`** (`internal/services`): services declare
+  actions and handle them; `executeCommand` dispatches non-built-in actions to the
+  owning service. Services register only when configured (graceful skip otherwise).
 
-**2.2 GitHub**
-- Auth via Personal Access Token (from config)
-- PR/issue notifications: poll every 15 minutes
-- Commit reminder: check at 22:00 — "you haven't committed today"
-- Library: `github.com/google/go-github`
+**2.1 Google Calendar** — ✅ done & live-verified
+- [x] **End users just "Login with Google"** — no Google Cloud setup for them. The
+  project's OAuth client is **baked into the build** (`make build GOOGLE_CLIENT_ID=… GOOGLE_CLIENT_SECRET=…`,
+  ldflags into `google.embeddedClientID/Secret`); self-hosters can set `services.google.client_id/secret`
+  or a credentials file. `pylon auth google` runs the loopback-redirect consent and saves a per-user token.
+  (The maintainer registers the app with Google **once** — unavoidable for any OAuth app.)
+- [x] Read: `calendar.list_today` → "Bugün N etkinlik: …". Write: `calendar.add_event`
+  ("yarın saat üçte randevu ekle") → events.insert — `internal/services/google/calendar.go`
+- [x] `google.golang.org/api/calendar/v3` + `golang.org/x/oauth2`; Calendar API behind a
+  small interface (fake-tested). Config: `services.google` (credentials/token/calendar_id)
+- [x] **Live-verified 2026-06-17** via embedded OAuth client → `pylon auth google` → real token. Both paths through Pylon's own pipeline: read ("bugün takvimimde ne var" → `calendar.list_today` → today empty) and write ("yarın saat üçte … ekle" → `calendar.add_event` → event created 18 Jun 15:00, confirmed via API, then cleaned up). LLM fallback also exercised (flash-latest 503 → flash-lite).
+
+**2.2 GitHub** — ✅ done (on-demand queries live-verified; background jobs on the scheduler)
+- [x] **Auth via Personal Access Token** (`services.github.token`, `${ENV}`-expanded so the
+  token stays in the environment). Service enabled once a token is present.
+- [x] **On-demand queries** (`internal/services/github`): `github.list_prs` (review-requested
+  + authored open PRs) and `github.list_issues` (assigned to me), via the REST search API.
+  Plain `net/http` behind a small `ghAPI` interface (fake-tested), mirroring the calendar
+  service — no heavy `go-github` dependency. Short, speakable replies (count + first 3 titles).
+- [x] **Live-verified 2026-06-17** through Pylon's pipeline: "GitHub'da bekleyen PR var mı" →
+  `github.list_prs`, "bana atanmış issue var mı" → `github.list_issues`. Empty results matched
+  `gh search` exactly; populated formatting is unit-tested.
+- [x] **PR notifications: poll every `poll_interval` (default 15m)** — `github.Poller`
+  (`poll.go`) tracks announced review-requested PRs so each is spoken once; first poll reports
+  outstanding requests, later polls only newly-appeared ones. Driven by the scheduler.
+- [x] **Commit reminder at `commit_reminder` (default 22:00)** — `github.CommitReminder`
+  (`commit.go`) shells `git -C <repo> log -1 --format=%cI` over `services.github.repos`,
+  nudging for any repo with no commit today (git lookup injectable → fake-tested).
+- *Note: switched from the planned `go-github` to plain HTTP to keep the dep tree lean, consistent
+  with the LLM providers. Both background jobs run on the shared scheduler (2.0a below).*
+
+**2.0a Scheduler** — ✅ done & tested (live-verified)
+- [x] **`internal/scheduler`**: generic clock-driven jobs — `Every(interval)`, `DailyAt(h,m)`,
+  `WeeklyAt(wd,h,m)`. One Run loop ticks (default 30s) and fires every due job in its own
+  goroutine; injectable clock makes firing deterministic and unit-tested (no sleeps).
+- [x] Registered as a daemon background service (`registerScheduler` in main.go), alongside the
+  watcher. Jobs notify through the same TTS path the watcher uses (logs when TTS is off).
+- [x] Powers GitHub's PR poll + commit reminder now; ready for Phase 3 briefing (DailyAt) and
+  weekly report (WeeklyAt).
 
 **2.3 FreshRSS**
 - Connect via Fever API
@@ -341,6 +358,26 @@ go test ./build/...       → cross-compile succeeds (in CI)
 - All automated tests pass
 - 4/4 manual tests work
 - Windows and macOS binaries cross-compile from Linux
+
+---
+
+## Phase 5 — Character System (TO BE DESIGNED)
+
+Three companion characters tied to Pylon's core services — a playful, visual layer over
+the assistant. Grouping, names, personalities, visual style, and lore are TBD in a
+**dedicated design session before Phase 5 begins**.
+
+**Concept:** a left sidebar bar hosts the characters; tap one to enter its domain, and it
+animates out to perform tasks, then returns.
+
+**Key decisions pending:**
+- How to group services across the 3 characters
+- Visual style: 2D pixel art / vector / 3D
+- Appearance/disappearance animation logic
+- Lore and backstory
+- UI: left sidebar bar, characters stationed there, tap to access their domain, animate out to perform tasks
+
+*Design-first: settle grouping, style, and lore in a dedicated session before any implementation.*
 
 ---
 

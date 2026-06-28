@@ -71,10 +71,11 @@ func retryable(err error) bool {
 	return false
 }
 
-// decodeCommandFields builds a Command from the four raw JSON fields every
-// provider returns, applying the same normalization: process is reduced to its
-// canonical executable token, content has trailing speech markers stripped.
-func decodeCommandFields(action, process, content, reply string) Command {
+// decodeCommandFields builds a Command from the raw JSON fields every provider
+// returns, applying the same normalization: process is reduced to its canonical
+// executable token, content has trailing speech markers stripped. datetime (for
+// time-based actions like calendar) is passed through verbatim.
+func decodeCommandFields(action, process, content, reply, datetime string) Command {
 	cmd := Command{Action: Action(action), Confidence: 1, Args: map[string]string{}}
 	if process != "" {
 		cmd.Args["process"] = canonicalProcess(firstToken(normalize(process)))
@@ -84,6 +85,9 @@ func decodeCommandFields(action, process, content, reply string) Command {
 	}
 	if reply != "" {
 		cmd.Args["reply"] = reply
+	}
+	if datetime != "" {
+		cmd.Args["datetime"] = datetime
 	}
 	if len(cmd.Args) == 0 {
 		cmd.Args = nil
@@ -99,12 +103,13 @@ func jsonSchemaCommand() map[string]any {
 	return map[string]any{
 		"type":                 "object",
 		"additionalProperties": false,
-		"required":             []string{"action", "process", "content", "reply"},
+		"required":             []string{"action", "process", "content", "reply", "datetime"},
 		"properties": map[string]any{
-			"action":  map[string]any{"type": "string", "enum": allActions()},
-			"process": map[string]any{"type": "string"},
-			"content": map[string]any{"type": "string"},
-			"reply":   map[string]any{"type": "string"},
+			"action":   map[string]any{"type": "string", "enum": allActions()},
+			"process":  map[string]any{"type": "string"},
+			"content":  map[string]any{"type": "string"},
+			"reply":    map[string]any{"type": "string"},
+			"datetime": map[string]any{"type": "string"},
 		},
 	}
 }

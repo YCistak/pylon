@@ -44,6 +44,27 @@ persona:
   adopt_threshold: 0.3                 # min recency-weighted frequency to adopt a trait
   style_card_refresh_every: 20         # rebuild style card every N messages
 
+services:
+  # Google Calendar (Phase 2). End users just run `pylon auth google` and sign in
+  # — no Google Cloud setup. The project's OAuth client is baked into the build
+  # (see Makefile GOOGLE_CLIENT_ID). Self-hosters can instead set client_id/
+  # client_secret here (or point `credentials` at an OAuth client JSON).
+  google:
+    # client_id: ...
+    # client_secret: ...
+    # credentials: ~/.config/pylon/google-credentials.json
+    token: ~/.config/pylon/google-token.json     # written by `pylon auth google`
+    calendar_id: primary
+  # GitHub (Phase 2.2). Personal Access Token — classic needs `repo`+`read:org`,
+  # or a fine-grained token with PR/issue read. ${ENV} is expanded, so keep the
+  # token in the environment rather than committing it.
+  github:
+    token: ${GITHUB_TOKEN}
+    poll_interval: 15m            # background PR poll; empty disables it
+    commit_reminder: "22:00"      # daily "you haven't committed today" nudge
+    repos:                        # local repos checked for today's commit
+      - /path/to/repo
+
 briefing:
   time: "08:00"
   timezone: "Europe/Istanbul"

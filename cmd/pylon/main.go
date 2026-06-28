@@ -23,6 +23,10 @@ import (
 	"github.com/YCistak/pylon/internal/intent"
 	"github.com/YCistak/pylon/internal/ipc"
 	"github.com/YCistak/pylon/internal/profile"
+	"github.com/YCistak/pylon/internal/scheduler"
+	"github.com/YCistak/pylon/internal/services"
+	ghsvc "github.com/YCistak/pylon/internal/services/github"
+	"github.com/YCistak/pylon/internal/services/google"
 	"github.com/YCistak/pylon/internal/voice"
 	"github.com/YCistak/pylon/internal/watcher"
 )
@@ -58,6 +62,8 @@ func main() {
 		err = cmdRecall(os.Args[2:])
 	case "listen":
 		err = cmdListen()
+	case "auth":
+		err = cmdAuth(os.Args[2:])
 	case "version", "--version", "-v":
 		fmt.Println("pylon", version)
 	case "-h", "--help", "help":
@@ -84,6 +90,7 @@ usage:
   pylon say <text>    send a text command through the intent engine
   pylon recall [n]    show the last n remembered turns (default 5)
   pylon listen        push-to-talk: record, transcribe, run, speak the reply
+  pylon auth google   authorize Google (Calendar) — one-time OAuth consent
 `)
 }
 
@@ -112,6 +119,7 @@ func cmdStart() error {
 	})
 
 	registerWatcher(d, cfg, database, log)
+	registerScheduler(d, cfg, log)
 	registerIntent(d, cfg, database, log)
 
 	return d.Run(context.Background())
@@ -122,6 +130,11 @@ func cmdStart() error {
 // back to the configured LLM chain, which tries each model in order and falls
 // through on quota/rate-limit.
 func registerIntent(d *daemon.Daemon, cfg config.Config, database *db.DB, log *slog.Logger) {
+	// Services contribute actions to the LLM vocabulary; register them before
+	// building the chain so the model knows them.
+	registry := buildServiceRegistry(cfg, log)
+	intent.SetActions(registry.Specs()...)
+
 	router := intent.NewRouter(cfg.Intent.RouterThreshold)
 	chain := buildIntentChain(cfg, log)
 	if chain.Configured() {
@@ -168,12 +181,49 @@ func registerIntent(d *daemon.Daemon, cfg config.Config, database *db.DB, log *s
 		}
 		log.Info("intent", "text", text, "action", string(cmd.Action), "confidence", cmd.Confidence, "source", source)
 
-		resp := executeCommand(cmd, database)
+		resp := executeCommand(cmd, database, registry)
 		rememberTurn(database, text, resp, log)
 		return resp
 	})
 
 	registerRecall(d, database)
+}
+
+// buildServiceRegistry registers the external services that are configured and
+// authorized. Each service contributes actions to the LLM vocabulary.
+func buildServiceRegistry(cfg config.Config, log *slog.Logger) *services.Registry {
+	var svcs []services.Service
+
+	gcfg := googleConfig(cfg)
+	switch {
+	case google.Configured(gcfg):
+		svcs = append(svcs, google.NewCalendar(gcfg))
+		log.Info("services: google calendar enabled")
+	case google.HasClient(gcfg):
+		log.Info("services: google credentials found — run `pylon auth google` to enable calendar")
+	}
+
+	ghcfg := githubConfig(cfg)
+	if ghsvc.Configured(ghcfg) {
+		svcs = append(svcs, ghsvc.New(ghcfg))
+		log.Info("services: github enabled")
+	}
+
+	return services.NewRegistry(svcs...)
+}
+
+func githubConfig(cfg config.Config) ghsvc.Config {
+	return ghsvc.Config{Token: cfg.Services.GitHub.Token}
+}
+
+func googleConfig(cfg config.Config) google.Config {
+	return google.Config{
+		ClientID:        cfg.Services.Google.ClientID,
+		ClientSecret:    cfg.Services.Google.ClientSecret,
+		CredentialsPath: cfg.Services.Google.Credentials,
+		TokenPath:       cfg.Services.Google.Token,
+		CalendarID:      cfg.Services.Google.CalendarID,
+	}
 }
 
 // rememberTurn records the exchange in context memory (Phase 1.8) so Pylon can
@@ -237,8 +287,9 @@ func buildIntentChain(cfg config.Config, log *slog.Logger) *intent.Chain {
 }
 
 // executeCommand acts on a resolved Command and produces a user-facing response.
-// Shared by the local router and the Gemini fallback so both behave identically.
-func executeCommand(cmd intent.Command, database *db.DB) ipc.Response {
+// Built-in actions are handled here; anything else is offered to the service
+// registry (calendar, etc.). Shared by the local router and the LLM fallback.
+func executeCommand(cmd intent.Command, database *db.DB, registry *services.Registry) ipc.Response {
 	switch cmd.Action {
 	case intent.ActionRemindOnExit:
 		if cmd.Args["process"] == "" || cmd.Args["content"] == "" {
@@ -263,6 +314,17 @@ func executeCommand(cmd intent.Command, database *db.DB) ipc.Response {
 		return ipc.Response{OK: true, Text: reply}
 
 	default:
+		// A service (calendar, ...) may own this action.
+		if registry != nil {
+			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+			defer cancel()
+			if text, ok, err := registry.Dispatch(ctx, cmd); ok {
+				if err != nil {
+					return ipc.Response{OK: false, Error: err.Error()}
+				}
+				return ipc.Response{OK: true, Text: text}
+			}
+		}
 		// System/media actions are executed by the system module (Phase 3).
 		return ipc.Response{OK: true, Text: fmt.Sprintf("komut anlaşıldı: %s (conf %.2f) — eylem Faz 3'te bağlanacak", cmd.Action, cmd.Confidence)}
 	}
@@ -282,6 +344,13 @@ func registerWatcher(d *daemon.Daemon, cfg config.Config, database *db.DB, log *
 		return
 	}
 
+	// Reminders are spoken via the same TTS the assistant uses (edge-tts). Built
+	// once; nil when TTS isn't configured, in which case we just log.
+	var speaker voice.Speaker
+	if len(cfg.Voice.TTSCmd) > 0 {
+		speaker = voice.NewSpeaker(cfg.Voice.TTSCmd, cfg.Voice.PlayCmd)
+	}
+
 	w := watcher.New(watcher.Options{
 		Names:  names,
 		Logger: log,
@@ -296,11 +365,82 @@ func registerWatcher(d *daemon.Daemon, cfg config.Config, database *db.DB, log *
 			}
 			for _, t := range tasks {
 				log.Info("reminder", "process", e.Name, "task", t.Content)
+				if speaker != nil {
+					ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+					if err := speaker.Say(ctx, "Hatırlatma. "+t.Content); err != nil {
+						log.Warn("reminder: speak failed", "err", err)
+					}
+					cancel()
+				}
+				// Mark done so the same reminder doesn't fire on the next exit.
+				if err := database.CompleteTask(t.ID); err != nil {
+					log.Warn("reminder: complete failed", "id", t.ID, "err", err)
+				}
 			}
 		},
 	})
 
 	d.Register("watcher", w.Run)
+}
+
+// registerScheduler wires Pylon's clock-driven background jobs. For now these
+// are GitHub's 15-minute PR poll and the daily commit-reminder (Phase 2.2);
+// Phase 3's briefing/report will register here too. Jobs notify through the
+// same TTS path the watcher uses (logging when TTS is off).
+func registerScheduler(d *daemon.Daemon, cfg config.Config, log *slog.Logger) {
+	sched := scheduler.New(scheduler.Options{Logger: log})
+
+	var speaker voice.Speaker
+	if len(cfg.Voice.TTSCmd) > 0 {
+		speaker = voice.NewSpeaker(cfg.Voice.TTSCmd, cfg.Voice.PlayCmd)
+	}
+	notify := func(msg string) {
+		log.Info("scheduler: notify", "msg", msg)
+		if speaker == nil {
+			return
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		if err := speaker.Say(ctx, msg); err != nil {
+			log.Warn("scheduler: speak failed", "err", err)
+		}
+	}
+
+	gh := cfg.Services.GitHub
+	if ghsvc.Configured(githubConfig(cfg)) {
+		if every, err := time.ParseDuration(gh.PollInterval); err == nil && every > 0 {
+			poller := ghsvc.New(githubConfig(cfg)).NewPoller()
+			sched.Every("github-pr-poll", every, func(ctx context.Context) {
+				switch msg, ok, err := poller.Poll(ctx); {
+				case err != nil:
+					log.Warn("scheduler: github poll failed", "err", err)
+				case ok:
+					notify(msg)
+				}
+			})
+			log.Info("scheduler: github PR poll enabled", "every", every)
+		}
+		if h, m, ok := parseHM(gh.CommitReminder); ok && len(gh.Repos) > 0 {
+			cr := ghsvc.NewCommitReminder(gh.Repos)
+			sched.DailyAt("github-commit-reminder", h, m, func(ctx context.Context) {
+				if msg, ok := cr.Check(ctx); ok {
+					notify(msg)
+				}
+			})
+			log.Info("scheduler: commit reminder enabled", "at", gh.CommitReminder, "repos", len(gh.Repos))
+		}
+	}
+
+	d.Register("scheduler", sched.Run)
+}
+
+// parseHM parses an "HH:MM" 24-hour time. ok is false for empty or malformed input.
+func parseHM(s string) (hour, min int, ok bool) {
+	t, err := time.Parse("15:04", strings.TrimSpace(s))
+	if err != nil {
+		return 0, 0, false
+	}
+	return t.Hour(), t.Minute(), true
 }
 
 // socketPath resolves the daemon socket from config, falling back to the default.
@@ -377,6 +517,31 @@ func cmdListen() error {
 		// Speaking is best-effort; the text reply already printed.
 		fmt.Fprintln(os.Stderr, "seslendirme hatası:", err)
 	}
+	return nil
+}
+
+// cmdAuth runs a service authorization flow. Currently: `pylon auth google`.
+func cmdAuth(args []string) error {
+	if len(args) == 0 || args[0] != "google" {
+		return errors.New("usage: pylon auth google")
+	}
+	cfg, err := config.Load(configPath())
+	if err != nil {
+		return fmt.Errorf("config: %w", err)
+	}
+	gcfg := googleConfig(cfg)
+	if !google.HasClient(gcfg) {
+		return errors.New("bu Pylon derlemesine Google OAuth client'ı gömülmemiş. " +
+			"Yapımcı: `make build GOOGLE_CLIENT_ID=... GOOGLE_CLIENT_SECRET=...` ile göm, " +
+			"ya da services.google.client_id / client_secret ayarla")
+	}
+	fmt.Println("Google ile giriş yap — tarayıcı açılıyor...")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+	if err := google.Authorize(ctx, gcfg); err != nil {
+		return err
+	}
+	fmt.Println("✔ Giriş tamam — artık takvimine erişebilirim.")
 	return nil
 }
 

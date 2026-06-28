@@ -4,7 +4,17 @@
 BIN     := pylon
 PKG     := ./cmd/pylon
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
-LDFLAGS := -s -w -X main.version=$(VERSION)
+GPKG    := github.com/YCistak/pylon/internal/services/google
+
+# Bake the project's Google OAuth client into the build so end users only sign in
+# (no Google Cloud setup for them). Set once, e.g.:
+#   make build GOOGLE_CLIENT_ID=xxx.apps.googleusercontent.com GOOGLE_CLIENT_SECRET=yyy
+GOOGLE_CLIENT_ID     ?=
+GOOGLE_CLIENT_SECRET ?=
+
+LDFLAGS := -s -w -X main.version=$(VERSION) \
+  -X $(GPKG).embeddedClientID=$(GOOGLE_CLIENT_ID) \
+  -X $(GPKG).embeddedClientSecret=$(GOOGLE_CLIENT_SECRET)
 
 .PHONY: build run test vet tidy clean install dist
 

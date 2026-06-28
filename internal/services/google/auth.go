@@ -1,0 +1,231 @@
+// Package google integrates Google services (Calendar) into Pylon via OAuth2.
+package google
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"net"
+	"net/http"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"runtime"
+	"strings"
+	"sync"
+	"time"
+
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
+	calendar "google.golang.org/api/calendar/v3"
+)
+
+// Config is the resolved Google service configuration. The OAuth *client* (which
+// app this is) comes from ClientID/Secret or a credentials file or build-time
+// embedded defaults; the *token* (which user) is per-user at TokenPath.
+type Config struct {
+	ClientID        string // OAuth client id (overrides the embedded default)
+	ClientSecret    string // OAuth client secret (desktop apps: not confidential)
+	CredentialsPath string // optional: OAuth client JSON instead of id/secret
+	TokenPath       string // where the user's token is stored after consent
+	CalendarID      string // "primary" by default
+}
+
+// embeddedClientID/Secret are baked into release builds via
+//   -ldflags "-X .../google.embeddedClientID=... -X .../google.embeddedClientSecret=..."
+// so end users only sign in — they never register an app or touch Google Cloud.
+var (
+	embeddedClientID     string
+	embeddedClientSecret string
+)
+
+// scopes: read + write calendar events.
+var scopes = []string{calendar.CalendarEventsScope}
+
+// HasClient reports whether an OAuth client is available (config, credentials
+// file, or embedded build default) — i.e. `pylon auth google` can run.
+func HasClient(c Config) bool {
+	if c.ClientID != "" || embeddedClientID != "" {
+		return true
+	}
+	if c.CredentialsPath != "" {
+		if _, err := os.Stat(expandHome(c.CredentialsPath)); err == nil {
+			return true
+		}
+	}
+	return false
+}
+
+// Configured reports whether Google is ready to serve commands (an OAuth client
+// plus a saved user token). main.go registers the service only when true.
+func Configured(c Config) bool {
+	if !HasClient(c) {
+		return false
+	}
+	_, err := os.Stat(expandHome(c.TokenPath))
+	return err == nil
+}
+
+// oauthConfig resolves the OAuth client: explicit id/secret first, then a
+// credentials JSON file, then the build-time embedded default.
+func oauthConfig(c Config) (*oauth2.Config, error) {
+	if id := firstNonEmpty(c.ClientID, embeddedClientID); id != "" {
+		return &oauth2.Config{
+			ClientID:     id,
+			ClientSecret: firstNonEmpty(c.ClientSecret, embeddedClientSecret),
+			Endpoint:     google.Endpoint,
+			Scopes:       scopes,
+		}, nil
+	}
+	if c.CredentialsPath != "" {
+		data, err := os.ReadFile(expandHome(c.CredentialsPath))
+		if err == nil {
+			return google.ConfigFromJSON(data, scopes...)
+		}
+	}
+	return nil, fmt.Errorf("google: OAuth client tanımlı değil (Pylon'a client_id gömülmemiş)")
+}
+
+func firstNonEmpty(vals ...string) string {
+	for _, v := range vals {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
+func loadToken(path string) (*oauth2.Token, error) {
+	data, err := os.ReadFile(expandHome(path))
+	if err != nil {
+		return nil, err
+	}
+	var t oauth2.Token
+	if err := json.Unmarshal(data, &t); err != nil {
+		return nil, err
+	}
+	return &t, nil
+}
+
+func saveToken(path string, t *oauth2.Token) error {
+	data, err := json.MarshalIndent(t, "", "  ")
+	if err != nil {
+		return err
+	}
+	p := expandHome(path)
+	if dir := filepath.Dir(p); dir != "" {
+		_ = os.MkdirAll(dir, 0o700)
+	}
+	return os.WriteFile(p, data, 0o600)
+}
+
+// httpClient returns an authorized client using the saved token (auto-refresh).
+// Errors with a hint when no token exists.
+func httpClient(ctx context.Context, c Config) (*http.Client, error) {
+	cfg, err := oauthConfig(c)
+	if err != nil {
+		return nil, err
+	}
+	tok, err := loadToken(c.TokenPath)
+	if err != nil {
+		return nil, fmt.Errorf("google: no saved token — run `pylon auth google` first (%v)", err)
+	}
+	return cfg.Client(ctx, tok), nil
+}
+
+// Authorize runs the one-time OAuth consent flow via a loopback redirect and
+// saves the resulting token. Driven by `pylon auth google`.
+func Authorize(ctx context.Context, c Config) error {
+	cfg, err := oauthConfig(c)
+	if err != nil {
+		return err
+	}
+
+	// Loopback server on a free port catches the redirect with the auth code.
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return fmt.Errorf("start loopback listener: %w", err)
+	}
+	defer ln.Close()
+	cfg.RedirectURL = fmt.Sprintf("http://%s/callback", ln.Addr().String())
+
+	state := fmt.Sprintf("pylon-%d", time.Now().UnixNano())
+	// Force the account chooser + consent so multi-account sign-ins don't trip
+	// the flow (a common "something went wrong" cause in test mode).
+	authURL := cfg.AuthCodeURL(state, oauth2.AccessTypeOffline,
+		oauth2.SetAuthURLParam("prompt", "select_account consent"))
+
+	codeCh := make(chan string, 1)
+	errCh := make(chan error, 1)
+	var once sync.Once
+	srv := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		// Ignore unrelated hits (e.g. /favicon.ico) so they don't trip the flow.
+		if q.Get("code") == "" && q.Get("error") == "" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		if e := q.Get("error"); e != "" {
+			desc := q.Get("error_description")
+			http.Error(w, "Pylon: yetki reddedildi — "+e, http.StatusBadRequest)
+			once.Do(func() { errCh <- fmt.Errorf("oauth reddedildi: %s %s", e, desc) })
+			return
+		}
+		if q.Get("state") != state {
+			http.Error(w, "state mismatch", http.StatusBadRequest)
+			once.Do(func() { errCh <- fmt.Errorf("oauth state uyuşmazlığı") })
+			return
+		}
+		fmt.Fprintln(w, "Pylon: giriş tamam ✓ — bu sekmeyi kapatabilirsin.")
+		once.Do(func() { codeCh <- q.Get("code") })
+	})}
+	go srv.Serve(ln)
+	defer srv.Close()
+
+	fmt.Println("Tarayıcıda Google izni açılıyor. Açılmazsa şu adrese git:")
+	fmt.Println(" ", authURL)
+	openBrowser(authURL)
+
+	var code string
+	select {
+	case code = <-codeCh:
+	case err = <-errCh:
+		return err
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-time.After(3 * time.Minute):
+		return fmt.Errorf("oauth: zaman aşımı (3 dk)")
+	}
+
+	tok, err := cfg.Exchange(ctx, code)
+	if err != nil {
+		return fmt.Errorf("token exchange: %w", err)
+	}
+	if err := saveToken(c.TokenPath, tok); err != nil {
+		return fmt.Errorf("save token: %w", err)
+	}
+	return nil
+}
+
+func openBrowser(url string) {
+	var cmd string
+	var args []string
+	switch runtime.GOOS {
+	case "darwin":
+		cmd = "open"
+	case "windows":
+		cmd, args = "rundll32", []string{"url.dll,FileProtocolHandler"}
+	default:
+		cmd = "xdg-open"
+	}
+	_ = exec.Command(cmd, append(args, url)...).Start()
+}
+
+func expandHome(p string) string {
+	if strings.HasPrefix(p, "~/") {
+		if home, err := os.UserHomeDir(); err == nil {
+			return filepath.Join(home, p[2:])
+		}
+	}
+	return p
+}

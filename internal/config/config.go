@@ -21,6 +21,7 @@ type Config struct {
 
 	Briefing Briefing `yaml:"briefing"`
 	Work     Work     `yaml:"work"`
+	Services Services `yaml:"services"`
 
 	WatchProcesses []WatchProcess `yaml:"watch_processes"`
 
@@ -71,6 +72,38 @@ type Persona struct {
 	DecayHalfLifeDays float64 `yaml:"decay_half_life_days"`     // how fast old style fades
 	AdoptThreshold    float64 `yaml:"adopt_threshold"`          // min weighted frequency to adopt a trait
 	StyleCardRefreshN int     `yaml:"style_card_refresh_every"` // rebuild style card every N messages
+}
+
+// Services configures external integrations (Phase 2+).
+type Services struct {
+	Google GoogleService `yaml:"google"`
+	GitHub GitHubService `yaml:"github"`
+}
+
+// GitHubService configures GitHub access (Phase 2.2) via a Personal Access
+// Token. The config loader expands ${ENV}, so the token can live in the
+// environment (token: ${GITHUB_TOKEN}) rather than in the file. The service is
+// enabled once a token is present.
+type GitHubService struct {
+	Token string `yaml:"token"` // PAT; classic needs repo+read:org, fine-grained PR/issue read
+
+	// Background jobs (scheduler). Empty PollInterval disables the PR poll;
+	// empty CommitReminder or no Repos disables the daily commit nudge.
+	PollInterval   string   `yaml:"poll_interval"`   // e.g. "15m"
+	CommitReminder string   `yaml:"commit_reminder"` // "HH:MM" local
+	Repos          []string `yaml:"repos"`           // local git repo paths to check for today's commit
+}
+
+// GoogleService holds Google OAuth settings (Calendar, later Drive). The OAuth
+// client is normally embedded in the build so end users just sign in; client_id/
+// client_secret (or a credentials file) override it for self-hosters. The service
+// is enabled once a user token exists (after `pylon auth google`).
+type GoogleService struct {
+	ClientID     string `yaml:"client_id"`     // overrides the embedded OAuth client
+	ClientSecret string `yaml:"client_secret"` // desktop apps: not confidential
+	Credentials  string `yaml:"credentials"`   // optional: OAuth client JSON instead
+	Token        string `yaml:"token"`         // saved by `pylon auth google`
+	CalendarID   string `yaml:"calendar_id"`   // "primary" by default
 }
 
 // Briefing configures the morning briefing.
@@ -124,6 +157,13 @@ func Default() Config {
 			DecayHalfLifeDays: 14,
 			AdoptThreshold:    0.3,
 			StyleCardRefreshN: 20,
+		},
+		Services: Services{
+			Google: GoogleService{
+				Credentials: "~/.config/pylon/google-credentials.json",
+				Token:       "~/.config/pylon/google-token.json",
+				CalendarID:  "primary",
+			},
 		},
 		Briefing: Briefing{
 			Time:     "08:00",
