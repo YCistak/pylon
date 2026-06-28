@@ -59,11 +59,21 @@ services:
   # or a fine-grained token with PR/issue read. ${ENV} is expanded, so keep the
   # token in the environment rather than committing it.
   github:
-    token: ${GITHUB_TOKEN}
+    # Secrets are stored encrypted (AES-256-GCM), not here. Save once with
+    #   pylon secret set github
+    # then reference it as secret:<name>. (Plain values and ${ENV} still work.)
+    token: secret:github
     poll_interval: 15m            # background PR poll; empty disables it
     commit_reminder: "22:00"      # daily "you haven't committed today" nudge
     repos:                        # local repos checked for today's commit
       - /path/to/repo
+  # FreshRSS (Phase 2.3) via the Fever API. Enable the API in FreshRSS
+  # (Settings → Profile → API) and either set api_key directly or give
+  # username + api_password (key = md5("username:api_password")). ${ENV} expands.
+  freshrss:
+    url: ""                       # e.g. https://rss.example.com — empty disables it
+    username: ""
+    api_password: secret:freshrss   # save with: pylon secret set freshrss
 
 briefing:
   time: "08:00"

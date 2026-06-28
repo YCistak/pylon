@@ -11,11 +11,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"strconv"
 	"strings"
 	"time"
+
+	"golang.org/x/term"
 
 	"github.com/YCistak/pylon/internal/config"
 	"github.com/YCistak/pylon/internal/daemon"
@@ -24,7 +27,9 @@ import (
 	"github.com/YCistak/pylon/internal/ipc"
 	"github.com/YCistak/pylon/internal/profile"
 	"github.com/YCistak/pylon/internal/scheduler"
+	"github.com/YCistak/pylon/internal/secrets"
 	"github.com/YCistak/pylon/internal/services"
+	"github.com/YCistak/pylon/internal/services/freshrss"
 	ghsvc "github.com/YCistak/pylon/internal/services/github"
 	"github.com/YCistak/pylon/internal/services/google"
 	"github.com/YCistak/pylon/internal/voice"
@@ -64,6 +69,8 @@ func main() {
 		err = cmdListen()
 	case "auth":
 		err = cmdAuth(os.Args[2:])
+	case "secret":
+		err = cmdSecret(os.Args[2:])
 	case "version", "--version", "-v":
 		fmt.Println("pylon", version)
 	case "-h", "--help", "help":
@@ -91,6 +98,8 @@ usage:
   pylon recall [n]    show the last n remembered turns (default 5)
   pylon listen        push-to-talk: record, transcribe, run, speak the reply
   pylon auth google   authorize Google (Calendar) — one-time OAuth consent
+  pylon secret set <name>   save a credential to the encrypted vault (ref as secret:<name>)
+  pylon secret rm  <name>   remove a saved credential
 `)
 }
 
@@ -98,6 +107,7 @@ usage:
 // foreground until interrupted.
 func cmdStart() error {
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	slog.SetDefault(log)
 
 	cfg, err := config.Load(configPath())
 	if err != nil {
@@ -209,21 +219,48 @@ func buildServiceRegistry(cfg config.Config, log *slog.Logger) *services.Registr
 		log.Info("services: github enabled")
 	}
 
+	fcfg := freshrssConfig(cfg)
+	if freshrss.Configured(fcfg) {
+		svcs = append(svcs, freshrss.New(fcfg))
+		log.Info("services: freshrss enabled")
+	}
+
 	return services.NewRegistry(svcs...)
 }
 
 func githubConfig(cfg config.Config) ghsvc.Config {
-	return ghsvc.Config{Token: cfg.Services.GitHub.Token}
+	return ghsvc.Config{Token: resolveSecret(cfg.Services.GitHub.Token)}
+}
+
+func freshrssConfig(cfg config.Config) freshrss.Config {
+	return freshrss.Config{
+		URL:         cfg.Services.FreshRSS.URL,
+		Username:    cfg.Services.FreshRSS.Username,
+		APIPassword: resolveSecret(cfg.Services.FreshRSS.APIPassword),
+		APIKey:      resolveSecret(cfg.Services.FreshRSS.APIKey),
+	}
 }
 
 func googleConfig(cfg config.Config) google.Config {
 	return google.Config{
 		ClientID:        cfg.Services.Google.ClientID,
-		ClientSecret:    cfg.Services.Google.ClientSecret,
+		ClientSecret:    resolveSecret(cfg.Services.Google.ClientSecret),
 		CredentialsPath: cfg.Services.Google.Credentials,
 		TokenPath:       cfg.Services.Google.Token,
 		CalendarID:      cfg.Services.Google.CalendarID,
 	}
+}
+
+// resolveSecret turns a "keyring:<name>" config value into the stored secret
+// (plain values pass through). A keyring miss is logged, not fatal: the secret
+// comes back empty and the owning service simply stays disabled.
+func resolveSecret(value string) string {
+	v, err := secrets.Resolve(value)
+	if err != nil {
+		slog.Default().Warn("secret resolve failed", "ref", value, "err", err)
+		return ""
+	}
+	return v
 }
 
 // rememberTurn records the exchange in context memory (Phase 1.8) so Pylon can
@@ -543,6 +580,60 @@ func cmdAuth(args []string) error {
 	}
 	fmt.Println("✔ Giriş tamam — artık takvimine erişebilirim.")
 	return nil
+}
+
+// cmdSecret manages credentials in Pylon's encrypted vault (AES-256-GCM, under
+// the user config dir). Secrets are referenced from config as "secret:<name>",
+// so saving one here is all that's needed:
+//
+//	pylon secret set freshrss     # prompts (no echo), or reads piped stdin
+//	pylon secret rm  freshrss
+//
+// This is the CLI stand-in for the future settings UI — both call internal/secrets.
+func cmdSecret(args []string) error {
+	if len(args) < 2 {
+		return errors.New("usage: pylon secret <set|rm> <name>")
+	}
+	action, name := args[0], args[1]
+	switch action {
+	case "set":
+		value, err := readSecretValue(name)
+		if err != nil {
+			return err
+		}
+		if err := secrets.Set(name, value); err != nil {
+			return err
+		}
+		fmt.Printf("✔ %q şifrelenip kaydedildi. Config'de: secret:%s\n", name, name)
+		return nil
+	case "rm", "delete", "remove":
+		if err := secrets.Delete(name); err != nil {
+			return err
+		}
+		fmt.Printf("✔ %q silindi.\n", name)
+		return nil
+	default:
+		return fmt.Errorf("usage: pylon secret <set|rm> <name> (bilinmeyen: %q)", action)
+	}
+}
+
+// readSecretValue reads the secret from a no-echo terminal prompt, or from
+// stdin when piped (e.g. `cat token | pylon secret set github`).
+func readSecretValue(name string) (string, error) {
+	if term.IsTerminal(int(os.Stdin.Fd())) {
+		fmt.Printf("%s değerini gir (görünmez): ", name)
+		b, err := term.ReadPassword(int(os.Stdin.Fd()))
+		fmt.Println()
+		if err != nil {
+			return "", fmt.Errorf("okuma: %w", err)
+		}
+		return strings.TrimRight(string(b), "\r\n"), nil
+	}
+	b, err := io.ReadAll(os.Stdin)
+	if err != nil {
+		return "", fmt.Errorf("stdin okuma: %w", err)
+	}
+	return strings.TrimRight(string(b), "\r\n"), nil
 }
 
 // cmdRecall prints recent conversation memory from the daemon.

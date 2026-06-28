@@ -187,6 +187,26 @@ go test ./db/...        → add/fetch/complete task
   actions and handle them; `executeCommand` dispatches non-built-in actions to the
   owning service. Services register only when configured (graceful skip otherwise).
 
+**2.0b Credential store** — ✅ done & live-verified
+- [x] **`internal/secrets`**: credentials (API keys, tokens, passwords) are encrypted at rest with
+  **AES-256-GCM**. A random 32-byte key is generated once (`~/.config/pylon/secret.key`, 0600) and
+  secrets live as ciphertext in `~/.config/pylon/secrets.json` (0600). No OS keyring, no daemon —
+  fully self-contained and headless. The secret name is bound in as GCM additional data, so a
+  ciphertext can't be moved to another name.
+- [x] **`pylon secret set <name>` / `rm <name>`** save/remove a secret (no-echo prompt, or piped
+  stdin). CLI stand-in for the **future settings UI** — both call `internal/secrets`.
+- [x] **Config references a secret by name**: `token: secret:github`, `api_password: secret:freshrss`.
+  `resolveSecret` decrypts `secret:<name>` at startup; plain values and `${ENV}` still work, and a
+  miss disables only that service (logged, never fatal). Wired for GitHub, FreshRSS, Google.
+- [x] `Store` interface (in-memory fake for the Resolve tests) + real on-disk AES round-trip tests
+  (vault holds no plaintext, key is 0600, tamper/rename fails to decrypt, persists across instances).
+- [x] **Live-verified 2026-06-28** headless: `pylon secret set github` → vault is ciphertext (no
+  plaintext leak), then the daemon resolved `secret:github` at startup and logged "github enabled".
+- *Trade-off:* the key sits on the same disk as the vault (both 0600), so this protects against
+  config/git exposure and casual reads, not an attacker who can read the user's home dir.
+  Unattended decryption can't do better without a hardware/OS root of trust — the deliberate choice
+  for "save once, runs headless" (user explicitly rejected OS-keyring and env approaches).
+
 **2.1 Google Calendar** — ✅ done & live-verified
 - [x] **End users just "Login with Google"** — no Google Cloud setup for them. The
   project's OAuth client is **baked into the build** (`make build GOOGLE_CLIENT_ID=… GOOGLE_CLIENT_SECRET=…`,
@@ -227,10 +247,18 @@ go test ./db/...        → add/fetch/complete task
 - [x] Powers GitHub's PR poll + commit reminder now; ready for Phase 3 briefing (DailyAt) and
   weekly report (WeeklyAt).
 
-**2.3 FreshRSS**
-- Connect via Fever API
-- Unread count: included in morning briefing
-- Answers "how many unread items do I have"
+**2.3 FreshRSS** — ✅ built & unit-tested (live test pending user's instance)
+- [x] **Connect via Fever API** (`internal/services/freshrss`): plain `net/http` behind a small
+  `feverAPI` interface (fake-tested), mirroring the other services. Auth is the Fever api_key —
+  `md5("username:api_password")`, or a precomputed key. Config: `services.freshrss`
+  (`url`, `username`, `api_password`/`api_key`; `${ENV}`-expanded).
+- [x] **Answers "kaç okunmamış haberim var"** → `freshrss.unread_count` action: POSTs
+  `?api&unread_item_ids`, checks `auth==1`, counts the returned ids → "%d okunmamış haberin var."
+- [x] **Unread count exposed for the morning briefing** via `FreshRSS.UnreadCount(ctx) int`
+  (Phase 3 briefing reuses it directly, no intent round-trip). Briefing *wiring* lands in 3.1.
+- [ ] **Pending: point at the user's FreshRSS instance + Fever credentials → live test**
+  ("kaç okunmamış haberim var"). Set `services.freshrss.url`/`username`, save the API password
+  with `pylon secret set freshrss` (config: `api_password: keyring:freshrss`).
 
 **2.4 Spotify**
 - OAuth2, refresh token management

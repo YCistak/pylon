@@ -76,8 +76,19 @@ type Persona struct {
 
 // Services configures external integrations (Phase 2+).
 type Services struct {
-	Google GoogleService `yaml:"google"`
-	GitHub GitHubService `yaml:"github"`
+	Google   GoogleService   `yaml:"google"`
+	GitHub   GitHubService   `yaml:"github"`
+	FreshRSS FreshRSSService `yaml:"freshrss"`
+}
+
+// FreshRSSService configures a FreshRSS instance via its Fever API (Phase 2.3).
+// Provide api_key directly, or username + api_password (the Fever key is
+// md5("username:api_password")). ${ENV} is expanded, so keep secrets in the env.
+type FreshRSSService struct {
+	URL         string `yaml:"url"`
+	Username    string `yaml:"username"`
+	APIPassword string `yaml:"api_password"`
+	APIKey      string `yaml:"api_key"`
 }
 
 // GitHubService configures GitHub access (Phase 2.2) via a Personal Access
