@@ -1,21 +1,57 @@
 :root {
-    --bg: #0c1119;
+    /* background layers — deep, desaturated, intentional (not placeholder blue) */
+    --bg-0: #070a10;      /* deepest / window edge */
+    --bg-1: #0b0f17;      /* app base */
+    --bg-2: #10151f;      /* raised base */
+
+    /* surfaces */
+    --surface:    rgba(255, 255, 255, 0.035);
+    --surface-2:  rgba(255, 255, 255, 0.06);
+    --border:     rgba(255, 255, 255, 0.07);
+    --border-2:   rgba(255, 255, 255, 0.12);
+
+    /* signature accent — violet → cyan, the Pylon identity */
+    --accent:      #7c8cf8;
+    --accent-2:    #34e0d8;
+    --accent-soft: rgba(124, 140, 248, 0.16);
+    --accent-glow: rgba(124, 140, 248, 0.45);
+
+    /* text tiers */
+    --text-0: #f2f6fc;   /* headings / bright */
+    --text-1: #cdd6e4;   /* normal */
+    --text-2: #8b98ac;   /* muted */
+    --text-3: #56637a;   /* faint */
+
+    /* status */
+    --ok:   #35d6a4;
+    --err:  #f2688a;
+    --warn: #f4b860;
+
+    /* shape */
+    --r-sm: 10px;
+    --r-md: 14px;
+    --r-lg: 20px;
+    --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+    --shadow-soft: 0 6px 18px rgba(0, 0, 0, 0.28);
+
+    /* motion */
+    --ease: cubic-bezier(0.22, 1, 0.36, 1);
+    --dur: 240ms;
 }
 
 * { box-sizing: border-box; }
 
-html {
-    background-color: var(--bg);
-    color: #e6eef7;
-}
-
-body {
+html, body {
     margin: 0;
-    background-color: var(--bg);
-    color: #e6eef7;
+    height: 100%;
+    color: var(--text-1);
+    background:
+        radial-gradient(1200px 600px at 70% -10%, rgba(124, 140, 248, 0.08), transparent 60%),
+        radial-gradient(900px 500px at 0% 110%, rgba(52, 224, 216, 0.06), transparent 55%),
+        var(--bg-1);
     font-family: "Nunito", -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto",
-    "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue",
-    sans-serif;
+        "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue",
+        sans-serif;
     -webkit-user-select: none;
     user-select: none;
 }
@@ -31,3 +67,7 @@ body {
 #app {
     height: 100vh;
 }
+
+::-webkit-scrollbar { width: 10px; }
+::-webkit-scrollbar-thumb { background: var(--surface-2); border-radius: 8px; }
+::-webkit-scrollbar-thumb:hover { background: var(--border-2); }

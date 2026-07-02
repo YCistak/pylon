@@ -3,6 +3,7 @@
   import { DaemonRunning } from '../../wailsjs/go/main/App.js'
 
   export let onSettings = () => {}
+  export let active = 'home'
 
   // Secondary characters live here later (Phase C); empty slots for now.
   const characterSlots = [0, 1, 2]
@@ -28,46 +29,51 @@
 
   <div class="bottom">
     <span class="dot {running ? 'on' : 'off'}" title={running ? 'daemon çalışıyor' : 'daemon kapalı'}></span>
-    <button class="gear" on:click={onSettings} title="Ayarlar">⚙</button>
+    <button class="gear" class:active={active === 'settings'} on:click={onSettings} title="Ayarlar" aria-label="Ayarlar">⚙</button>
   </div>
 </aside>
 
 <style>
   .sidebar {
-    width: 64px;
-    flex: 0 0 64px;
-    background: #11161f;
-    border-right: 1px solid #1d2633;
+    width: 68px;
+    flex: 0 0 68px;
+    background: linear-gradient(180deg, var(--bg-2), var(--bg-0));
+    border-right: 1px solid var(--border);
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 12px 0;
-    gap: 14px;
+    padding: 14px 0;
+    gap: 16px;
   }
   .brand {
-    width: 38px; height: 38px;
-    border-radius: 12px;
+    width: 40px; height: 40px;
+    border-radius: 13px;
     display: grid; place-items: center;
-    font-weight: 700; color: #0b0f16;
-    background: linear-gradient(160deg, #6ee7ff, #3b82f6);
-    box-shadow: 0 0 14px rgba(59,130,246,.45);
+    font-weight: 800; color: #0a0d14;
+    background: linear-gradient(150deg, var(--accent-2), var(--accent));
+    box-shadow: 0 0 16px var(--accent-glow);
   }
-  .chars { display: flex; flex-direction: column; gap: 12px; margin-top: 6px; }
+  .chars { display: flex; flex-direction: column; gap: 12px; margin-top: 8px; }
   .char.slot {
-    width: 38px; height: 38px;
-    border-radius: 12px;
-    border: 1px dashed #2a3647;
-    opacity: .5;
+    width: 40px; height: 40px;
+    border-radius: 13px;
+    border: 1px dashed var(--border-2);
+    opacity: 0.45;
+    transition: opacity var(--dur);
   }
-  .bottom { margin-top: auto; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+  .char.slot:hover { opacity: 0.7; }
+
+  .bottom { margin-top: auto; display: flex; flex-direction: column; align-items: center; gap: 14px; }
   .dot { width: 9px; height: 9px; border-radius: 50%; }
-  .dot.on { background: #34d399; box-shadow: 0 0 8px #34d399; }
-  .dot.off { background: #ef4444; box-shadow: 0 0 8px #ef4444; }
+  .dot.on { background: var(--ok); box-shadow: 0 0 9px var(--ok); }
+  .dot.off { background: var(--err); box-shadow: 0 0 9px var(--err); }
   .gear {
-    width: 38px; height: 38px;
-    border: none; border-radius: 12px;
-    background: #1a2230; color: #9fb3c8;
+    width: 40px; height: 40px;
+    border: 1px solid var(--border); border-radius: 13px;
+    background: var(--surface); color: var(--text-2);
     font-size: 18px; cursor: pointer;
+    transition: background var(--dur), color var(--dur), border-color var(--dur);
   }
-  .gear:hover { background: #222d3d; color: #e6eef7; }
+  .gear:hover { background: var(--surface-2); color: var(--text-0); }
+  .gear.active { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); background: var(--accent-soft); }
 </style>

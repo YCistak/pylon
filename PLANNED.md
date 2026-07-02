@@ -411,6 +411,39 @@ animates out to perform tasks, then returns.
 
 ---
 
+## UI — Visual Overhaul (DONE, from user feedback)
+
+The Phase A shell works functionally (daemon client, widget data path, live) but the
+**look was a placeholder** — user's words: "it screams vibecoding." This pass replaced the
+placeholder visuals and fixed the widget model. Checked items are implemented.
+
+**Visual redesign:**
+- [x] **Center Pylon figure** — removed the plain CSS gradient "orb". Pylon is now a layered
+  **SVG avatar** (breathing core + specular highlight + two counter-rotating gradient rings +
+  orbiting nodes + soft halo), with reactive online/offline states (grayscale+still when the
+  daemon is down). `lib/PylonStage.svelte`.
+- [x] **Color theme** — replaced placeholder `#0c1119` with an intentional palette in
+  `style.css`: layered bg (`--bg-0/1/2`), glass surfaces, a **violet→cyan signature accent**
+  (`--accent`/`--accent-2`), 4 text tiers, status colors, radii/shadow/motion tokens, ambient
+  radial-gradient page background.
+- [x] **Widgets** — redesigned card (`lib/Widget.svelte`): glass surface, per-service accent
+  stripe + icon tile, shimmer skeleton while loading, spinning refresh, hover lift, fly-in.
+- [x] **Animations** — Pylon ring spin / core pulse / halo breathe, widget enter + refresh
+  spin + shimmer, view fade transitions, hover feedback, settings toggle knob slide.
+
+**Widget model correction (important):**
+- [x] Widgets are no longer hardcoded on Home. Registry lives in `lib/widgets.js`; Home reads
+  a persisted store, not a static list.
+- [x] Home starts **empty** (shows an "add from Settings" hint); widgets are enabled from
+  **Settings**, persisted to `localStorage` (`pylon.widgets.v1`).
+- [x] Settings (`lib/Settings.svelte`) manages widgets: enable/disable toggle + left/right
+  column choice. Home renders only what Settings turns on, in the chosen column.
+
+*Settings gets a real (if minimal) build now for widget management; full settings design
+— secret entry, service toggles, voice — still lands at docs/UI.md "step 4".*
+
+---
+
 ## Service Integrations — Reference
 
 | Service | Auth | Library | Phase |
