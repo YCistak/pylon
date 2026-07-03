@@ -391,23 +391,166 @@ go test ./build/...       → cross-compile succeeds (in CI)
 
 ---
 
-## Phase 5 — Character System (TO BE DESIGNED)
+## Phase 5 — Character System
 
-Three companion characters tied to Pylon's core services — a playful, visual layer over
-the assistant. Grouping, names, personalities, visual style, and lore are TBD in a
-**dedicated design session before Phase 5 begins**.
+Three companion characters, each a visual proxy for a locked group of
+backend services. Design language: hybrid form — pylon/insulator/power-line
+material vocabulary (ceramic insulator silhouette, copper/wire accents,
+sodium-lamp amber signature color) combined with expressive features (eyes,
+breathing motion, tilt) for emotional legibility. Not a literal transformer
+shape, not a generic animal mascot — original design, no resemblance to
+existing AI assistant mascots.
 
-**Concept:** a left sidebar bar hosts the characters; tap one to enter its domain, and it
-animates out to perform tasks, then returns.
+### Character-to-service grouping (LOCKED)
 
-**Key decisions pending:**
-- How to group services across the 3 characters
-- Visual style: 2D pixel art / vector / 3D
-- Appearance/disappearance animation logic
-- Lore and backstory
-- UI: left sidebar bar, characters stationed there, tap to access their domain, animate out to perform tasks
+- Organizer: Google Calendar, Google Drive
+- DevOps: GitHub, FreshRSS
+- SystemMedia: Spotify, system control (lock/volume/etc.)
 
-*Design-first: settle grouping, style, and lore in a dedicated session before any implementation.*
+Max 3 characters total. This grouping is final — do not introduce a 4th
+character or reassign services without an explicit new design session.
+
+### Signal architecture — Scoped vs Ambient (LOCKED)
+
+Two distinct categories of state that can drive a character's appearance:
+
+- **Scoped signals**: bound to one character's own assigned services only.
+  Example: DevOps character's idle status text reflects GitHub poll results
+  ("watching · 4 repos"). A character's scoped state must never leak into
+  another character's rendering.
+- **Ambient signals**: environment-wide state, broadcast to every currently
+  mounted (visible) character regardless of domain. Example: when Spotify
+  reports `is_playing = true`, ALL visible characters switch their idle
+  loop to a dance variant — this is intentional and does not violate the
+  scoped rule, because no character claims Spotify as its own identity;
+  they're reacting to shared ambient context, not exposing another
+  service's data.
+
+Implementation implication: ambient signals live in a single global store
+(e.g. `ambientStore.musicPlaying`), not per-character state. Every
+character's animation asset must expose the same-named ambient input(s) so
+one store update fans out to whichever characters are currently mounted —
+mounting/unmounting in the sidebar naturally handles "react only if
+visible," no manual visibility-counting logic needed.
+
+### Dispatch overlay system (LOCKED — spec finalized in design session)
+
+When a character performs a user-triggered action, it visually exits its
+sidebar socket and travels across the center workspace as an overlay layer,
+then returns.
+
+Layer stack (z-index, back to front):
+- z:0  workspace background
+- z:10 Pylon core avatar (fixed backdrop, existing component — do not
+  modify or re-parent). During any active dispatch, its opacity dims to
+  0.32.
+- z:20 sidebar dock
+- z:30 dispatch overlay (arc + traveling character). Absolutely positioned,
+  full-frame, `pointer-events: none`. Renders as a sibling of the
+  workspace, never a child of the core avatar, so it can never be clipped
+  by the core's own stacking context.
+- z:40 callout labels (in-transit status chip)
+- z:50 toast / ETA notification
+
+Four-state sequence: Absent (empty socket, dashed outline + hollow ring +
+ETA label, socket never collapses) → Exit (120ms, lift 4px + tilt 15°
+toward exit edge, ease-out) → Travel (500ms, rides arc across workspace
+over the dimmed core, ease-in-cubic) → Return (path reverses, brief
+seat-flash on settle, status reverts to live service state).
+
+**Concurrent dispatch rule**: core dimming is a boolean gate, not additive.
+Track `active_dispatch_count` (increments on dispatch start, decrements on
+return); core opacity is 0.32 whenever this count is > 0, and 1.0 only
+when it reaches 0 — regardless of how many characters are simultaneously
+in transit. Additive dimming (multiple overlapping 0.32 multipliers) is
+explicitly rejected — it would make the core vanish with 2+ concurrent
+dispatches.
+
+**Dispatch vs. background jobs — critical distinction**: the travel
+animation fires ONLY for synchronous, user-initiated actions the user is
+actively waiting on (e.g. "play lo-fi on Spotify," "any pending PRs").
+Silent background jobs (GitHub's 15-minute poll, the 22:00 commit
+reminder, scheduled reports) must NOT trigger the dispatch/travel
+animation — the user isn't watching, and firing travel motion for every
+background poll would create constant, meaningless UI noise. Background
+job completion instead updates only the character's scoped idle status
+text, no state-machine transition.
+
+### Preview state — command overlay (LOCKED, net-new surface)
+
+A Raycast/Alfred-style global overlay window (NOT OS-level Spotlight
+integration — that's not achievable via public APIs; this is Pylon's own
+borderless, always-on-top window triggered by a global hotkey, OS-wide
+regardless of which app currently has focus).
+
+Requires extending the existing per-OS hotkey abstraction
+(`platform/{linux,windows,darwin}.go`) with a new capability distinct from
+the existing push-to-talk bind: a **global** hotkey hook (not
+DE/compositor-bound), since this overlay must be summonable from any
+foreground application.
+
+As the user types into the overlay's text input, debounce ~200ms and call
+a new side-effect-free method on the existing local Intent Router:
+
+    PredictDomain(partial string) (domain CharacterDomain, confidence float64)
+
+This reuses the router's existing fuzzy-match logic (do not duplicate it
+in the frontend) with a lower confidence threshold appropriate for partial
+input. No network call, no LLM invocation — router is already local, so
+cost stays near zero per keystroke.
+
+New state added to each character's state machine, positioned between
+Absent and Exit: **Preview** — the character does not leave its socket,
+but plays a subtle "paying attention" micro-animation (lean-in + brief
+eye/highlight intensity increase). On submit, Preview → Exit (normal
+dispatch proceeds). If the user clears the input without submitting,
+Preview → Absent.
+
+    type CharacterDomain string
+    const (
+        DomainOrganizer    CharacterDomain = "organizer"    // calendar, drive
+        DomainDevOps       CharacterDomain = "devops"        // github, freshrss
+        DomainSystemMedia  CharacterDomain = "system_media"  // spotify, system control
+    )
+
+### Animation engine (LOCKED)
+
+Sprite-based pixel art via Aseprite. State machine logic (Absent / Preview
+/ Exit / Travel / Return, concurrent dispatch dimming, ambient signal
+fan-out) is hand-implemented in a Svelte/TypeScript store — not delegated
+to an animation tool's native state machine. This is a deliberate
+trade-off: full control over transition logic at the cost of writing and
+maintaining that logic ourselves. Do not introduce Rive or any
+vector-based animation engine.
+
+### Visual silhouette constraint (LOCKED)
+
+Reference simplicity level: flat, low-color-count, geometric pixel art
+(blocky, minimal detail) — comparable in *rendering crudeness* to
+Anthropic's Claude Code mascot "Clawd," but the silhouette formula must be
+structurally distinct to avoid trademark resemblance. Clawd's formula is
+a stacked-rectangle body with two square eyes and symmetric leg stubs —
+this exact formula (proportions, eye shape, leg-stub count/placement) is
+off-limits.
+
+Required alternative silhouette direction: derive the body shape from the
+ceramic high-voltage insulator form already established as this project's
+material vocabulary — a tapering/widening stack of disc-like segments
+(narrow top, wider base), not a rectangular block stack. Eye treatment
+should diverge from square-block eyes (e.g. a single horizontal slit or
+gently curved band suggesting both an electrical-flow motif and an
+eyebrow-like expressive cue) to keep the hybrid "industrial but
+emotionally legible" identity locked in an earlier design pass.
+
+Add this as a hard constraint for whoever produces the actual character
+artwork in Aseprite: any silhouette resembling Clawd's stacked-square
+formula must be rejected before implementation begins.
+
+### Still pending
+
+- Individual character names, per-character personality/lore
+- Final visual form per character (hybrid direction locked, specific
+  silhouettes not yet drawn)
 
 ---
 
