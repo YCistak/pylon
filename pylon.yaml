@@ -66,7 +66,7 @@ services:
     poll_interval: 15m            # background PR poll; empty disables it
     commit_reminder: "22:00"      # daily "you haven't committed today" nudge
     repos:                        # local repos checked for today's commit
-      - /path/to/repo
+      - /path/to/your/repo
   # FreshRSS (Phase 2.3) via the Fever API. Enable the API in FreshRSS
   # (Settings → Profile → API) and either set api_key directly or give
   # username + api_password (key = md5("username:api_password")). ${ENV} expands.

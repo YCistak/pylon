@@ -1,3 +1,6 @@
 build/bin
 node_modules
 frontend/dist
+
+# Wails GUI build output (outputfilename in wails.json) — never commit binaries
+pylon-ui
