@@ -29,12 +29,26 @@ type response struct {
 // App is the Wails-bound backend. Its exported methods are callable from the
 // Svelte frontend.
 type App struct {
-	ctx context.Context
+	ctx    context.Context
+	daemon *daemonManager
 }
 
-func NewApp() *App { return &App{} }
+func NewApp() *App { return &App{daemon: &daemonManager{}} }
 
-func (a *App) startup(ctx context.Context) { a.ctx = ctx }
+// startup launches the daemon in the background if it isn't already up, so the
+// user just opens the window — no separate terminal. Runs in a goroutine so the
+// window appears immediately; the frontend's status poll flips to online once
+// the socket answers.
+func (a *App) startup(ctx context.Context) {
+	a.ctx = ctx
+	go a.daemon.ensureRunning()
+}
+
+// shutdown stops the daemon on window close, but only if the GUI started it
+// (a daemon the user launched by hand is left running).
+func (a *App) shutdown(ctx context.Context) {
+	a.daemon.stop()
+}
 
 // send dials the daemon, sends one request, and returns the reply. A dial error
 // here means the daemon isn't running.

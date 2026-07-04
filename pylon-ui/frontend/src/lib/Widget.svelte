@@ -12,6 +12,13 @@
   let text = ''
   let spinning = false
 
+  // Never surface daemon internals to the user. An unconfigured/unauthorized
+  // service reports "servissiz/bilinmeyen aksiyon"; show plain language instead.
+  function friendlyError(msg) {
+    if (/servissiz aksiyon|bilinmeyen aksiyon/i.test(msg)) return 'Bağlı değil'
+    return 'Şu an ulaşılamıyor'
+  }
+
   async function load() {
     state = 'loading'
     spinning = true
@@ -19,7 +26,7 @@
       text = await Do(action)
       state = 'ok'
     } catch (e) {
-      text = (e && e.message) ? e.message : String(e)
+      text = friendlyError((e && e.message) ? e.message : String(e))
       state = 'error'
     } finally {
       spinning = false

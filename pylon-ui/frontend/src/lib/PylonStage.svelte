@@ -6,9 +6,10 @@
   let online = false
   let timer
 
+  // Show the user a simple state, not the daemon's raw "running (pid …)" line.
   async function refresh() {
-    try { status = await Status(); online = true }
-    catch (e) { status = 'daemon kapalı'; online = false }
+    try { await Status(); status = 'çalışıyor'; online = true }
+    catch (e) { status = 'çalışmıyor'; online = false }
   }
   onMount(() => { refresh(); timer = setInterval(refresh, 5000) })
   onDestroy(() => clearInterval(timer))
