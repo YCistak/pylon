@@ -96,11 +96,13 @@
     position: relative;
     z-index: 0; /* workspace background layer */
     flex: 1;
+    min-width: 0;             /* let the grid shrink instead of overflowing the window */
     display: grid;
-    grid-template-columns: 300px 1fr 300px;
+    grid-template-columns: minmax(0, 300px) minmax(0, 1fr) minmax(0, 300px);
     align-items: center;
     gap: 28px;
     padding: 32px;
+    overflow-y: auto;         /* tall content scrolls instead of clipping */
     transition: opacity 180ms cubic-bezier(0.2, 0.9, 0.25, 1);
   }
   .home.dimmed, .settings-wrap.dimmed { opacity: 0.5; }
@@ -108,8 +110,23 @@
   .col {
     display: flex; flex-direction: column; gap: 18px;
     align-self: center;
+    min-width: 0;
   }
   .center { display: flex; flex-direction: column; align-items: center; gap: 20px; }
+
+  /* Narrow window: collapse to one column — Pylon on top, widgets stacked below,
+     vertically scrollable — so nothing overflows or gets clipped when small. */
+  @media (max-width: 820px) {
+    .home {
+      grid-template-columns: 1fr;
+      align-items: start;
+      justify-items: center;
+      gap: 20px;
+      padding: 20px;
+    }
+    .center { order: -1; }            /* Pylon first in the stack */
+    .col { width: 100%; max-width: 440px; align-self: stretch; }
+  }
 
   .core-layer {
     position: relative;

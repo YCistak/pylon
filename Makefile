@@ -5,16 +5,25 @@ BIN     := pylon
 PKG     := ./cmd/pylon
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 GPKG    := github.com/YCistak/pylon/internal/services/google
+SPKG    := github.com/YCistak/pylon/internal/services/spotify
 
-# Bake the project's Google OAuth client into the build so end users only sign in
-# (no Google Cloud setup for them). Set once, e.g.:
-#   make build GOOGLE_CLIENT_ID=xxx.apps.googleusercontent.com GOOGLE_CLIENT_SECRET=yyy
+# Bake the project's OAuth clients into the build so end users only sign in /
+# connect (no Google Cloud / Spotify Dashboard setup for them). Set once, e.g.:
+#   make build GOOGLE_CLIENT_ID=xxx.apps.googleusercontent.com GOOGLE_CLIENT_SECRET=yyy SPOTIFY_CLIENT_ID=zzz
+# Or persist them in a gitignored `build.env` next to this Makefile:
+#   GOOGLE_CLIENT_ID = xxx.apps.googleusercontent.com
+#   GOOGLE_CLIENT_SECRET = yyy
+#   SPOTIFY_CLIENT_ID = zzz
+# Spotify uses Authorization Code + PKCE — no client secret needed.
+-include build.env
 GOOGLE_CLIENT_ID     ?=
 GOOGLE_CLIENT_SECRET ?=
+SPOTIFY_CLIENT_ID    ?=
 
 LDFLAGS := -s -w -X main.version=$(VERSION) \
   -X $(GPKG).embeddedClientID=$(GOOGLE_CLIENT_ID) \
-  -X $(GPKG).embeddedClientSecret=$(GOOGLE_CLIENT_SECRET)
+  -X $(GPKG).embeddedClientSecret=$(GOOGLE_CLIENT_SECRET) \
+  -X $(SPKG).embeddedClientID=$(SPOTIFY_CLIENT_ID)
 
 .PHONY: build run test vet tidy clean install dist
 

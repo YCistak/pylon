@@ -79,6 +79,7 @@ type Services struct {
 	Google   GoogleService   `yaml:"google"`
 	GitHub   GitHubService   `yaml:"github"`
 	FreshRSS FreshRSSService `yaml:"freshrss"`
+	Spotify  SpotifyService  `yaml:"spotify"`
 }
 
 // FreshRSSService configures a FreshRSS instance via its Fever API (Phase 2.3).
@@ -105,15 +106,24 @@ type GitHubService struct {
 	Repos          []string `yaml:"repos"`           // local git repo paths to check for today's commit
 }
 
+// SpotifyService configures Spotify playback control (Phase 2.4) via the Web
+// API. The OAuth client is normally embedded in the build (like Google) so end
+// users just click "Connect" — client_id here overrides it for self-hosters.
+// Authorization Code + PKCE means there is no client secret to configure. The
+// user's token lives in the encrypted vault, written by `pylon auth spotify`.
+type SpotifyService struct {
+	ClientID     string `yaml:"client_id"`     // overrides the embedded OAuth client
+	RedirectPort int    `yaml:"redirect_port"` // must match the app's registered redirect URI
+}
+
 // GoogleService holds Google OAuth settings (Calendar, later Drive). The OAuth
 // client is normally embedded in the build so end users just sign in; client_id/
-// client_secret (or a credentials file) override it for self-hosters. The service
-// is enabled once a user token exists (after `pylon auth google`).
+// client_secret (or a credentials file) override it for self-hosters. The user's
+// token lives in the encrypted vault, written by `pylon auth google`.
 type GoogleService struct {
 	ClientID     string `yaml:"client_id"`     // overrides the embedded OAuth client
 	ClientSecret string `yaml:"client_secret"` // desktop apps: not confidential
 	Credentials  string `yaml:"credentials"`   // optional: OAuth client JSON instead
-	Token        string `yaml:"token"`         // saved by `pylon auth google`
 	CalendarID   string `yaml:"calendar_id"`   // "primary" by default
 }
 
@@ -172,8 +182,10 @@ func Default() Config {
 		Services: Services{
 			Google: GoogleService{
 				Credentials: "~/.config/pylon/google-credentials.json",
-				Token:       "~/.config/pylon/google-token.json",
 				CalendarID:  "primary",
+			},
+			Spotify: SpotifyService{
+				RedirectPort: 8888,
 			},
 		},
 		Briefing: Briefing{

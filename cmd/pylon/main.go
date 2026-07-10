@@ -32,6 +32,7 @@ import (
 	"github.com/YCistak/pylon/internal/services/freshrss"
 	ghsvc "github.com/YCistak/pylon/internal/services/github"
 	"github.com/YCistak/pylon/internal/services/google"
+	"github.com/YCistak/pylon/internal/services/spotify"
 	"github.com/YCistak/pylon/internal/voice"
 	"github.com/YCistak/pylon/internal/watcher"
 )
@@ -235,10 +236,10 @@ func buildServiceRegistry(cfg config.Config, log *slog.Logger) *services.Registr
 	gcfg := googleConfig(cfg)
 	switch {
 	case google.Configured(gcfg):
-		svcs = append(svcs, google.NewCalendar(gcfg))
-		log.Info("services: google calendar enabled")
+		svcs = append(svcs, google.NewCalendar(gcfg), google.NewDrive(gcfg))
+		log.Info("services: google calendar + drive enabled")
 	case google.HasClient(gcfg):
-		log.Info("services: google credentials found — run `pylon auth google` to enable calendar")
+		log.Info("services: google credentials found — run `pylon auth google` to enable calendar/drive")
 	}
 
 	ghcfg := githubConfig(cfg)
@@ -253,7 +254,20 @@ func buildServiceRegistry(cfg config.Config, log *slog.Logger) *services.Registr
 		log.Info("services: freshrss enabled")
 	}
 
+	scfg := spotifyConfig(cfg)
+	if spotify.Configured(scfg) {
+		svcs = append(svcs, spotify.New(scfg))
+		log.Info("services: spotify enabled")
+	}
+
 	return services.NewRegistry(svcs...)
+}
+
+func spotifyConfig(cfg config.Config) spotify.Config {
+	return spotify.Config{
+		ClientID:     cfg.Services.Spotify.ClientID,
+		RedirectPort: cfg.Services.Spotify.RedirectPort,
+	}
 }
 
 func githubConfig(cfg config.Config) ghsvc.Config {
@@ -274,7 +288,6 @@ func googleConfig(cfg config.Config) google.Config {
 		ClientID:        cfg.Services.Google.ClientID,
 		ClientSecret:    resolveSecret(cfg.Services.Google.ClientSecret),
 		CredentialsPath: cfg.Services.Google.Credentials,
-		TokenPath:       cfg.Services.Google.Token,
 		CalendarID:      cfg.Services.Google.CalendarID,
 	}
 }
@@ -604,27 +617,49 @@ func cmdListen() error {
 
 // cmdAuth runs a service authorization flow. Currently: `pylon auth google`.
 func cmdAuth(args []string) error {
-	if len(args) == 0 || args[0] != "google" {
-		return errors.New("usage: pylon auth google")
+	if len(args) == 0 {
+		return errors.New("usage: pylon auth <google|spotify>")
 	}
 	cfg, err := config.Load(configPath())
 	if err != nil {
 		return fmt.Errorf("config: %w", err)
 	}
-	gcfg := googleConfig(cfg)
-	if !google.HasClient(gcfg) {
-		return errors.New("bu Pylon derlemesine Google OAuth client'ı gömülmemiş. " +
-			"Yapımcı: `make build GOOGLE_CLIENT_ID=... GOOGLE_CLIENT_SECRET=...` ile göm, " +
-			"ya da services.google.client_id / client_secret ayarla")
-	}
-	fmt.Println("Google ile giriş yap — tarayıcı açılıyor...")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
-	if err := google.Authorize(ctx, gcfg); err != nil {
-		return err
+
+	switch args[0] {
+	case "google":
+		gcfg := googleConfig(cfg)
+		if !google.HasClient(gcfg) {
+			return errors.New("bu Pylon derlemesine Google OAuth client'ı gömülmemiş. " +
+				"Yapımcı: `make build GOOGLE_CLIENT_ID=... GOOGLE_CLIENT_SECRET=...` ile göm, " +
+				"ya da services.google.client_id / client_secret ayarla")
+		}
+		fmt.Println("Google ile giriş yap — tarayıcı açılıyor...")
+		if err := google.Authorize(ctx, gcfg); err != nil {
+			return err
+		}
+		fmt.Println("✔ Giriş tamam — artık takvimine ve Drive'ına erişebilirim.")
+		return nil
+
+	case "spotify":
+		scfg := spotifyConfig(cfg)
+		if !spotify.HasClient(scfg) {
+			return errors.New("bu Pylon derlemesine Spotify OAuth client'ı gömülmemiş. " +
+				"Yapımcı: `make build SPOTIFY_CLIENT_ID=...` ile göm, " +
+				"ya da services.spotify.client_id ayarla (Redirect URI olarak " +
+				spotify.RedirectURI(scfg) + " kayıtlı olmalı)")
+		}
+		fmt.Println("Spotify ile giriş yap — tarayıcı açılıyor...")
+		if err := spotify.Authorize(ctx, scfg); err != nil {
+			return err
+		}
+		fmt.Println("✔ Spotify bağlandı.")
+		return nil
+
+	default:
+		return fmt.Errorf("usage: pylon auth <google|spotify> (bilinmeyen: %q)", args[0])
 	}
-	fmt.Println("✔ Giriş tamam — artık takvimine erişebilirim.")
-	return nil
 }
 
 // cmdSecret manages credentials in Pylon's encrypted vault (AES-256-GCM, under

@@ -48,12 +48,12 @@ services:
   # Google Calendar (Phase 2). End users just run `pylon auth google` and sign in
   # — no Google Cloud setup. The project's OAuth client is baked into the build
   # (see Makefile GOOGLE_CLIENT_ID). Self-hosters can instead set client_id/
-  # client_secret here (or point `credentials` at an OAuth client JSON).
+  # client_secret here (or point `credentials` at an OAuth client JSON). The
+  # user's token is written to the encrypted vault (internal/secrets), not to a file.
   google:
     # client_id: ...
     # client_secret: ...
     # credentials: ~/.config/pylon/google-credentials.json
-    token: ~/.config/pylon/google-token.json     # written by `pylon auth google`
     calendar_id: primary
   # GitHub (Phase 2.2). Personal Access Token — classic needs `repo`+`read:org`,
   # or a fine-grained token with PR/issue read. ${ENV} is expanded, so keep the
@@ -74,6 +74,17 @@ services:
     url: ""                       # e.g. https://rss.example.com — empty disables it
     username: ""
     api_password: secret:freshrss   # save with: pylon secret set freshrss
+  # Spotify (Phase 2.4) playback control via the Web API. End users just run
+  # `pylon auth spotify` and connect — no Spotify Dashboard setup. The project's
+  # OAuth client is baked into the build (see Makefile SPOTIFY_CLIENT_ID) using
+  # Authorization Code + PKCE, so there is no client secret. Self-hosters can
+  # instead set client_id here (their app's Redirect URI must exactly match
+  # http://127.0.0.1:<redirect_port>/callback). The user's token is written to
+  # the encrypted vault (internal/secrets), not to a file. Playback control
+  # needs Spotify Premium and an active device.
+  spotify:
+    # client_id: ...
+    redirect_port: 8888
 
 briefing:
   time: "08:00"

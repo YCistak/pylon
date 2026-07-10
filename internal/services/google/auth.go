@@ -18,16 +18,22 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	calendar "google.golang.org/api/calendar/v3"
+	drive "google.golang.org/api/drive/v3"
+
+	"github.com/YCistak/pylon/internal/secrets"
 )
+
+// tokenSecretName is the vault key the user's Google OAuth token is stored
+// under (internal/secrets — AES-256-GCM, never plaintext on disk).
+const tokenSecretName = "google-token"
 
 // Config is the resolved Google service configuration. The OAuth *client* (which
 // app this is) comes from ClientID/Secret or a credentials file or build-time
-// embedded defaults; the *token* (which user) is per-user at TokenPath.
+// embedded defaults; the *token* (which user) lives in the encrypted vault.
 type Config struct {
 	ClientID        string // OAuth client id (overrides the embedded default)
 	ClientSecret    string // OAuth client secret (desktop apps: not confidential)
 	CredentialsPath string // optional: OAuth client JSON instead of id/secret
-	TokenPath       string // where the user's token is stored after consent
 	CalendarID      string // "primary" by default
 }
 
@@ -39,8 +45,14 @@ var (
 	embeddedClientSecret string
 )
 
-// scopes: read + write calendar events.
-var scopes = []string{calendar.CalendarEventsScope}
+// scopes: read + write calendar events, and read-only Drive file metadata
+// (search + link). Adding a scope means the user must re-run `pylon auth google`
+// to grant it — an existing calendar-only token keeps working for calendar but
+// Drive calls fail until re-consent.
+var scopes = []string{
+	calendar.CalendarEventsScope,
+	drive.DriveMetadataReadonlyScope,
+}
 
 // HasClient reports whether an OAuth client is available (config, credentials
 // file, or embedded build default) — i.e. `pylon auth google` can run.
@@ -62,7 +74,7 @@ func Configured(c Config) bool {
 	if !HasClient(c) {
 		return false
 	}
-	_, err := os.Stat(expandHome(c.TokenPath))
+	_, err := secrets.Default.Get(tokenSecretName)
 	return err == nil
 }
 
@@ -95,28 +107,26 @@ func firstNonEmpty(vals ...string) string {
 	return ""
 }
 
-func loadToken(path string) (*oauth2.Token, error) {
-	data, err := os.ReadFile(expandHome(path))
+// loadToken reads the user's token from the encrypted vault.
+func loadToken() (*oauth2.Token, error) {
+	data, err := secrets.Default.Get(tokenSecretName)
 	if err != nil {
 		return nil, err
 	}
 	var t oauth2.Token
-	if err := json.Unmarshal(data, &t); err != nil {
+	if err := json.Unmarshal([]byte(data), &t); err != nil {
 		return nil, err
 	}
 	return &t, nil
 }
 
-func saveToken(path string, t *oauth2.Token) error {
-	data, err := json.MarshalIndent(t, "", "  ")
+// saveToken persists the user's token in the encrypted vault (AES-256-GCM).
+func saveToken(t *oauth2.Token) error {
+	data, err := json.Marshal(t)
 	if err != nil {
 		return err
 	}
-	p := expandHome(path)
-	if dir := filepath.Dir(p); dir != "" {
-		_ = os.MkdirAll(dir, 0o700)
-	}
-	return os.WriteFile(p, data, 0o600)
+	return secrets.Default.Set(tokenSecretName, string(data))
 }
 
 // httpClient returns an authorized client using the saved token (auto-refresh).
@@ -126,7 +136,7 @@ func httpClient(ctx context.Context, c Config) (*http.Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	tok, err := loadToken(c.TokenPath)
+	tok, err := loadToken()
 	if err != nil {
 		return nil, fmt.Errorf("google: no saved token — run `pylon auth google` first (%v)", err)
 	}
@@ -201,7 +211,7 @@ func Authorize(ctx context.Context, c Config) error {
 	if err != nil {
 		return fmt.Errorf("token exchange: %w", err)
 	}
-	if err := saveToken(c.TokenPath, tok); err != nil {
+	if err := saveToken(tok); err != nil {
 		return fmt.Errorf("save token: %w", err)
 	}
 	return nil

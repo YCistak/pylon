@@ -262,14 +262,30 @@ go test ./db/...        → add/fetch/complete task
   Cross-checked auth gating: a wrong api_key returns `{"auth":0}`, so a real count proves the
   stored credential authenticated. LLM fallback also exercised (flash-latest timeout → flash-lite).
 
-**2.4 Spotify**
-- OAuth2, refresh token management
-- Commands: play, pause, next, volume up/down, "play X"
-- API: Spotify Web API
+**2.4 Spotify** — ✅ done (unit-tested; needs Premium to live-verify)
+- OAuth2 via the Web API (`internal/services/spotify`, plain HTTP behind `spAPI`, fake-tested).
+  Fixed loopback redirect (`http://127.0.0.1:<redirect_port>/callback`) since Spotify requires an
+  exactly-registered redirect URI. Token auto-refresh via the oauth2 client.
+- Actions: `spotify.play` / `pause` / `next` / `previous` / `volume_up` / `volume_down` /
+  `play_track{query}` (search + play) / `now_playing`. Friendly errors for no-active-device (404)
+  and non-Premium (403).
+- **End users just run `pylon auth spotify` and connect** — no Spotify Dashboard setup, mirroring
+  Google (2.1). **Authorization Code + PKCE** (2026-07-11): the project's Spotify app's client id is
+  baked into the build (`make build SPOTIFY_CLIENT_ID=...`, ldflags into `spotify.embeddedClientID`);
+  no client secret exists anywhere (PKCE needs none — a distributed desktop app can't keep one
+  confidential anyway). Self-hosters can override with `services.spotify.client_id`.
+  *Caveat:* the maintainer's Spotify app stays in "Development Mode" (25-user cap, each tester added
+  manually in the Dashboard) until publishing — revisit before any wider release.
+- User tokens (Google + Spotify) now live in the encrypted vault (`internal/secrets`, see 2.0b) under
+  fixed keys `google-token`/`spotify-token`, not as plaintext files — `pylon auth <service>` writes
+  there directly. Old `~/.config/pylon/*-token.json` files are no longer read; re-run
+  `pylon auth <service>` once after upgrading.
 
-**2.5 Google Drive**
-- File search: "find file X in Drive"
-- Returns link, opens it
+**2.5 Google Drive** — ✅ done (unit-tested; needs `pylon auth google` re-run for the new scope)
+- File search (`internal/services/google/drive.go`, shares the Google OAuth client/token with
+  Calendar). Action `drive.find{query}` → returns matching file names + webViewLink.
+- Added the `drive.metadata.readonly` scope to the Google token, so the user must re-run
+  `pylon auth google` (incognito, single account) to grant it before Drive calls work.
 
 ### Automated Tests
 ```
@@ -596,7 +612,7 @@ placeholder visuals and fixed the widget model. Checked items are implemented.
 | Anthropic | API Key | HTTP (Messages) | 1 |
 | Google Calendar | OAuth2 | google.golang.org/api | 2 |
 | Google Drive | OAuth2 | google.golang.org/api | 2 |
-| GitHub | PAT | go-github | 2 |
+| GitHub | PAT | HTTP (REST search API) | 2 |
 | FreshRSS | Fever API | HTTP | 2 |
 | Spotify | OAuth2 | HTTP | 2 |
 | Telegram | Bot Token | go-telegram-bot-api | 4 |
@@ -683,7 +699,9 @@ pylon/
 │   └── pylon/
 │       └── main.go
 ├── internal/
-│   ├── daemon/
+│   ├── config/           # pylon.yaml loader (defaults, ${ENV}, secret: refs)
+│   ├── daemon/           # Unix-socket daemon, PID file, CLI client
+│   ├── db/               # SQLite (tasks, context, persona, sessions)
 │   ├── intent/
 │   │   ├── router.go      # local keyword + fuzzy match (no API)
 │   │   ├── provider.go    # Parser interface, factory, shared decode/schema, retryable
@@ -691,29 +709,28 @@ pylon/
 │   │   ├── gemini.go      # Gemini provider (responseSchema)
 │   │   ├── openai.go      # OpenAI provider (response_format json_schema)
 │   │   └── anthropic.go   # Anthropic provider (forced tool-use)
+│   ├── ipc/              # socket protocol types
 │   ├── profile/          # persona engine — style learning (stats)
-│   ├── watcher/
-│   ├── scheduler/
-│   ├── db/
-│   ├── voice/
-│   │   ├── stt.go
-│   │   └── tts.go
-│   ├── services/
-│   │   ├── calendar/
+│   ├── scheduler/        # clock-driven jobs (Every / DailyAt / WeeklyAt)
+│   ├── secrets/          # AES-256-GCM credential vault (secret:<name>)
+│   ├── services/         # Service interface + Registry
+│   │   ├── google/       # shared OAuth (auth.go) + calendar.go + drive.go
 │   │   ├── github/
 │   │   ├── spotify/
 │   │   ├── freshrss/
-│   │   └── exchange/
-│   ├── briefing/
-│   ├── session/
-│   └── system/
-├── platform/
-│   ├── linux.go
-│   ├── windows.go
-│   └── darwin.go
-├── config/
-│   └── config.go
-├── pylon.yaml
+│   │   └── exchange/     # planned (Phase 3)
+│   ├── voice/            # stt.go, tts.go, record.go, per-OS defaults
+│   ├── watcher/          # /proc poller (build-tagged per OS)
+│   ├── briefing/         # planned (Phase 3)
+│   ├── session/          # planned (Phase 3)
+│   └── system/           # planned (Phase 3)
+├── platform/             # planned (Phase 5 global hotkey abstraction)
+├── pylon-ui/             # Wails GUI (separate Go module + Svelte frontend)
+├── scripts/              # TTS helpers (edge_tts.sh etc.)
+├── docs/UI.md
+├── pylon.yaml            # template config (committed, no secrets)
+├── pylon.local.yaml      # machine-local overrides (gitignored)
+├── Makefile
 ├── go.mod
 ├── PLANNED.md
 └── README.md
