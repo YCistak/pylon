@@ -10,6 +10,12 @@
     --border:     rgba(255, 255, 255, 0.07);
     --border-2:   rgba(255, 255, 255, 0.12);
 
+    /* solid raised panels — popovers, modals, menus. Opaque so nothing
+       behind them bleeds through (unlike the translucent --surface). */
+    --panel:      #141b28;   /* base panel */
+    --panel-2:    #1b2334;   /* one step lighter — hover rows */
+    --panel-3:    #222c40;   /* active / selected */
+
     /* signature accent — violet → cyan, the Pylon identity */
     --accent:      #7c8cf8;
     --accent-2:    #34e0d8;
