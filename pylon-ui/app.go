@@ -91,8 +91,12 @@ func (a *App) Status() (string, error) {
 
 // Do runs a service action directly (no LLM) and returns its speakable text —
 // the data source for every home widget. e.g. Do("freshrss.unread_count").
-func (a *App) Do(action string) (string, error) {
-	resp, err := send(request{Cmd: "do", Args: []string{action}})
+func (a *App) Do(action string, params map[string]string) (string, error) {
+	args := []string{action}
+	for k, v := range params {
+		args = append(args, k+"="+v)
+	}
+	resp, err := send(request{Cmd: "do", Args: args})
 	if err != nil {
 		return "", err
 	}
