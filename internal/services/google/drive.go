@@ -13,8 +13,13 @@ import (
 
 // Drive actions.
 const (
-	ActionFindFile intent.Action = "drive.find"
+	ActionFindFile    intent.Action = "drive.find"
+	ActionRecentFiles intent.Action = "drive.recent"
 )
+
+// recentFilesLimit caps how many files drive.recent lists (widget/voice reply
+// should stay short).
+const recentFilesLimit = 5
 
 // File is the minimal shape Pylon needs from a Drive file (decoupled from the
 // API for testing).
@@ -27,6 +32,7 @@ type File struct {
 // in tests.
 type driveAPI interface {
 	search(ctx context.Context, query string, limit int64) ([]File, error)
+	recent(ctx context.Context, limit int64) ([]File, error)
 }
 
 // Drive is the Google Drive Service. It shares the Google OAuth client/token
@@ -50,6 +56,10 @@ func (d *Drive) Actions() []intent.ActionSpec {
 			Args: []string{"query"},
 			Desc: `"drive.find": find a file in the user's Google Drive by name. Put the search text in "query". Use for "Drive'da bütçe dosyasını bul", "sunum dosyam nerede".`,
 		},
+		{
+			Name: ActionRecentFiles,
+			Desc: `"drive.recent": list the user's most recently modified Google Drive files. No args. Use for "Drive'da son dosyalarım ne", "en son neye dokunmuştum".`,
+		},
 	}
 }
 
@@ -57,6 +67,8 @@ func (d *Drive) Execute(ctx context.Context, action intent.Action, args map[stri
 	switch action {
 	case ActionFindFile:
 		return d.find(ctx, args)
+	case ActionRecentFiles:
+		return d.recent(ctx)
 	default:
 		return "", fmt.Errorf("drive: bilinmeyen aksiyon %q", action)
 	}
@@ -71,14 +83,35 @@ func (d *Drive) find(ctx context.Context, args map[string]string) (string, error
 	if err != nil {
 		return "", err
 	}
-	files, err := api.search(ctx, query, 5)
+	files, err := api.search(ctx, query, recentFilesLimit)
 	if err != nil {
 		return "", err
 	}
 	if len(files) == 0 {
 		return fmt.Sprintf("Drive'da %q ile eşleşen dosya yok.", query), nil
 	}
-	var parts []string
+	return fmt.Sprintf("Drive'da %d dosya bulundu: %s", len(files), formatFileList(files)), nil
+}
+
+func (d *Drive) recent(ctx context.Context) (string, error) {
+	api, err := d.client(ctx)
+	if err != nil {
+		return "", err
+	}
+	files, err := api.recent(ctx, recentFilesLimit)
+	if err != nil {
+		return "", err
+	}
+	if len(files) == 0 {
+		return "Drive'da dosya yok.", nil
+	}
+	return "Son dosyalar: " + formatFileList(files), nil
+}
+
+// formatFileList renders files as "Name — link" (or just Name), joined for a
+// speakable/glanceable reply. Shared by find and recent.
+func formatFileList(files []File) string {
+	parts := make([]string, 0, len(files))
 	for _, f := range files {
 		if f.Link != "" {
 			parts = append(parts, fmt.Sprintf("%s — %s", f.Name, f.Link))
@@ -86,7 +119,7 @@ func (d *Drive) find(ctx context.Context, args map[string]string) (string, error
 			parts = append(parts, f.Name)
 		}
 	}
-	return fmt.Sprintf("Drive'da %d dosya bulundu: %s", len(files), strings.Join(parts, "; ")), nil
+	return strings.Join(parts, "; ")
 }
 
 // client lazily builds the real Drive API from the saved OAuth token, unless one
@@ -114,6 +147,14 @@ func (r *realDrive) search(ctx context.Context, query string, limit int64) ([]Fi
 	// a name with an apostrophe can't break the query string.
 	safe := strings.ReplaceAll(query, `'`, `\'`)
 	q := fmt.Sprintf("name contains '%s' and trashed = false", safe)
+	return r.list(ctx, q, limit)
+}
+
+func (r *realDrive) recent(ctx context.Context, limit int64) ([]File, error) {
+	return r.list(ctx, "trashed = false", limit)
+}
+
+func (r *realDrive) list(ctx context.Context, q string, limit int64) ([]File, error) {
 	res, err := r.svc.Files.List().
 		Context(ctx).
 		Q(q).

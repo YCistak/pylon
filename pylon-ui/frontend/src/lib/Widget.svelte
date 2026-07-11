@@ -1,16 +1,20 @@
 <script>
-  import { onMount } from 'svelte'
+  import { onDestroy } from 'svelte'
   import { fly } from 'svelte/transition'
   import { Do } from '../../wailsjs/go/main/App.js'
 
   export let icon = ''
   export let title = ''
   export let action = ''
+  export let params = {}
+  export let refresh = 0 // minutes, 0 = off
   export let accent = 'var(--accent)'
+  export let onEdit = null
 
   let state = 'loading' // loading | ok | error
   let text = ''
   let spinning = false
+  let timer = null
 
   // Never surface daemon internals to the user. An unconfigured/unauthorized
   // service reports "servissiz/bilinmeyen aksiyon"; show plain language instead.
@@ -23,7 +27,7 @@
     state = 'loading'
     spinning = true
     try {
-      text = await Do(action)
+      text = await Do(action, params)
       state = 'ok'
     } catch (e) {
       text = friendlyError((e && e.message) ? e.message : String(e))
@@ -32,14 +36,26 @@
       spinning = false
     }
   }
-  onMount(load)
+
+  function scheduleRefresh(minutes) {
+    if (timer) { clearInterval(timer); timer = null }
+    if (minutes > 0) timer = setInterval(load, minutes * 60 * 1000)
+  }
+
+  onDestroy(() => { if (timer) clearInterval(timer) })
+  $: scheduleRefresh(refresh)
+  // Initial load, and reload whenever action/params change (e.g. edited in Settings).
+  $: action, params, load()
 </script>
 
 <div class="widget {state}" style="--wa: {accent}" in:fly={{ y: 12, duration: 320 }}>
   <span class="stripe"></span>
   <header>
-    <span class="tile">{icon}</span>
+    <span class="tile">{@html icon}</span>
     <span class="title">{title}</span>
+    {#if onEdit}
+      <button class="edit" on:click={onEdit} title="düzenle" aria-label="düzenle">✎</button>
+    {/if}
     <button class="refresh" class:spinning on:click={load} title="yenile" aria-label="yenile">⟳</button>
   </header>
 
@@ -81,18 +97,18 @@
   .tile {
     width: 30px; height: 30px; flex: 0 0 auto;
     display: grid; place-items: center;
-    font-size: 15px;
-    border-radius: 9px;
-    background: color-mix(in srgb, var(--wa) 18%, transparent);
-    border: 1px solid color-mix(in srgb, var(--wa) 30%, transparent);
+    color: var(--wa);
   }
+  .tile :global(svg) { width: 16px; height: 16px; }
+  .tile :global(img) { width: 20px; height: 20px; object-fit: contain; }
   .title { font-weight: 700; color: var(--text-1); font-size: 13px; flex: 1; }
-  .refresh {
+  .edit, .refresh {
     border: none; background: transparent; color: var(--text-3);
-    cursor: pointer; font-size: 15px; line-height: 1;
+    cursor: pointer; font-size: 13px; line-height: 1;
     transition: color var(--dur), transform var(--dur);
   }
-  .refresh:hover { color: var(--text-1); }
+  .refresh { font-size: 15px; }
+  .edit:hover, .refresh:hover { color: var(--text-1); }
   .refresh.spinning { animation: spin 0.7s linear infinite; color: var(--wa); }
   @keyframes spin { to { transform: rotate(360deg); } }
 

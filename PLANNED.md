@@ -284,8 +284,17 @@ go test ./db/...        → add/fetch/complete task
 **2.5 Google Drive** — ✅ done (unit-tested; needs `pylon auth google` re-run for the new scope)
 - File search (`internal/services/google/drive.go`, shares the Google OAuth client/token with
   Calendar). Action `drive.find{query}` → returns matching file names + webViewLink.
+- **`drive.recent`** (no args, 2026-07-11) → the 5 most recently modified files, for a passive
+  glance (voice: "Drive'da son dosyalarım ne"; also the GUI widget below — no-arg actions are what
+  the widget model supports, unlike `find` which needs a query).
 - Added the `drive.metadata.readonly` scope to the Google token, so the user must re-run
   `pylon auth google` (incognito, single account) to grant it before Drive calls work.
+
+**GUI widgets (2026-07-11)** — Drive and Spotify added to the Settings-toggleable widget registry
+(`pylon-ui/frontend/src/lib/widgets.js`), alongside Calendar/FreshRSS/GitHub: Drive shows
+`drive.recent`, Spotify shows `spotify.now_playing` (both no-arg, fitting the existing widget card's
+"call once, refresh button" model — Home/Settings needed no other changes, both already render off
+the shared `AVAILABLE` registry).
 
 ### Automated Tests
 ```
@@ -407,7 +416,23 @@ go test ./build/...       → cross-compile succeeds (in CI)
 
 ---
 
-## Phase 5 — Character System
+## Phase 5 — Character System (CANCELLED, 2026-07-11)
+
+**Not being built.** User decision: skip the character system entirely, not just
+defer it — Pylon ships without companion characters for the foreseeable future.
+The placeholder UI shell (sidebar character sockets, dispatch/travel overlay,
+ambient music-reaction store) has been **removed** from `pylon-ui`:
+`DispatchOverlay.svelte`, `dispatchStore.js`, and `ambientStore.js` are deleted;
+`Sidebar.svelte` is back to just the Pylon brand + status/settings rows;
+`App.svelte` no longer wraps `PylonStage` in a dimming layer or carries the
+`Ctrl+Shift+D` dev panel. The core Pylon avatar (`PylonStage.svelte`) and every
+widget/service integration are untouched — none of this depended on the
+character system. The design spec below is kept **for historical reference
+only** — if this is ever revisited, it needs a fresh design session, not a
+resume of the below (a lot may have drifted by then).
+
+<details>
+<summary>Original design spec (archived, not in progress)</summary>
 
 Three companion characters, each a visual proxy for a locked group of
 backend services. Design language: hybrid form — pylon/insulator/power-line
@@ -568,6 +593,8 @@ formula must be rejected before implementation begins.
 - Final visual form per character (hybrid direction locked, specific
   silhouettes not yet drawn)
 
+</details>
+
 ---
 
 ## UI — Visual Overhaul (DONE, from user feedback)
@@ -590,7 +617,7 @@ placeholder visuals and fixed the widget model. Checked items are implemented.
 - [x] **Animations** — Pylon ring spin / core pulse / halo breathe, widget enter + refresh
   spin + shimmer, view fade transitions, hover feedback, settings toggle knob slide.
 
-**Widget model correction (important):**
+**Widget model correction (important):** — *superseded 2026-07-11 by "Widget System — Redesign" below (instance-based + popup). The enable/disable toggle model described here was the interim build.*
 - [x] Widgets are no longer hardcoded on Home. Registry lives in `lib/widgets.js`; Home reads
   a persisted store, not a static list.
 - [x] Home starts **empty** (shows an "add from Settings" hint); widgets are enabled from
@@ -600,6 +627,85 @@ placeholder visuals and fixed the widget model. Checked items are implemented.
 
 *Settings gets a real (if minimal) build now for widget management; full settings design
 — secret entry, service toggles, voice — still lands at docs/UI.md "step 4".*
+
+---
+
+## Widget System — Redesign (instance-based · parameterized · popup) — ✅ built 2026-07-11
+
+Supersedes the enable/disable + left/right toggle model above. Design approved via an
+interactive mockup; **implemented and verified building** (`go build`, `wails build` regen the
+bindings clean; GUI launches and the daemon connects with services enabled). Full click-through
+of the new picker/modal in a real window is still pending — a headless-sandbox screenshot came
+back black, so a manual look after this session is worth doing.
+
+**Model — widget instances, not a fixed registry.**
+- Home is an *ordered list of widget instances*, each a configured copy:
+  `{ id, type, title, column: 'left'|'right', mode, params, refresh, accent }`.
+  Multiple instances of one type are allowed (e.g. two GitHub widgets — one PRs, one Issues;
+  two Drive searches). Persisted as an ordered array in `localStorage` `pylon.widgets.v2`;
+  a one-time migration converts the old v1 `{id: 'left'|'right'}` map into default instances.
+- `CATALOG` (replaces `AVAILABLE`) defines widget *types*: `type, icon, title, accent` +
+  `modes` — selectable actions with their param fields:
+  - Takvim: `calendar.list_today` (no params)
+  - FreshRSS: `freshrss.unread_count` (no params)
+  - GitHub: `github.list_prs` / `github.list_issues` (mode choice)
+  - Drive: `drive.recent` / `drive.find` → *find* reveals a **query** text field (the one
+    genuinely parameterized action)
+  - Spotify: `spotify.now_playing` (no params)
+
+**Flow — two steps (approved UX).**
+1. **Widget Ekle** button → small "Hangi widget?" picker popover (the type list).
+2. Pick a type (e.g. Spotify) → a **centered modal popup** opens with *that widget's* settings:
+   live preview, title, mode radios (if >1), mode-specific param fields (e.g. Drive query),
+   column (Sol/Sağ), auto-refresh interval (Kapalı/1/5/15/30 dk). **Ekle** adds it.
+   Editing an existing widget (pen icon) opens the same popup in edit mode (type fixed,
+   buttons Kaydet/Sil). Close via X / İptal / backdrop / Esc.
+
+**Backend — almost free.** The daemon "do" handler *already* accepts parameters
+(`do <action> [k=v ...]`, cmd/pylon/main.go) and services already take `args map[string]string`,
+so `drive.find{query}` works end-to-end today. The only Go change is the Wails binding
+`App.Do(action)` → `App.Do(action, params map[string]string)` (+ regenerate wailsjs bindings).
+
+**Files (planned):** `pylon-ui/app.go` (Do signature) · `wailsjs/go/main/App.{js,d.ts}` ·
+`lib/widgets.js` (CATALOG + instance store + v1→v2 migration) · `lib/Widget.svelte` (params +
+`setInterval` auto-refresh) · `App.svelte` (render instance array by column/order) ·
+`lib/Settings.svelte` (picker popover + centered popup editor).
+
+---
+
+## Internationalization (i18n) — PLANNED (deferred; scope approved 2026-07-11)
+
+Goal: **full app language** (TR + EN now, more later) — GUI chrome *and* assistant output
+(widget values, notifications, voice/LLM replies). A single "app language" drives everything.
+
+**Source of truth: the daemon.** App language stored in the existing `context` DB table under
+`app.language` (no new file/keyring). Daemon reads it at startup; the GUI changes it via new IPC
+`get_language`/`set_language` and caches it in `localStorage` for instant startup. The same
+language feeds widget output, notifications, voice/LLM replies, and TTS voice selection.
+(Distinct from `voice.language`, which is STT input detection — stays `auto`.)
+
+**Translation workflow (both frontend & Go):** key-based dictionaries. Code references stable
+keys (`t('widget.add')` / `i18n.T(lang, "rss.unread", n)`); each language is one JSON of
+key→value. Adding a language = copy `en.json`, translate the *values* (by hand / DeepL / LLM),
+register it in the language list. Keys never change.
+
+**Phases (each independently shippable & verifiable):**
+- **Faz 1 — Frontend GUI i18n.** `lib/i18n.js` (`locale` + derived `t` store, `LANGUAGES`,
+  localStorage, interpolation/plural) + `lib/locales/{tr,en}.json`; convert all `.svelte`
+  strings (App/Sidebar/Settings/Widget/PylonStage + the new widget popup) to `$t(...)`;
+  Settings gets a **Dil / Language** section. Frontend-only, immediately visible.
+- **Faz 2 — Single-source language + IPC.** `app.language` in the `context` DB;
+  `get_language`/`set_language` handlers; wailsjs binding; GUI syncs on startup.
+- **Faz 3 — Daemon content i18n.** `internal/i18n` (`//go:embed locales/*.json`,
+  `T(lang, key, args...)`, fallback en→key); carry lang via `context.Context`
+  (`i18n.FromContext`, no service-signature change); convert every hardcoded Turkish string in
+  `services/{freshrss,github,calendar,drive,spotify}` + Dispatch errors.
+- **Faz 4 — Voice / LLM / TTS.** "reply in <lang>" directive + localized static prompt
+  scaffolding; TTS voice chosen by language (TR/EN voices already in config, PLANNED 1.3);
+  STT stays `auto`.
+
+**Sequencing:** build the Widget System redesign first (it's fully designed), *then* i18n Faz 1
+— i18n will translate the new popup's strings, so building the popup first avoids double work.
 
 ---
 
