@@ -18,6 +18,11 @@ func (f *fakeDrive) search(_ context.Context, q string, n int64) ([]File, error)
 	return f.files, f.err
 }
 
+func (f *fakeDrive) recent(_ context.Context, n int64) ([]File, error) {
+	f.gotN = n
+	return f.files, f.err
+}
+
 func TestDriveFind(t *testing.T) {
 	fd := &fakeDrive{files: []File{
 		{Name: "Bütçe 2026", Link: "https://drive.google.com/file/x"},
@@ -52,5 +57,35 @@ func TestDriveFindMissingQuery(t *testing.T) {
 	d := &Drive{api: &fakeDrive{}}
 	if _, err := d.Execute(context.Background(), ActionFindFile, map[string]string{}); err == nil {
 		t.Fatal("expected error for empty query")
+	}
+}
+
+func TestDriveRecent(t *testing.T) {
+	fd := &fakeDrive{files: []File{
+		{Name: "Bütçe 2026", Link: "https://drive.google.com/file/x"},
+		{Name: "Notlar"},
+	}}
+	d := &Drive{api: fd}
+
+	out, err := d.Execute(context.Background(), ActionRecentFiles, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fd.gotN != recentFilesLimit {
+		t.Errorf("limit not forwarded: got %d, want %d", fd.gotN, recentFilesLimit)
+	}
+	if !strings.Contains(out, "Bütçe 2026") || !strings.Contains(out, "Notlar") {
+		t.Errorf("missing file names in reply: %q", out)
+	}
+}
+
+func TestDriveRecentEmpty(t *testing.T) {
+	d := &Drive{api: &fakeDrive{}}
+	out, err := d.Execute(context.Background(), ActionRecentFiles, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "dosya yok") {
+		t.Errorf("expected empty reply, got %q", out)
 	}
 }
