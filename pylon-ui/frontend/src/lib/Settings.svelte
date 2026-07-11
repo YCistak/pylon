@@ -47,14 +47,21 @@
   }
 
   function onKeydown(e) {
-    if (e.key === 'Escape' && draft) closeModal()
+    if (e.key !== 'Escape') return
+    if (draft) closeModal()
+    else if (showPicker) showPicker = false
+  }
+
+  // Close the picker when clicking anywhere outside it.
+  function onWindowClick(e) {
+    if (showPicker && !e.target.closest('.add-wrap')) showPicker = false
   }
 
   $: draftEntry = draft && catalogEntry(draft.type)
   $: draftMode = draft && modeOf(draft.type, draft.mode)
 </script>
 
-<svelte:window on:keydown={onKeydown} />
+<svelte:window on:keydown={onKeydown} on:click={onWindowClick} />
 
 <div class="settings">
   <header class="head">
@@ -64,16 +71,22 @@
 
   <section class="card">
     <div class="card-head">
-      <h3>Widget'lar</h3>
+      <div class="card-title">
+        <h3>Widget'lar</h3>
+        <span class="count">{$widgets.length}</span>
+      </div>
       <div class="add-wrap">
-        <button class="add-btn" on:click={() => (showPicker = !showPicker)}>+ Widget Ekle</button>
+        <button class="add-btn" class:open={showPicker} on:click={() => (showPicker = !showPicker)}>
+          <span class="plus">+</span> Widget Ekle
+        </button>
         {#if showPicker}
           <div class="picker">
             <p class="picker-title">Hangi widget?</p>
             {#each CATALOG as c}
               <button class="picker-item" on:click={() => openCreate(c.type)}>
                 <span class="tile" style="--wa: {c.accent}">{@html c.icon}</span>
-                <span>{c.title}</span>
+                <span class="picker-name">{c.title}</span>
+                <span class="chevron">›</span>
               </button>
             {/each}
           </div>
@@ -82,16 +95,26 @@
     </div>
 
     {#if $widgets.length === 0}
-      <p class="empty">Henüz widget yok — yukarıdan ekle.</p>
+      <div class="empty">
+        <p>Henüz widget eklemedin.</p>
+        <span>Yukarıdaki <strong>+ Widget Ekle</strong> ile başla.</span>
+      </div>
     {:else}
       <ul class="list">
         {#each $widgets as w (w.id)}
           {@const entry = catalogEntry(w.type)}
           <li>
             <span class="tile" style="--wa: {entry.accent}">{@html entry.icon}</span>
-            <span class="name">{w.title}</span>
-            <span class="meta">{w.column === 'left' ? 'Sol' : 'Sağ'} · {modeOf(w.type, w.mode)?.label}</span>
+            <div class="info">
+              <span class="name">{w.title}</span>
+              <span class="meta">
+                <span class="chip">{w.column === 'left' ? 'Sol' : 'Sağ'}</span>
+                <span class="mode">{modeOf(w.type, w.mode)?.label}</span>
+                {#if w.refresh > 0}<span class="chip refresh">⟳ {w.refresh} dk</span>{/if}
+              </span>
+            </div>
             <button class="pen" on:click={() => openEdit(w)} title="düzenle" aria-label="düzenle">✎</button>
+            <button class="del" on:click={() => widgets.remove(w.id)} title="sil" aria-label="sil">✕</button>
           </li>
         {/each}
       </ul>
@@ -191,116 +214,174 @@
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--r-lg);
-    padding: 8px 20px 16px;
+    padding: 8px 16px 14px;
   }
-  .card-head { display: flex; align-items: center; justify-content: space-between; margin: 16px 4px 6px; }
-  .card-head h3 { color: var(--text-1); font-size: 14px; margin: 0; }
+  .card-head { display: flex; align-items: center; justify-content: space-between; margin: 14px 4px 10px; }
+  .card-title { display: flex; align-items: center; gap: 9px; }
+  .card-title h3 { color: var(--text-1); font-size: 14px; margin: 0; }
+  .count {
+    min-width: 20px; height: 20px; padding: 0 6px; box-sizing: border-box;
+    display: inline-grid; place-items: center;
+    background: var(--surface-2); color: var(--text-2);
+    border-radius: 999px; font-size: 11px; font-weight: 800;
+  }
 
   .add-wrap { position: relative; }
   .add-btn {
+    display: inline-flex; align-items: center; gap: 6px;
     border: 1px solid var(--border-2); background: var(--bg-2); color: var(--text-1);
-    font-size: 12px; font-weight: 700; padding: 7px 12px; border-radius: 8px; cursor: pointer;
-    transition: background var(--dur), border-color var(--dur);
+    font-size: 12px; font-weight: 700; padding: 8px 13px; border-radius: 9px; cursor: pointer;
+    transition: background var(--dur), border-color var(--dur), box-shadow var(--dur);
   }
-  .add-btn:hover { border-color: var(--accent); }
+  .add-btn .plus { font-size: 14px; line-height: 1; color: var(--accent); font-weight: 800; }
+  .add-btn:hover { border-color: var(--accent); background: var(--panel-2); }
+  .add-btn.open { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 
+  /* Opaque popover — sits above everything, nothing bleeds through. */
   .picker {
-    position: absolute; right: 0; top: calc(100% + 8px); z-index: 20;
-    background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md);
-    box-shadow: var(--shadow-soft); padding: 8px; width: 200px;
+    position: absolute; right: 0; top: calc(100% + 10px); z-index: 60;
+    background: var(--panel); border: 1px solid var(--border-2); border-radius: var(--r-md);
+    box-shadow: 0 18px 44px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(0,0,0,0.3);
+    padding: 7px; width: 224px;
+    animation: pop 160ms var(--ease);
   }
-  .picker-title { margin: 4px 8px 8px; font-size: 11px; color: var(--text-3); font-weight: 700; text-transform: uppercase; }
-  .picker-item {
-    display: flex; align-items: center; gap: 10px; width: 100%;
-    border: none; background: transparent; color: var(--text-1);
-    font-size: 13px; font-weight: 600; padding: 8px; border-radius: 7px; cursor: pointer;
-    transition: background var(--dur);
+  /* little caret pointing at the button */
+  .picker::before {
+    content: ''; position: absolute; top: -6px; right: 26px;
+    width: 11px; height: 11px; background: var(--panel);
+    border-left: 1px solid var(--border-2); border-top: 1px solid var(--border-2);
+    transform: rotate(45deg);
   }
-  .picker-item:hover { background: var(--bg-2); }
+  @keyframes pop { from { opacity: 0; transform: translateY(-6px) scale(0.98); } to { opacity: 1; transform: none; } }
 
-  .empty { color: var(--text-3); font-size: 13px; padding: 14px 4px; }
+  .picker-title { margin: 5px 9px 7px; font-size: 10px; letter-spacing: 0.06em; color: var(--text-3); font-weight: 800; text-transform: uppercase; }
+  .picker-item {
+    display: flex; align-items: center; gap: 11px; width: 100%;
+    border: none; background: transparent; color: var(--text-1);
+    font-size: 13.5px; font-weight: 700; padding: 9px; border-radius: 9px; cursor: pointer;
+    transition: background var(--dur), transform var(--dur);
+  }
+  .picker-name { flex: 1; text-align: left; }
+  .picker-item .chevron { color: var(--text-3); font-size: 16px; opacity: 0; transform: translateX(-4px); transition: opacity var(--dur), transform var(--dur); }
+  .picker-item:hover { background: var(--panel-2); }
+  .picker-item:hover .chevron { opacity: 1; transform: none; }
+
+  .empty {
+    text-align: center; padding: 30px 4px 26px;
+    display: flex; flex-direction: column; gap: 5px;
+  }
+  .empty p { margin: 0; color: var(--text-1); font-weight: 700; font-size: 14px; }
+  .empty span { color: var(--text-3); font-size: 12.5px; }
+  .empty strong { color: var(--text-2); }
 
   .list { list-style: none; margin: 0; padding: 0; }
   .list li {
-    display: flex; align-items: center; gap: 14px;
-    padding: 14px 4px;
-    border-top: 1px solid var(--border);
+    display: flex; align-items: center; gap: 13px;
+    padding: 11px 12px;
+    border-radius: var(--r-md);
+    border: 1px solid transparent;
+    transition: background var(--dur), border-color var(--dur);
   }
-  .list li:first-child { border-top: none; }
+  .list li + li { margin-top: 4px; }
+  .list li:hover { background: var(--surface); border-color: var(--border); }
 
   .tile {
-    width: 34px; height: 34px; flex: 0 0 auto;
+    width: 36px; height: 36px; flex: 0 0 auto;
     display: grid; place-items: center;
+    background: color-mix(in srgb, var(--wa) 12%, transparent);
+    border-radius: 10px;
     color: var(--wa);
   }
   .tile :global(svg) { width: 18px; height: 18px; }
   .tile :global(img) { width: 22px; height: 22px; object-fit: contain; }
-  .name { flex: 1; color: var(--text-1); font-weight: 700; }
-  .meta { color: var(--text-3); font-size: 12px; }
 
-  .pen {
-    border: none; background: transparent; color: var(--text-3); cursor: pointer;
-    font-size: 13px; transition: color var(--dur);
+  .info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+  .name { color: var(--text-0); font-weight: 700; font-size: 14px; }
+  .meta { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+  .chip {
+    font-size: 10.5px; font-weight: 700; color: var(--text-2);
+    background: var(--surface-2); padding: 2px 7px; border-radius: 6px;
   }
-  .pen:hover { color: var(--text-1); }
+  .chip.refresh { color: var(--accent-2); background: rgba(52, 224, 216, 0.1); }
+  .mode { color: var(--text-3); font-size: 12px; }
+
+  .pen, .del {
+    border: none; background: transparent; cursor: pointer;
+    font-size: 13px; width: 28px; height: 28px; border-radius: 8px;
+    display: grid; place-items: center;
+    color: var(--text-3);
+    opacity: 0; transition: opacity var(--dur), color var(--dur), background var(--dur);
+  }
+  .list li:hover .pen, .list li:hover .del { opacity: 1; }
+  .pen:hover { color: var(--text-0); background: var(--surface-2); }
+  .del:hover { color: var(--err); background: rgba(242, 104, 138, 0.12); }
 
   .note { color: var(--text-3); font-size: 12px; margin-top: 22px; }
 
   /* Modal */
   .backdrop {
-    position: fixed; inset: 0; z-index: 50;
-    background: rgba(0, 0, 0, 0.45);
+    position: fixed; inset: 0; z-index: 80;
+    background: rgba(4, 6, 10, 0.6);
     display: grid; place-items: center;
-    backdrop-filter: blur(2px);
+    backdrop-filter: blur(4px);
+    animation: fadein 160ms var(--ease);
   }
+  @keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
   .modal {
-    width: 380px; max-width: calc(100vw - 40px);
+    width: 400px; max-width: calc(100vw - 40px);
     max-height: calc(100vh - 60px); overflow: auto;
-    background: var(--surface); border: 1px solid var(--border-2);
-    border-radius: var(--r-lg); box-shadow: var(--shadow-soft);
-    padding: 18px 20px 16px;
+    background: var(--panel); border: 1px solid var(--border-2);
+    border-radius: var(--r-lg);
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+    padding: 20px 22px 18px;
+    animation: pop 200ms var(--ease);
   }
-  .modal-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .modal-head { display: flex; align-items: center; gap: 11px; margin-bottom: 16px; }
   .modal-head h3 { flex: 1; margin: 0; font-size: 15px; color: var(--text-0); }
-  .modal-head .tile { width: 28px; height: 28px; }
+  .modal-head .tile { width: 30px; height: 30px; }
   .x {
     border: none; background: transparent; color: var(--text-3); cursor: pointer;
-    font-size: 20px; line-height: 1; padding: 0 4px;
+    font-size: 20px; line-height: 1; width: 28px; height: 28px; border-radius: 8px;
+    transition: color var(--dur), background var(--dur);
   }
-  .x:hover { color: var(--text-1); }
+  .x:hover { color: var(--text-0); background: var(--surface-2); }
 
-  .preview { margin-bottom: 14px; pointer-events: none; }
+  .preview { margin-bottom: 16px; pointer-events: none; }
 
-  .field { display: block; margin-bottom: 12px; }
-  .field > span { display: block; font-size: 11px; font-weight: 700; color: var(--text-3); text-transform: uppercase; margin-bottom: 6px; }
+  .field { display: block; margin-bottom: 14px; }
+  .field > span { display: block; font-size: 10.5px; letter-spacing: 0.05em; font-weight: 800; color: var(--text-3); text-transform: uppercase; margin-bottom: 7px; }
   .field input {
     width: 100%; box-sizing: border-box;
-    background: var(--bg-2); border: 1px solid var(--border-2); border-radius: 8px;
-    padding: 8px 10px; color: var(--text-0); font-size: 13px;
+    background: var(--bg-1); border: 1px solid var(--border-2); border-radius: 9px;
+    padding: 9px 11px; color: var(--text-0); font-size: 13px;
+    transition: border-color var(--dur), box-shadow var(--dur);
   }
-  .field input:focus { outline: none; border-color: var(--accent); }
+  .field input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 
   .row { display: flex; gap: 16px; }
   .row .field { flex: 1; }
 
-  .radios { display: flex; gap: 4px; flex-wrap: wrap; background: var(--bg-2); padding: 3px; border-radius: 9px; }
+  .radios { display: flex; gap: 3px; flex-wrap: wrap; background: var(--bg-1); padding: 3px; border-radius: 10px; border: 1px solid var(--border); }
   .radio {
     border: none; background: transparent; color: var(--text-2);
-    font-size: 12px; font-weight: 600; padding: 5px 10px;
+    font-size: 12px; font-weight: 700; padding: 6px 11px;
     border-radius: 7px; cursor: pointer;
     transition: background var(--dur), color var(--dur);
   }
-  .radio.active { background: var(--surface-2); color: var(--text-0); }
+  .radio:hover { color: var(--text-0); }
+  .radio.active { background: var(--panel-3); color: var(--text-0); box-shadow: var(--shadow-soft); }
 
-  .modal-foot { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+  .modal-foot { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
   .spacer { flex: 1; }
   .modal-foot button {
-    border: none; border-radius: 8px; padding: 8px 14px;
-    font-size: 12px; font-weight: 700; cursor: pointer;
+    border: none; border-radius: 9px; padding: 9px 16px;
+    font-size: 12.5px; font-weight: 800; cursor: pointer;
+    transition: filter var(--dur), background var(--dur), color var(--dur);
   }
-  .danger { background: transparent; color: var(--err); }
+  .danger { background: transparent; color: var(--err); padding-left: 4px; }
   .danger:hover { text-decoration: underline; }
-  .ghost { background: var(--bg-2); color: var(--text-2); }
-  .ghost:hover { color: var(--text-1); }
-  .primary { background: linear-gradient(120deg, var(--accent), var(--accent-2)); color: #fff; }
+  .ghost { background: var(--surface-2); color: var(--text-2); }
+  .ghost:hover { color: var(--text-0); }
+  .primary { background: linear-gradient(120deg, var(--accent), var(--accent-2)); color: #0b0f17; }
+  .primary:hover { filter: brightness(1.08); }
 </style>
