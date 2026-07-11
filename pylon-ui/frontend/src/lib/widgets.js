@@ -5,6 +5,7 @@ import {
   iconGitHub,
   iconSpotify,
   iconFreshRSS,
+  iconDocker,
 } from './icons.js'
 
 // Registry of widget TYPES the user can add. Each type offers one or more
@@ -45,6 +46,20 @@ export const CATALOG = [
     type: 'spotify', icon: iconSpotify, title: 'Spotify', accent: '#1db954',
     modes: [
       { id: 'now_playing', label: 'Şu an çalan', action: 'spotify.now_playing', params: [] },
+    ],
+  },
+  {
+    type: 'docker', icon: iconDocker, title: 'Docker', accent: '#2496ed',
+    modes: [
+      { id: 'ps', label: 'Çalışan konteynerler', action: 'docker.ps', params: [] },
+      {
+        id: 'status', label: 'Konteyner durumu', action: 'docker.status',
+        params: [{ key: 'container', label: 'Konteyner', placeholder: 'ör. freshrss' }],
+      },
+      {
+        id: 'stats', label: 'Kaynak kullanımı', action: 'docker.stats',
+        params: [{ key: 'container', label: 'Konteyner', placeholder: 'ör. freshrss' }],
+      },
     ],
   },
 ]

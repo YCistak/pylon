@@ -80,6 +80,18 @@ type Services struct {
 	GitHub   GitHubService   `yaml:"github"`
 	FreshRSS FreshRSSService `yaml:"freshrss"`
 	Spotify  SpotifyService  `yaml:"spotify"`
+	Docker   DockerService   `yaml:"docker"`
+}
+
+// DockerService lets Pylon observe and control Docker containers on the host
+// (Phase 2.6). Zero-config on Linux: when the local Engine socket exists the
+// service auto-enables. Socket overrides its path; Host points at a remote
+// Engine (http[s] base URL) and Token is sent as a Bearer header for a
+// proxy-fronted Engine. ${ENV} is expanded and secret: refs resolve.
+type DockerService struct {
+	Socket string `yaml:"socket"` // default /var/run/docker.sock
+	Host   string `yaml:"host"`   // remote Engine base URL, overrides socket
+	Token  string `yaml:"token"`  // optional Bearer token for a fronted Engine
 }
 
 // FreshRSSService configures a FreshRSS instance via its Fever API (Phase 2.3).
