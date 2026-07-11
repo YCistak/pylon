@@ -296,6 +296,28 @@ go test ./db/...        → add/fetch/complete task
 "call once, refresh button" model — Home/Settings needed no other changes, both already render off
 the shared `AVAILABLE` registry).
 
+**2.6 Docker** — ✅ done & live-verified 2026-07-11
+- Guiding idea (user): baked-in single-purpose services like FreshRSS are the wrong default. A
+  self-hoster should point Pylon at *any* container on their box and observe/control it. **Widgets
+  are just an optional window onto capabilities Pylon already has** — the real value is the
+  assistant reaching Docker by voice ("freshrss ayakta mı", "grafana'yı yeniden başlat").
+- `internal/services/docker`: talks to the Docker Engine API directly over the local Unix socket
+  (`/var/run/docker.sock`) with plain `net/http` + a custom unix dialer — **no docker SDK**,
+  consistent with the other services (small `dockerAPI` interface, fake-tested). Optional remote
+  Engine via `services.docker.host` + Bearer `token` (secret:).
+- Actions: **observe** `docker.ps` (running list, no-arg → widget), `docker.status{container}`,
+  `docker.stats{container}` (CPU% + working-set RAM, computed like `docker stats`); **control**
+  `docker.start` / `docker.stop` / `docker.restart{container}`. Names matched case-insensitively,
+  leading-slash tolerant; unknown/stopped containers give plain replies, not errors.
+- **Zero-config**: auto-enables when the Engine socket exists (no config block needed). `services.docker`
+  overrides `socket`/`host`/`token`.
+- GUI: Docker widget type in the CATALOG with modes ps / status / stats (status+stats expose a
+  `container` param field via the redesigned modal). Docker brand icon added.
+- **Live-verified 2026-07-11**: `docker.ps`/`status`/`stats` against the user's real running
+  `freshrss` container through Pylon's `do` pipeline; start/stop/restart verified end-to-end against
+  a disposable `pylon-ctl-test` container (state flipped exited↔running each time), then removed.
+  14→15 service pkgs pass `go test`. *(The user's live freshrss was deliberately left untouched.)*
+
 ### Automated Tests
 ```
 go test ./services/calendar/...   → mock API, event parse correct
