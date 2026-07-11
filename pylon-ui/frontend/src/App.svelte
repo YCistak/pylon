@@ -2,9 +2,14 @@
   import { fade } from 'svelte/transition'
   import Sidebar from './lib/Sidebar.svelte'
   import Widget from './lib/Widget.svelte'
+  import DockerWidget from './lib/DockerWidget.svelte'
   import PylonStage from './lib/PylonStage.svelte'
   import Settings from './lib/Settings.svelte'
   import { widgets, catalogEntry, modeOf } from './lib/widgets.js'
+
+  // A Docker "container" widget gets the rich interactive card; everything else
+  // uses the generic text card.
+  const isRichDocker = (w) => w.type === 'docker' && w.mode === 'container'
 
   let view = 'home' // home | settings
   let editing = null // widget instance being edited, or null
@@ -31,7 +36,13 @@
   {#if view === 'home'}
     <main class="home" class:dimmed={dockExpanded} in:fade={{ duration: 200 }}>
       <section class="col left">
-        {#each left as w (w.id)}<Widget {...w} onEdit={() => editWidget(w)} />{/each}
+        {#each left as w (w.id)}
+          {#if isRichDocker(w)}
+            <DockerWidget title={w.title} params={w.params} refresh={w.refresh} accent={w.accent} onEdit={() => editWidget(w)} />
+          {:else}
+            <Widget {...w} onEdit={() => editWidget(w)} />
+          {/if}
+        {/each}
       </section>
 
       <section class="center">
@@ -44,7 +55,13 @@
       </section>
 
       <section class="col right">
-        {#each right as w (w.id)}<Widget {...w} onEdit={() => editWidget(w)} />{/each}
+        {#each right as w (w.id)}
+          {#if isRichDocker(w)}
+            <DockerWidget title={w.title} params={w.params} refresh={w.refresh} accent={w.accent} onEdit={() => editWidget(w)} />
+          {:else}
+            <Widget {...w} onEdit={() => editWidget(w)} />
+          {/if}
+        {/each}
       </section>
     </main>
   {:else}

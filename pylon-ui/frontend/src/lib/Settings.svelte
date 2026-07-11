@@ -1,6 +1,7 @@
 <script>
   import { CATALOG, catalogEntry, modeOf, REFRESH_OPTIONS, widgets } from './widgets.js'
   import Widget from './Widget.svelte'
+  import DockerWidget from './DockerWidget.svelte'
 
   export let editing = null // widget instance handed in from App (pen icon)
 
@@ -134,13 +135,21 @@
       </header>
 
       <div class="preview">
-        <Widget
-          icon={draftEntry.icon}
-          title={draft.title}
-          action={draftMode.action}
-          params={draft.params}
-          accent={draftEntry.accent}
-        />
+        {#if draft.type === 'docker' && draft.mode === 'container'}
+          <DockerWidget
+            title={draft.title}
+            params={draft.params}
+            accent={draftEntry.accent}
+          />
+        {:else}
+          <Widget
+            icon={draftEntry.icon}
+            title={draft.title}
+            action={draftMode.action}
+            params={draft.params}
+            accent={draftEntry.accent}
+          />
+        {/if}
       </div>
 
       <label class="field">
