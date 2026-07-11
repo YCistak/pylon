@@ -29,6 +29,7 @@ import (
 	"github.com/YCistak/pylon/internal/scheduler"
 	"github.com/YCistak/pylon/internal/secrets"
 	"github.com/YCistak/pylon/internal/services"
+	"github.com/YCistak/pylon/internal/services/docker"
 	"github.com/YCistak/pylon/internal/services/freshrss"
 	ghsvc "github.com/YCistak/pylon/internal/services/github"
 	"github.com/YCistak/pylon/internal/services/google"
@@ -260,6 +261,12 @@ func buildServiceRegistry(cfg config.Config, log *slog.Logger) *services.Registr
 		log.Info("services: spotify enabled")
 	}
 
+	dcfg := dockerConfig(cfg)
+	if docker.Configured(dcfg) {
+		svcs = append(svcs, docker.New(dcfg))
+		log.Info("services: docker enabled")
+	}
+
 	return services.NewRegistry(svcs...)
 }
 
@@ -280,6 +287,13 @@ func freshrssConfig(cfg config.Config) freshrss.Config {
 		Username:    cfg.Services.FreshRSS.Username,
 		APIPassword: resolveSecret(cfg.Services.FreshRSS.APIPassword),
 		APIKey:      resolveSecret(cfg.Services.FreshRSS.APIKey),
+	}
+}
+func dockerConfig(cfg config.Config) docker.Config {
+	return docker.Config{
+		Socket: cfg.Services.Docker.Socket,
+		Host:   cfg.Services.Docker.Host,
+		Token:  resolveSecret(cfg.Services.Docker.Token),
 	}
 }
 
