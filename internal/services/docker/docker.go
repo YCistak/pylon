@@ -11,6 +11,7 @@ package docker
 
 import (
 	"context"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -18,6 +19,7 @@ import (
 	"net/http"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -33,6 +35,14 @@ const (
 	ActionStart   intent.Action = "docker.start"
 	ActionStop    intent.Action = "docker.stop"
 	ActionRestart intent.Action = "docker.restart"
+	ActionLogs    intent.Action = "docker.logs"
+)
+
+// defaultLogTail is how many trailing log lines docker.logs returns when the
+// caller doesn't ask for a specific count; logsMaxTail caps it.
+const (
+	defaultLogTail = 20
+	logsMaxTail    = 200
 )
 
 // DefaultSocket is the standard Docker Engine socket on Linux.
@@ -71,6 +81,7 @@ type dockerAPI interface {
 	list(ctx context.Context) ([]Container, error)
 	stats(ctx context.Context, name string) (Stats, error)
 	control(ctx context.Context, name, verb string) error // verb: start|stop|restart
+	logs(ctx context.Context, name string, tail int) (string, error)
 }
 
 // Docker is the Docker Service.
@@ -136,6 +147,11 @@ func (d *Docker) Actions() []intent.ActionSpec {
 			Args: []string{"container"},
 			Desc: `"docker.restart": restart a container. Put its name in "container". Use for "freshrss'i yeniden başlat", "grafana'yı resetle".`,
 		},
+		{
+			Name: ActionLogs,
+			Args: []string{"container", "lines"},
+			Desc: `"docker.logs": show a container's recent log output. Put its name in "container"; optional "lines" = how many trailing lines (default 20). Use for "freshrss loglarına bak", "grafana son 50 log satırı".`,
+		},
 	}
 }
 
@@ -157,6 +173,8 @@ func (d *Docker) Execute(ctx context.Context, action intent.Action, args map[str
 		return d.controlReply(ctx, api, args["container"], "stop")
 	case ActionRestart:
 		return d.controlReply(ctx, api, args["container"], "restart")
+	case ActionLogs:
+		return d.logsReply(ctx, api, args["container"], args["lines"])
 	default:
 		return "", fmt.Errorf("docker: bilinmeyen aksiyon %q", action)
 	}
@@ -248,6 +266,36 @@ func (d *Docker) controlReply(ctx context.Context, api dockerAPI, name, verb str
 	default:
 		return "", fmt.Errorf("docker: bilinmeyen işlem %q", verb)
 	}
+}
+
+func (d *Docker) logsReply(ctx context.Context, api dockerAPI, name, lines string) (string, error) {
+	if strings.TrimSpace(name) == "" {
+		return "", fmt.Errorf("konteyner adı gerekli")
+	}
+	// Resolve the friendly name (and give a clean "yok" error) — logs exist for
+	// stopped containers too, so we don't gate on running state.
+	c, err := find(ctx, api, name)
+	if err != nil {
+		return "", err
+	}
+	tail := defaultLogTail
+	if s := strings.TrimSpace(lines); s != "" {
+		if n, err := strconv.Atoi(s); err == nil && n > 0 {
+			tail = n
+		}
+	}
+	if tail > logsMaxTail {
+		tail = logsMaxTail
+	}
+	out, err := api.logs(ctx, c.Name, tail)
+	if err != nil {
+		return "", err
+	}
+	out = strings.TrimRight(out, "\n ")
+	if out == "" {
+		return fmt.Sprintf("%s için log yok.", c.Name), nil
+	}
+	return out, nil
 }
 
 // find locates a container by name, case-insensitively, tolerating the leading
@@ -395,6 +443,52 @@ func (e *engine) control(ctx context.Context, name, verb string) error {
 		return nil
 	}
 	return apiErr(resp)
+}
+
+func (e *engine) logs(ctx context.Context, name string, tail int) (string, error) {
+	path := fmt.Sprintf("/containers/%s/logs?stdout=1&stderr=1&tail=%d", name, tail)
+	resp, err := e.do(ctx, http.MethodGet, path)
+	if err != nil {
+		return "", dialErr(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return "", apiErr(resp)
+	}
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20)) // cap at 1 MiB
+	if err != nil {
+		return "", err
+	}
+	return demuxLogs(raw), nil
+}
+
+// demuxLogs strips the Docker log stream framing. For non-TTY containers each
+// frame is an 8-byte header — [stream(1)][0][0][0][size(4, big-endian)] —
+// followed by `size` payload bytes (stream 1=stdout, 2=stderr). TTY containers
+// send raw bytes with no header; if the data doesn't parse as frames we return
+// it as-is.
+func demuxLogs(b []byte) string {
+	var out strings.Builder
+	i := 0
+	for i+8 <= len(b) {
+		st := b[i]
+		if st > 2 { // not a valid stream byte → treat the whole thing as raw (TTY)
+			return string(b)
+		}
+		size := int(binary.BigEndian.Uint32(b[i+4 : i+8]))
+		i += 8
+		if size < 0 || i+size > len(b) {
+			// truncated/inconsistent frame — emit the remainder raw and stop.
+			out.Write(b[i:])
+			break
+		}
+		out.Write(b[i : i+size])
+		i += size
+	}
+	if out.Len() == 0 {
+		return string(b)
+	}
+	return out.String()
 }
 
 // statsJSON mirrors the Engine stats payload we care about; compute() turns the

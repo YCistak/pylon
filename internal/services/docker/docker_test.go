@@ -2,6 +2,7 @@ package docker
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"strings"
 	"testing"
@@ -15,6 +16,8 @@ type fakeAPI struct {
 	listErr    error
 	controlled []string // "name:verb"
 	controlErr error
+	logText    string
+	logTail    int // records the tail requested
 }
 
 func (f *fakeAPI) list(context.Context) ([]Container, error) {
@@ -35,6 +38,10 @@ func (f *fakeAPI) control(_ context.Context, name, verb string) error {
 	}
 	f.controlled = append(f.controlled, name+":"+verb)
 	return nil
+}
+func (f *fakeAPI) logs(_ context.Context, name string, tail int) (string, error) {
+	f.logTail = tail
+	return f.logText, nil
 }
 
 func svc(api dockerAPI) *Docker { return &Docker{api: api} }
@@ -163,6 +170,67 @@ func TestControl(t *testing.T) {
 	api.controlErr = errors.New("boom")
 	if _, err := d.Execute(context.Background(), ActionStart, map[string]string{"container": "freshrss"}); err == nil {
 		t.Error("expected control error to propagate")
+	}
+}
+
+func TestLogs(t *testing.T) {
+	api := &fakeAPI{
+		containers: []Container{{Name: "freshrss", State: "running"}},
+		logText:    "line1\nline2\n",
+	}
+	d := svc(api)
+
+	// Default tail, trailing newline trimmed.
+	got, err := d.Execute(context.Background(), ActionLogs, map[string]string{"container": "freshrss"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "line1\nline2" {
+		t.Errorf("got %q", got)
+	}
+	if api.logTail != defaultLogTail {
+		t.Errorf("default tail = %d, want %d", api.logTail, defaultLogTail)
+	}
+
+	// Explicit lines arg is passed through; over-cap clamps.
+	d.Execute(context.Background(), ActionLogs, map[string]string{"container": "freshrss", "lines": "50"})
+	if api.logTail != 50 {
+		t.Errorf("tail = %d, want 50", api.logTail)
+	}
+	d.Execute(context.Background(), ActionLogs, map[string]string{"container": "freshrss", "lines": "9999"})
+	if api.logTail != logsMaxTail {
+		t.Errorf("clamped tail = %d, want %d", api.logTail, logsMaxTail)
+	}
+
+	// Empty logs → plain reply.
+	api.logText = ""
+	got, _ = d.Execute(context.Background(), ActionLogs, map[string]string{"container": "freshrss"})
+	if got != "freshrss için log yok." {
+		t.Errorf("empty: got %q", got)
+	}
+
+	// Missing name.
+	if _, err := d.Execute(context.Background(), ActionLogs, map[string]string{}); err == nil {
+		t.Error("expected error for missing container")
+	}
+}
+
+func TestDemuxLogs(t *testing.T) {
+	// Two framed stdout messages: header = stream(1) 0 0 0 + size(4 BE).
+	frame := func(stream byte, payload string) []byte {
+		h := []byte{stream, 0, 0, 0, 0, 0, 0, 0}
+		binary.BigEndian.PutUint32(h[4:], uint32(len(payload)))
+		return append(h, []byte(payload)...)
+	}
+	framed := append(frame(1, "hello\n"), frame(2, "err\n")...)
+	if got := demuxLogs(framed); got != "hello\nerr\n" {
+		t.Errorf("framed demux = %q", got)
+	}
+
+	// Raw (TTY) data with no valid framing is returned as-is.
+	raw := []byte("plain tty output\n")
+	if got := demuxLogs(raw); got != "plain tty output\n" {
+		t.Errorf("raw demux = %q", got)
 	}
 }
 
