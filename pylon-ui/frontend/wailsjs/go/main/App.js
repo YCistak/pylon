@@ -6,8 +6,8 @@ export function DaemonRunning() {
   return window['go']['main']['App']['DaemonRunning']();
 }
 
-export function Do(arg1) {
-  return window['go']['main']['App']['Do'](arg1);
+export function Do(arg1, arg2) {
+  return window['go']['main']['App']['Do'](arg1, arg2);
 }
 
 export function Status() {

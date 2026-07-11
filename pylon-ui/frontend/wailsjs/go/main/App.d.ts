@@ -3,6 +3,6 @@
 
 export function DaemonRunning():Promise<boolean>;
 
-export function Do(arg1:string):Promise<string>;
+export function Do(arg1:string,arg2:Record<string, string>):Promise<string>;
 
 export function Status():Promise<string>;
