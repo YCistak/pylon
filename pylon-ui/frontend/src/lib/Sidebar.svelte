@@ -1,11 +1,13 @@
 <script>
-  // The sidebar dock: P brand + settings share one strip, one hover trigger,
-  // one 72→240px expand animation.
+  // The sidebar dock: P brand + user-pinned pages + settings share one strip,
+  // one hover trigger, one 72→240px expand animation.
   import { onMount, onDestroy } from 'svelte'
   import { DaemonRunning } from '../../wailsjs/go/main/App.js'
+  import { sidebarPages, pageCatalogEntry } from './sidebarPages.js'
 
   export let onSettings = () => {}
-  export let active = 'home'
+  export let onNavigate = () => {} // ('home' | page-id)
+  export let active = 'home'       // 'home' | 'settings' | <page-id>
   // Parent is told when the dock hover-expands so the workspace can dim.
   export let onExpand = () => {}
 
@@ -30,12 +32,35 @@
 >
   <div class="row">
     <div class="icon-col">
-      <div class="brand" title="Pylon">P</div>
+      <button class="brand" title="Pylon" on:click={() => onNavigate('home')} aria-label="Ana sayfa">P</button>
     </div>
     <div class="info">
       <span class="name">Pylon</span>
     </div>
   </div>
+
+  {#if $sidebarPages.length}
+    <div class="pages">
+      {#each $sidebarPages as p (p.id)}
+        {@const entry = pageCatalogEntry(p.type)}
+        {#if entry}
+          <div class="row">
+            <div class="icon-col">
+              <button
+                class="page-btn" class:active={active === p.id}
+                style="--wa: {entry.accent}"
+                on:click={() => onNavigate(p.id)}
+                title={entry.title} aria-label={entry.title}
+              >{@html entry.icon}</button>
+            </div>
+            <div class="info">
+              <span class="name">{entry.title}</span>
+            </div>
+          </div>
+        {/if}
+      {/each}
+    </div>
+  {/if}
 
   <div class="bottom">
     <div class="row">
@@ -91,11 +116,27 @@
 
   .brand {
     width: 40px; height: 40px;
-    border-radius: 13px;
+    border: none; border-radius: 13px; cursor: pointer;
     display: grid; place-items: center;
-    font-weight: 800; color: #0a0d14;
+    font-weight: 800; font-size: 16px; color: #0a0d14;
     background: linear-gradient(150deg, var(--accent-2), var(--accent));
     box-shadow: 0 0 16px var(--accent-glow);
+  }
+
+  /* Pinned page buttons — brand-tinted icon tiles. */
+  .pages { display: flex; flex-direction: column; gap: 8px; }
+  .page-btn {
+    width: 40px; height: 40px;
+    border: 1px solid var(--border); border-radius: 13px;
+    background: var(--surface); color: var(--wa);
+    cursor: pointer; display: grid; place-items: center;
+    transition: background var(--dur), border-color var(--dur), transform var(--dur);
+  }
+  .page-btn :global(svg) { width: 20px; height: 20px; }
+  .page-btn:hover { background: var(--surface-2); border-color: var(--border-2); }
+  .page-btn.active {
+    border-color: color-mix(in srgb, var(--wa) 55%, transparent);
+    background: color-mix(in srgb, var(--wa) 14%, transparent);
   }
 
   /* Labels revealed by the single expand animation. */

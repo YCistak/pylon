@@ -1,6 +1,8 @@
 <script>
   import { CATALOG, catalogEntry, modeOf, REFRESH_OPTIONS, widgets } from './widgets.js'
+  import { PAGE_CATALOG, pageCatalogEntry, sidebarPages } from './sidebarPages.js'
   import Widget from './Widget.svelte'
+  import DockerWidget from './DockerWidget.svelte'
 
   export let editing = null // widget instance handed in from App (pen icon)
 
@@ -121,6 +123,33 @@
     {/if}
   </section>
 
+  <section class="card">
+    <div class="card-head">
+      <div class="card-title">
+        <h3>Çubuk (Sidebar)</h3>
+        <span class="count">{$sidebarPages.length}</span>
+      </div>
+    </div>
+    <p class="section-hint">Tam sayfa yönetim ekranlarını sol çubuğa sabitle. Çok konteynerin varsa Docker'ı buradan ekle.</p>
+    <ul class="list">
+      {#each PAGE_CATALOG as pc (pc.type)}
+        {@const pinned = $sidebarPages.find((p) => p.type === pc.type)}
+        <li>
+          <span class="tile" style="--wa: {pc.accent}">{@html pc.icon}</span>
+          <div class="info">
+            <span class="name">{pc.title}</span>
+            <span class="meta"><span class="mode">Tam sayfa yönetici</span></span>
+          </div>
+          {#if pinned}
+            <button class="pill on" on:click={() => sidebarPages.remove(pinned.id)}>Çubukta ✓</button>
+          {:else}
+            <button class="pill" on:click={() => sidebarPages.add(pc.type)}>Çubuğa ekle</button>
+          {/if}
+        </li>
+      {/each}
+    </ul>
+  </section>
+
   <p class="note">Parola ekleme, servis aç/kapa ve ses ayarları — 4. adımda gelecek.</p>
 </div>
 
@@ -134,13 +163,21 @@
       </header>
 
       <div class="preview">
-        <Widget
-          icon={draftEntry.icon}
-          title={draft.title}
-          action={draftMode.action}
-          params={draft.params}
-          accent={draftEntry.accent}
-        />
+        {#if draft.type === 'docker' && draft.mode === 'container'}
+          <DockerWidget
+            title={draft.title}
+            params={draft.params}
+            accent={draftEntry.accent}
+          />
+        {:else}
+          <Widget
+            icon={draftEntry.icon}
+            title={draft.title}
+            action={draftMode.action}
+            params={draft.params}
+            accent={draftEntry.accent}
+          />
+        {/if}
       </div>
 
       <label class="field">
@@ -209,6 +246,16 @@
   .settings { flex: 1; padding: 40px 44px; overflow: auto; max-width: 720px; }
   .head h2 { margin: 0 0 6px; color: var(--text-0); font-size: 24px; }
   .sub { color: var(--text-2); line-height: 1.55; margin: 0 0 26px; max-width: 520px; }
+
+  .settings .card + .card { margin-top: 18px; }
+  .section-hint { color: var(--text-3); font-size: 12.5px; margin: 0 4px 6px; line-height: 1.5; }
+  .pill {
+    border: 1px solid var(--border-2); background: var(--bg-2); color: var(--text-1);
+    font-size: 12px; font-weight: 700; padding: 7px 13px; border-radius: 9px; cursor: pointer;
+    transition: background var(--dur), border-color var(--dur), color var(--dur);
+  }
+  .pill:hover { border-color: var(--accent); background: var(--panel-2); }
+  .pill.on { color: var(--accent-2); border-color: color-mix(in srgb, var(--accent-2) 45%, transparent); background: rgba(52, 224, 216, 0.1); }
 
   .card {
     background: var(--surface);

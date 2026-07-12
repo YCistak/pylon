@@ -2,14 +2,27 @@
   import { fade } from 'svelte/transition'
   import Sidebar from './lib/Sidebar.svelte'
   import Widget from './lib/Widget.svelte'
+  import DockerWidget from './lib/DockerWidget.svelte'
   import PylonStage from './lib/PylonStage.svelte'
   import Settings from './lib/Settings.svelte'
+  import DockerPage from './lib/DockerPage.svelte'
   import { widgets, catalogEntry, modeOf } from './lib/widgets.js'
+  import { sidebarPages } from './lib/sidebarPages.js'
 
-  let view = 'home' // home | settings
+  // A Docker "container" widget gets the rich interactive card; everything else
+  // uses the generic text card.
+  const isRichDocker = (w) => w.type === 'docker' && w.mode === 'container'
+
+  let view = 'home' // 'home' | 'settings' | <page-id>
   let editing = null // widget instance being edited, or null
   const toggleSettings = () => (view = view === 'settings' ? 'home' : 'settings')
   const editWidget = (w) => { editing = w; view = 'settings' }
+  const navigate = (v) => (view = v)
+
+  // The pinned page whose id matches the current view (else undefined). If a
+  // pinned page is removed while open, activePage becomes undefined and the
+  // template falls through to home — no explicit reset needed.
+  $: activePage = $sidebarPages.find((p) => p.id === view)
 
   // Home renders the ordered instance array, split by column. Starts empty.
   function withAction(w) {
@@ -26,12 +39,28 @@
 </script>
 
 <div class="app">
-  <Sidebar onSettings={toggleSettings} active={view} onExpand={(v) => (dockExpanded = v)} />
+  <Sidebar onSettings={toggleSettings} onNavigate={navigate} active={view} onExpand={(v) => (dockExpanded = v)} />
 
-  {#if view === 'home'}
+  {#if view === 'settings'}
+    <main class="settings-wrap" class:dimmed={dockExpanded} in:fade={{ duration: 200 }}>
+      <Settings bind:editing />
+    </main>
+  {:else if activePage}
+    <main class="page-wrap" class:dimmed={dockExpanded} in:fade={{ duration: 200 }}>
+      {#if activePage.type === 'docker'}
+        <DockerPage />
+      {/if}
+    </main>
+  {:else}
     <main class="home" class:dimmed={dockExpanded} in:fade={{ duration: 200 }}>
       <section class="col left">
-        {#each left as w (w.id)}<Widget {...w} onEdit={() => editWidget(w)} />{/each}
+        {#each left as w (w.id)}
+          {#if isRichDocker(w)}
+            <DockerWidget title={w.title} params={w.params} refresh={w.refresh} accent={w.accent} onEdit={() => editWidget(w)} />
+          {:else}
+            <Widget {...w} onEdit={() => editWidget(w)} />
+          {/if}
+        {/each}
       </section>
 
       <section class="center">
@@ -44,12 +73,14 @@
       </section>
 
       <section class="col right">
-        {#each right as w (w.id)}<Widget {...w} onEdit={() => editWidget(w)} />{/each}
+        {#each right as w (w.id)}
+          {#if isRichDocker(w)}
+            <DockerWidget title={w.title} params={w.params} refresh={w.refresh} accent={w.accent} onEdit={() => editWidget(w)} />
+          {:else}
+            <Widget {...w} onEdit={() => editWidget(w)} />
+          {/if}
+        {/each}
       </section>
-    </main>
-  {:else}
-    <main class="settings-wrap" class:dimmed={dockExpanded} in:fade={{ duration: 200 }}>
-      <Settings bind:editing />
     </main>
   {/if}
 </div>
@@ -100,8 +131,10 @@
   }
   .link:hover { text-decoration: underline; }
 
-  .settings-wrap {
+  .settings-wrap, .page-wrap {
     flex: 1; display: flex;
+    min-width: 0;
     transition: opacity 180ms cubic-bezier(0.2, 0.9, 0.25, 1);
   }
+  .page-wrap.dimmed { opacity: 0.5; }
 </style>

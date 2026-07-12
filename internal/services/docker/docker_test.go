@@ -3,6 +3,7 @@ package docker
 import (
 	"context"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -45,6 +46,29 @@ func (f *fakeAPI) logs(_ context.Context, name string, tail int) (string, error)
 }
 
 func svc(api dockerAPI) *Docker { return &Docker{api: api} }
+
+func TestListJSON(t *testing.T) {
+	api := &fakeAPI{containers: []Container{
+		{Name: "grafana", State: "exited", Status: "Exited (0)", Image: "grafana/grafana"},
+		{Name: "freshrss", State: "running", Status: "Up 2 hours", Image: "freshrss/freshrss"},
+	}}
+	out, err := svc(api).Execute(context.Background(), ActionList, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []Container
+	if err := json.Unmarshal([]byte(out), &got); err != nil {
+		t.Fatalf("not valid JSON: %v (%s)", err, out)
+	}
+	// Sorted by name → freshrss first.
+	if len(got) != 2 || got[0].Name != "freshrss" || got[1].Name != "grafana" {
+		t.Errorf("unexpected list: %+v", got)
+	}
+	// json tags are lowercase for the GUI.
+	if !strings.Contains(out, `"state":"running"`) {
+		t.Errorf("expected lowercase json tags, got %s", out)
+	}
+}
 
 func TestPS(t *testing.T) {
 	tests := []struct {
