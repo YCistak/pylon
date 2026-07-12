@@ -734,6 +734,62 @@ register it in the language list. Keys never change.
 
 ---
 
+## Voice Conversation — PLANNED (designed 2026-07-12, not yet built)
+
+Goal: turn the one-shot push-to-talk (`pylon listen`: fixed 5s window → whisper → intent → Edge TTS)
+into a **natural, continuous, hands-free conversation** reachable from **hotkey + wake word + GUI**,
+visible in **both the GUI and the CLI**. (All three activations, continuous back-and-forth, both
+surfaces — approved by user 2026-07-12.)
+
+**Core architecture decision — the voice loop lives in the DAEMON, not the CLI.** Since hotkey, wake
+word, and the GUI must all drive the same pipeline, the daemon owns a **Conversation controller**
+that runs: *listen (VAD) → transcribe → intent (existing `say` path) → reply → speak → (if continuous)
+listen again*, until a silence-timeout or a stop-word. The daemon already owns STT/TTS config and the
+intent registry, so it does record + STT + intent + TTS + playback centrally. `pylon listen` and the
+GUI mic button become **thin clients**: they send a "start conversation" command and *observe* an
+event stream; the wake word is a daemon **background service** (like the watcher/scheduler) that
+triggers the same session. Multi-turn context reuses the existing `context` DB (1.8).
+
+**New IPC — event streaming.** Today IPC is one-shot request/response. Voice needs the daemon to push
+state as it happens, so add a persistent **`voice.events`** subscription connection: the daemon
+streams JSON events `{state, transcript, reply}` where `state ∈ idle|listening|thinking|speaking`.
+Control commands: **`voice.start`** (begin a session), **`voice.stop`** (cancel/end). Both GUI (a new
+Wails method + Wails runtime event bridge) and CLI (`pylon listen` opens the stream and prints) consume it.
+
+**Phases (each independently shippable & verifiable):**
+- **Faz A — Daemon voice engine + VAD (foundation).** Move the loop into the daemon behind a testable
+  `Conversation` interface (fake recorder/STT/TTS for unit tests). Replace the fixed 5s window with
+  **VAD** (auto-stop ~0.8s after speech ends). VAD approach: start energy-threshold (simple, no new
+  dep) with a path to silero/webrtcvad; or `sox`'s `silence` effect as an interim. Add `voice.start`/
+  `voice.stop`/`voice.events` IPC. `pylon listen` → thin client. *Verify:* one hands-free turn ends on
+  silence, not a timer.
+- **Faz B — Continuous conversation.** After speaking, re-arm VAD for a follow-up; end the session on
+  silence-timeout (config, e.g. 8s) or a stop-word ("teşekkürler"/"bitti"/"kapat"). Multi-turn via
+  existing context. *Verify:* ask a follow-up without re-triggering; session closes on silence/stop-word.
+- **Faz C — GUI voice.** Wails `VoiceStart`/`VoiceStop` + subscribe to `voice.events` (Wails runtime
+  `EventsEmit`/`EventsOn` bridge from the daemon stream). UI: a **mic button** + a voice panel/overlay
+  showing state (dinliyor / düşünüyor / konuşuyor), live/final transcript, and the reply. *Verify:*
+  click mic → states animate → transcript + reply show; hotkey path drives the same UI.
+- **Faz D — Wake word.** Always-on wake-word listener as a daemon background service — **openWakeWord**
+  (open, subprocess, custom "Pylon"/"Hey Pylon" model; consistent with the whisper/edge-tts subprocess
+  philosophy) preferred over Porcupine (proprietary key). On detect → `voice.start`. Config:
+  `voice.wake_word` (enable, phrase/model, sensitivity). Local-only, no cloud. *Verify:* say the phrase
+  → conversation begins with no key/click.
+- **Faz E — Polish: barge-in + latency (optional).** Interrupt TTS when the user starts speaking
+  (killable playback + VAD during playback; mind mic/speaker echo). Latency levers: streaming STT,
+  smaller router model, streaming LLM→TTS. Defer until A–D feel good.
+
+**Open technical decisions for build time:** exact VAD engine (energy vs silero vs sox); wake-word
+model training/quality for Turkish ("Pylon" phonetics — cf. "Paylon" note in 1.3); echo handling for
+barge-in; whether TTS playback stays on the daemon host (yes for CLI/wake-word; GUI hears the daemon's
+audio since they're the same machine). Keep everything local/free per the project's STT/TTS choices.
+
+**Config sketch (`pylon.yaml` `voice:`):** add `vad: {enabled, silence_ms, min_speech_ms}`,
+`conversation: {continuous, session_timeout_s, stop_words}`, `wake_word: {enabled, phrase, model,
+sensitivity}` alongside the existing `stt_*`/`tts_cmd`/`record_*` keys.
+
+---
+
 ## Service Integrations — Reference
 
 | Service | Auth | Library | Phase |
