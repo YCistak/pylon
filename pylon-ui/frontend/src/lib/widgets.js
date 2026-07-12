@@ -53,11 +53,9 @@ export const CATALOG = [
     modes: [
       { id: 'ps', label: 'Çalışan konteynerler', action: 'docker.ps', params: [] },
       {
-        id: 'status', label: 'Konteyner durumu', action: 'docker.status',
-        params: [{ key: 'container', label: 'Konteyner', placeholder: 'ör. freshrss' }],
-      },
-      {
-        id: 'stats', label: 'Kaynak kullanımı', action: 'docker.stats',
+        // Rich, interactive card (status dot + CPU/RAM + start/stop/restart + logs).
+        // Rendered by DockerWidget.svelte instead of the generic card.
+        id: 'container', label: 'Tek konteyner (kontrol + log)', action: 'docker.status',
         params: [{ key: 'container', label: 'Konteyner', placeholder: 'ör. freshrss' }],
       },
     ],

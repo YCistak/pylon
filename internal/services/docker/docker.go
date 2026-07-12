@@ -36,6 +36,7 @@ const (
 	ActionStop    intent.Action = "docker.stop"
 	ActionRestart intent.Action = "docker.restart"
 	ActionLogs    intent.Action = "docker.logs"
+	ActionList    intent.Action = "docker.list"
 )
 
 // defaultLogTail is how many trailing log lines docker.logs returns when the
@@ -59,11 +60,12 @@ type Config struct {
 }
 
 // Container is the minimal shape Pylon needs, decoupled from the Engine JSON.
+// JSON tags feed docker.list, which the GUI's management page parses.
 type Container struct {
-	Name   string
-	State  string // "running", "exited", ...
-	Status string // human blurb, e.g. "Up 2 hours"
-	Image  string
+	Name   string `json:"name"`
+	State  string `json:"state"`  // "running", "exited", ...
+	Status string `json:"status"` // human blurb, e.g. "Up 2 hours"
+	Image  string `json:"image"`
 }
 
 func (c Container) Running() bool { return c.State == "running" }
@@ -152,6 +154,10 @@ func (d *Docker) Actions() []intent.ActionSpec {
 			Args: []string{"container", "lines"},
 			Desc: `"docker.logs": show a container's recent log output. Put its name in "container"; optional "lines" = how many trailing lines (default 20). Use for "freshrss loglarına bak", "grafana son 50 log satırı".`,
 		},
+		{
+			Name: ActionList,
+			Desc: `"docker.list": every container with its state, as JSON — for the GUI's Docker management page, not for spoken answers. Prefer "docker.ps" for voice.`,
+		},
 	}
 }
 
@@ -175,9 +181,27 @@ func (d *Docker) Execute(ctx context.Context, action intent.Action, args map[str
 		return d.controlReply(ctx, api, args["container"], "restart")
 	case ActionLogs:
 		return d.logsReply(ctx, api, args["container"], args["lines"])
+	case ActionList:
+		return d.listJSON(ctx, api)
 	default:
 		return "", fmt.Errorf("docker: bilinmeyen aksiyon %q", action)
 	}
+}
+
+// listJSON returns every container as a JSON array — the GUI's Docker page
+// parses it to render and control the whole fleet (docker.ps stays text for
+// voice). Containers are sorted by name for a stable list.
+func (d *Docker) listJSON(ctx context.Context, api dockerAPI) (string, error) {
+	all, err := api.list(ctx)
+	if err != nil {
+		return "", err
+	}
+	sort.Slice(all, func(i, j int) bool { return all[i].Name < all[j].Name })
+	b, err := json.Marshal(all)
+	if err != nil {
+		return "", err
+	}
+	return string(b), nil
 }
 
 func (d *Docker) ps(ctx context.Context, api dockerAPI) (string, error) {
