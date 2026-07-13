@@ -32,6 +32,7 @@ import (
 	"github.com/YCistak/pylon/internal/services"
 	"github.com/YCistak/pylon/internal/services/calc"
 	"github.com/YCistak/pylon/internal/services/docker"
+	"github.com/YCistak/pylon/internal/services/exchange"
 	"github.com/YCistak/pylon/internal/services/freshrss"
 	ghsvc "github.com/YCistak/pylon/internal/services/github"
 	"github.com/YCistak/pylon/internal/services/google"
@@ -272,6 +273,9 @@ func buildServiceRegistry(cfg config.Config, log *slog.Logger) *services.Registr
 
 	// Calculator needs no configuration — always available.
 	svcs = append(svcs, calc.New())
+
+	// Exchange rates/crypto use free key-less APIs — always available.
+	svcs = append(svcs, exchange.New())
 
 	// The morning briefing composes the other services' replies, so it registers
 	// last and is wired to dispatch through the very registry it lives in.
