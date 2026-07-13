@@ -83,11 +83,26 @@ func (s *Service) Execute(ctx context.Context, action intent.Action, _ map[strin
 // unavailable or errors are dropped; if every section drops, only the dated
 // greeting remains.
 func (s *Service) Build(ctx context.Context) string {
+	title, body := s.compose(ctx)
+	return title + ". " + body
+}
+
+// Notification splits the briefing for a desktop notification: the greeting is
+// the title ("Günaydın") and the dated summary is the body ("Bugün 13 Temmuz
+// Pazartesi. 6069 okunmamış haberin var.").
+func (s *Service) Notification(ctx context.Context) (title, body string) {
+	return s.compose(ctx)
+}
+
+// compose builds the two halves of the briefing: the time-of-day greeting word
+// and the dated body with each available section appended.
+func (s *Service) compose(ctx context.Context) (hello, body string) {
 	now := time.Now
 	if s.now != nil {
 		now = s.now
 	}
-	parts := []string{greeting(now())}
+	t := now()
+	parts := []string{fmt.Sprintf("Bugün %d %s %s.", t.Day(), trMonths[t.Month()], trDays[t.Weekday()])}
 	if s.dispatch != nil {
 		for _, sec := range s.sections {
 			text, ok, err := s.dispatch.Dispatch(ctx, intent.Command{Action: sec.Action, Args: sec.Args})
@@ -99,24 +114,22 @@ func (s *Service) Build(ctx context.Context) string {
 			}
 		}
 	}
-	return strings.Join(parts, " ")
+	return helloWord(t), strings.Join(parts, " ")
 }
 
-// greeting is a time-of-day greeting plus the Turkish date, e.g.
-// "Günaydın. Bugün 13 Temmuz Pazartesi."
-func greeting(t time.Time) string {
-	var hello string
+// helloWord is the bare time-of-day greeting (no trailing punctuation), used as
+// the notification title and the spoken opener.
+func helloWord(t time.Time) string {
 	switch h := t.Hour(); {
 	case h < 6:
-		hello = "İyi geceler."
+		return "İyi geceler"
 	case h < 12:
-		hello = "Günaydın."
+		return "Günaydın"
 	case h < 18:
-		hello = "İyi günler."
+		return "İyi günler"
 	default:
-		hello = "İyi akşamlar."
+		return "İyi akşamlar"
 	}
-	return fmt.Sprintf("%s Bugün %d %s %s.", hello, t.Day(), trMonths[t.Month()], trDays[t.Weekday()])
 }
 
 var trDays = map[time.Weekday]string{

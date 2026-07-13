@@ -20,6 +20,7 @@ type Config struct {
 	Persona Persona `yaml:"persona"`
 
 	Briefing Briefing `yaml:"briefing"`
+	Notify   Notify   `yaml:"notify"`
 	Work     Work     `yaml:"work"`
 	Services Services `yaml:"services"`
 
@@ -146,6 +147,14 @@ type Briefing struct {
 	Timezone string `yaml:"timezone"` // IANA tz, e.g. Europe/Istanbul
 }
 
+// Notify configures desktop notifications. Cmd is an engine-agnostic command
+// template with "{title}" and "{body}" placeholders; empty uses the per-OS
+// default (notify-send on Linux, osascript on macOS).
+type Notify struct {
+	Enabled bool     `yaml:"enabled"`
+	Cmd     []string `yaml:"cmd"`
+}
+
 // Work configures session tracking.
 type Work struct {
 	DailyGoalHours float64  `yaml:"daily_goal_hours"`
@@ -206,6 +215,7 @@ func Default() Config {
 			Time:     "08:00",
 			Timezone: "Europe/Istanbul",
 		},
+		Notify: Notify{Enabled: true},
 		Work: Work{
 			DailyGoalHours: 4,
 			TrackedApps:    []string{"code", "cs2", "steam"},
