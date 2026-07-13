@@ -1,18 +1,10 @@
 <script>
-  import { onMount, onDestroy } from 'svelte'
-  import { Status } from '../../wailsjs/go/main/App.js'
-
-  let status = '…'
-  let online = false
-  let timer
+  import { daemonOnline } from './daemon.js'
 
   // Show the user a simple state, not the daemon's raw "running (pid …)" line.
-  async function refresh() {
-    try { await Status(); status = 'çalışıyor'; online = true }
-    catch (e) { status = 'çalışmıyor'; online = false }
-  }
-  onMount(() => { refresh(); timer = setInterval(refresh, 5000) })
-  onDestroy(() => clearInterval(timer))
+  // null = the GUI is still bringing the daemon up on a fresh launch.
+  $: online = $daemonOnline === true
+  $: status = online ? 'çalışıyor' : ($daemonOnline === null ? 'bağlanıyor…' : 'çalışmıyor')
 </script>
 
 <div class="stage" class:online>

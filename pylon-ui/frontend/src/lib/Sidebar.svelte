@@ -1,9 +1,8 @@
 <script>
   // The sidebar dock: P brand + user-pinned pages + settings share one strip,
   // one hover trigger, one 72→240px expand animation.
-  import { onMount, onDestroy } from 'svelte'
-  import { DaemonRunning } from '../../wailsjs/go/main/App.js'
   import { sidebarPages, pageCatalogEntry } from './sidebarPages.js'
+  import { daemonOnline } from './daemon.js'
 
   export let onSettings = () => {}
   export let onNavigate = () => {} // ('home' | page-id)
@@ -14,14 +13,10 @@
   let expanded = false
   const setExpanded = (v) => { expanded = v; onExpand(v) }
 
-  let running = false
-  let timer
-
-  async function refresh() {
-    try { running = await DaemonRunning() } catch { running = false }
-  }
-  onMount(() => { refresh(); timer = setInterval(refresh, 5000) })
-  onDestroy(() => clearInterval(timer))
+  // Shared daemon probe (see daemon.js). null = still connecting on cold launch.
+  $: running = $daemonOnline === true
+  $: dotState = running ? 'on' : ($daemonOnline === null ? 'connecting' : 'off')
+  $: statusText = running ? 'çevrimiçi' : ($daemonOnline === null ? 'bağlanıyor…' : 'çevrimdışı')
 </script>
 
 <aside
@@ -65,10 +60,10 @@
   <div class="bottom">
     <div class="row">
       <div class="icon-col">
-        <span class="dot {running ? 'on' : 'off'}" title={running ? 'Pylon çalışıyor' : 'Pylon çalışmıyor'}></span>
+        <span class="dot {dotState}" title={running ? 'Pylon çalışıyor' : ($daemonOnline === null ? 'Pylon başlatılıyor' : 'Pylon çalışmıyor')}></span>
       </div>
       <div class="info">
-        <span class="status">{running ? 'çevrimiçi' : 'çevrimdışı'}</span>
+        <span class="status">{statusText}</span>
       </div>
     </div>
     <div class="row">
@@ -159,6 +154,8 @@
   .dot { width: 9px; height: 9px; border-radius: 50%; }
   .dot.on { background: var(--ok); box-shadow: 0 0 9px var(--ok); }
   .dot.off { background: var(--err); box-shadow: 0 0 9px var(--err); }
+  .dot.connecting { background: var(--warn); box-shadow: 0 0 9px var(--warn); animation: dotpulse 1.1s ease-in-out infinite; }
+  @keyframes dotpulse { 0%, 100% { opacity: 0.45; } 50% { opacity: 1; } }
   .gear {
     width: 40px; height: 40px;
     border: 1px solid var(--border); border-radius: 13px;
