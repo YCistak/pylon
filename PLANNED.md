@@ -364,9 +364,13 @@ go test ./services/spotify/...    → mock API, command mapping
 - Content: total coding time + GitHub commit count + completed tasks
 - Read aloud + sent to Telegram
 
-**3.4 Exchange Rates / Crypto**
-- "What's the dollar rate", "what's Bitcoin at" → live price
-- APIs: ExchangeRate-API (free tier) + CoinGecko API
+**3.4 Exchange Rates / Crypto** — ✅ built 2026-07-13 (`internal/services/exchange`)
+- "dolar ne kadar", "bitcoin kaç lira" → live price, spoken in Turkish
+- Free key-less APIs: open.er-api.com (fiat) + CoinGecko (crypto), behind a faked
+  interface. Actions `exchange.currency{base,quote}` + `exchange.crypto{coin,vs}`,
+  default quote TRY; always registered (no config). Network errors → graceful
+  spoken message. Turkish money formatting (2.918.516,00). Live-verified.
+- Could later feed the morning briefing as a Section
 
 **3.5 Quick Calculator**
 - "What's 300 divided by 7" → calculates, speaks answer

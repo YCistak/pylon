@@ -30,6 +30,7 @@ import (
 	"github.com/YCistak/pylon/internal/secrets"
 	"github.com/YCistak/pylon/internal/services"
 	"github.com/YCistak/pylon/internal/services/docker"
+	"github.com/YCistak/pylon/internal/services/exchange"
 	"github.com/YCistak/pylon/internal/services/freshrss"
 	ghsvc "github.com/YCistak/pylon/internal/services/github"
 	"github.com/YCistak/pylon/internal/services/google"
@@ -266,6 +267,9 @@ func buildServiceRegistry(cfg config.Config, log *slog.Logger) *services.Registr
 		svcs = append(svcs, docker.New(dcfg))
 		log.Info("services: docker enabled")
 	}
+
+	// Exchange rates/crypto use free key-less APIs — always available.
+	svcs = append(svcs, exchange.New())
 
 	return services.NewRegistry(svcs...)
 }
