@@ -37,6 +37,7 @@ import (
 	ghsvc "github.com/YCistak/pylon/internal/services/github"
 	"github.com/YCistak/pylon/internal/services/google"
 	"github.com/YCistak/pylon/internal/services/spotify"
+	"github.com/YCistak/pylon/internal/services/system"
 	"github.com/YCistak/pylon/internal/voice"
 	"github.com/YCistak/pylon/internal/watcher"
 )
@@ -277,6 +278,10 @@ func buildServiceRegistry(cfg config.Config, log *slog.Logger) *services.Registr
 	// Exchange rates/crypto use free key-less APIs — always available.
 	svcs = append(svcs, exchange.New())
 
+	// System control (lock/volume/media/close) needs no configuration — always
+	// available. It owns the media/lock actions the local router emits.
+	svcs = append(svcs, system.New())
+
 	// The morning briefing composes the other services' replies, so it registers
 	// last and is wired to dispatch through the very registry it lives in.
 	brief := briefing.New()
@@ -433,8 +438,9 @@ func executeCommand(cmd intent.Command, database *db.DB, registry *services.Regi
 				return ipc.Response{OK: true, Text: text}
 			}
 		}
-		// System/media actions are executed by the system module (Phase 3).
-		return ipc.Response{OK: true, Text: fmt.Sprintf("komut anlaşıldı: %s (conf %.2f) — eylem Faz 3'te bağlanacak", cmd.Action, cmd.Confidence)}
+		// Recognized but owned by no service (should be rare now that the system
+		// service handles media/lock/close).
+		return ipc.Response{OK: true, Text: fmt.Sprintf("komut anlaşıldı ama karşılığı yok: %s (conf %.2f)", cmd.Action, cmd.Confidence)}
 	}
 }
 
