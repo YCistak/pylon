@@ -29,6 +29,7 @@ import (
 	"github.com/YCistak/pylon/internal/scheduler"
 	"github.com/YCistak/pylon/internal/secrets"
 	"github.com/YCistak/pylon/internal/services"
+	"github.com/YCistak/pylon/internal/services/calc"
 	"github.com/YCistak/pylon/internal/services/docker"
 	"github.com/YCistak/pylon/internal/services/freshrss"
 	ghsvc "github.com/YCistak/pylon/internal/services/github"
@@ -266,6 +267,9 @@ func buildServiceRegistry(cfg config.Config, log *slog.Logger) *services.Registr
 		svcs = append(svcs, docker.New(dcfg))
 		log.Info("services: docker enabled")
 	}
+
+	// Calculator needs no configuration — always available.
+	svcs = append(svcs, calc.New())
 
 	return services.NewRegistry(svcs...)
 }
