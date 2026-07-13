@@ -348,10 +348,16 @@ go test ./services/spotify/...    → mock API, command mapping
 
 ### Modules
 
-**3.1 Morning Briefing**
-- Auto-triggered at configured time every morning
-- Content: weather + today's calendar events + pending GitHub items + FreshRSS unread count + exchange rates
-- Read aloud
+**3.1 Morning Briefing** — ✅ built 2026-07-13 (`internal/briefing`)
+- Auto-triggered at configured time every morning (`briefing.enabled`/`time`; scheduler `DailyAt`)
+- A first-class Service (`briefing.today`): reachable via the daily schedule, the
+  intent engine ("brifing ver"), `pylon do briefing.today`, and the Brifing widget
+- Content: dated Turkish greeting + today's calendar + open GitHub items + unread
+  news — each section reuses the service's own reply via the registry and is
+  dropped if that service isn't configured
+- Read aloud (shares the scheduler's TTS `notify` path)
+- **Deferred:** weather + exchange rates sections (need a weather API/location and
+  the 3.4 exchange service; add as further `Section`s once those exist)
 
 **3.2 Work Session Tracking**
 - Timer starts when VSCode opens, stops when it closes
