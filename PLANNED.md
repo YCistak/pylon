@@ -368,9 +368,12 @@ go test ./services/spotify/...    → mock API, command mapping
 - "What's the dollar rate", "what's Bitcoin at" → live price
 - APIs: ExchangeRate-API (free tier) + CoinGecko API
 
-**3.5 Quick Calculator**
-- "What's 300 divided by 7" → calculates, speaks answer
-- Parsed by intent engine, calculated in Go
+**3.5 Quick Calculator** — ✅ built 2026-07-13 (`internal/services/calc`)
+- "300 bölü 7 kaç eder" → calculates, speaks answer ("42,86 eder.")
+- Parsed by intent engine (spoken math → `expr`), computed in Go by a
+  dependency-free recursive-descent evaluator (+ - * / % ^, parens, unary minus;
+  standard precedence, -4^2 = -16; divide-by-zero and malformed expr → graceful
+  spoken message). Action `calc.eval{expr}`; always registered (no config)
 
 **3.6 System Control**
 - "Lock screen", "lower volume", "close X"
