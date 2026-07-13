@@ -372,11 +372,17 @@ go test ./services/spotify/...    → mock API, command mapping
 - "What's 300 divided by 7" → calculates, speaks answer
 - Parsed by intent engine, calculated in Go
 
-**3.6 System Control**
-- "Lock screen", "lower volume", "close X"
-- Linux: `xdg-screensaver`, `pactl`, `pkill`
-- Windows: PowerShell commands
-- macOS: `osascript`
+**3.6 System Control** — ✅ built 2026-07-13 (`internal/services/system`)
+- "ekranı kilitle", "sesi kıs/aç", "sustur", "durdur/oynat/sonraki", "X'i kapat"
+- **Wires the media/lock intents the local router already emitted but never
+  executed** ("eylem Faz 3'te bağlanacak" is gone). System service owns them
+  end to end; their specs moved out of `intent.builtinActions` into the service
+- Linux: `loginctl`/`xdg-screensaver` (lock, with fallback), `pactl` (volume;
+  "sesi aç" also unmutes), `playerctl` (media), `pkill <name>` (close). Close
+  matches by **process name not `-f`** (an -f substring can kill the caller) and
+  guards against closing Pylon itself. Failures → graceful spoken message.
+  Windows/macOS commands not wired yet
+- New action `system.close{app}`; always registered (no config). Live-verified.
 
 ### Automated Tests
 ```
