@@ -6,20 +6,16 @@ import {
   iconSpotify,
   iconFreshRSS,
   iconDocker,
-  iconBriefing,
 } from './icons.js'
 
 // Registry of widget TYPES the user can add. Each type offers one or more
 // `modes` (an action + optional param fields). Instances (in the store below)
 // are configured copies of a type — multiple instances of the same type are
 // allowed (e.g. two GitHub widgets, one PRs one Issues).
+//
+// Note: the morning briefing is intentionally NOT a widget — it is a start-of-day
+// moment (desktop notification + spoken), not a persistent glanceable tile.
 export const CATALOG = [
-  {
-    type: 'briefing', icon: iconBriefing, title: 'Brifing', accent: '#f6c453',
-    modes: [
-      { id: 'today', label: 'Günün özeti', action: 'briefing.today', params: [] },
-    ],
-  },
   {
     type: 'calendar', icon: iconGoogleCalendar, title: 'Takvim', accent: '#7c8cf8',
     modes: [
@@ -130,7 +126,9 @@ function migrateFromV1() {
 function load() {
   try {
     const raw = localStorage.getItem(KEY)
-    if (raw) return JSON.parse(raw)
+    // Drop instances of types no longer in the catalog (e.g. the removed
+    // 'briefing' widget), so a stale saved layout can't crash the home render.
+    if (raw) return JSON.parse(raw).filter((w) => catalogEntry(w.type))
   } catch {
     // fall through to migration/empty
   }

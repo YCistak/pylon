@@ -73,13 +73,31 @@ func TestBuildGreetingOnlyWhenNothingAvailable(t *testing.T) {
 	}
 }
 
-func TestGreetingByTimeOfDay(t *testing.T) {
-	cases := map[int]string{2: "İyi geceler.", 9: "Günaydın.", 14: "İyi günler.", 21: "İyi akşamlar."}
-	for hour, prefix := range cases {
-		g := greeting(time.Date(2026, time.July, 13, hour, 0, 0, 0, time.UTC))
-		if !strings.HasPrefix(g, prefix) {
-			t.Errorf("hour %d: got %q, want prefix %q", hour, g, prefix)
+func TestHelloWordByTimeOfDay(t *testing.T) {
+	cases := map[int]string{2: "İyi geceler", 9: "Günaydın", 14: "İyi günler", 21: "İyi akşamlar"}
+	for hour, want := range cases {
+		if g := helloWord(time.Date(2026, time.July, 13, hour, 0, 0, 0, time.UTC)); g != want {
+			t.Errorf("hour %d: got %q, want %q", hour, g, want)
 		}
+	}
+}
+
+func TestNotificationSplitsTitleAndBody(t *testing.T) {
+	svc := New()
+	svc.now = fixedClock(mondayMorning)
+	svc.SetDispatcher(fakeDispatch{
+		"freshrss.unread_count": {text: "6069 okunmamış haberin var.", ok: true},
+	})
+	title, body := svc.Notification(context.Background())
+	if title != "Günaydın" {
+		t.Fatalf("title %q", title)
+	}
+	if body != "Bugün 13 Temmuz Pazartesi. 6069 okunmamış haberin var." {
+		t.Fatalf("body %q", body)
+	}
+	// Build stitches them back with a period so the spoken form is unchanged.
+	if got := svc.Build(context.Background()); got != title+". "+body {
+		t.Fatalf("Build %q not title+body", got)
 	}
 }
 

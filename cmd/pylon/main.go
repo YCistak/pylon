@@ -26,6 +26,7 @@ import (
 	"github.com/YCistak/pylon/internal/db"
 	"github.com/YCistak/pylon/internal/intent"
 	"github.com/YCistak/pylon/internal/ipc"
+	"github.com/YCistak/pylon/internal/notify"
 	"github.com/YCistak/pylon/internal/profile"
 	"github.com/YCistak/pylon/internal/scheduler"
 	"github.com/YCistak/pylon/internal/secrets"
@@ -143,7 +144,7 @@ func cmdStart() error {
 	intent.SetActions(registry.Specs()...)
 
 	registerWatcher(d, cfg, database, log)
-	registerScheduler(d, cfg, registry, log)
+	registerScheduler(d, cfg, registry, database, log)
 	registerIntent(d, cfg, database, registry, log)
 
 	return d.Run(context.Background())
@@ -497,19 +498,26 @@ func registerWatcher(d *daemon.Daemon, cfg config.Config, database *db.DB, log *
 	d.Register("watcher", w.Run)
 }
 
-// registerScheduler wires Pylon's clock-driven background jobs. For now these
-// are GitHub's 15-minute PR poll and the daily commit-reminder (Phase 2.2);
-// Phase 3's briefing/report will register here too. Jobs notify through the
-// same TTS path the watcher uses (logging when TTS is off).
-func registerScheduler(d *daemon.Daemon, cfg config.Config, registry *services.Registry, log *slog.Logger) {
+// briefingLastKey stores the date the briefing was last delivered, so the
+// startup and scheduled triggers together fire it at most once per day.
+const briefingLastKey = "briefing.last_shown"
+
+// registerScheduler wires Pylon's clock-driven background jobs: GitHub's PR poll
+// and daily commit-reminder (Phase 2.2), and the morning briefing (Phase 3.1).
+// Announcements are spoken (when TTS is on) and shown as desktop notifications
+// (when notify is on).
+func registerScheduler(d *daemon.Daemon, cfg config.Config, registry *services.Registry, database *db.DB, log *slog.Logger) {
 	sched := scheduler.New(scheduler.Options{Logger: log})
 
 	var speaker voice.Speaker
 	if len(cfg.Voice.TTSCmd) > 0 {
 		speaker = voice.NewSpeaker(cfg.Voice.TTSCmd, cfg.Voice.PlayCmd)
 	}
-	notify := func(msg string) {
-		log.Info("scheduler: notify", "msg", msg)
+	var notifier notify.Notifier
+	if cfg.Notify.Enabled {
+		notifier = notify.New(cfg.Notify.Cmd)
+	}
+	speak := func(msg string) {
 		if speaker == nil {
 			return
 		}
@@ -518,6 +526,23 @@ func registerScheduler(d *daemon.Daemon, cfg config.Config, registry *services.R
 		if err := speaker.Say(ctx, msg); err != nil {
 			log.Warn("scheduler: speak failed", "err", err)
 		}
+	}
+	desktop := func(title, body string) {
+		if notifier == nil {
+			return
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := notifier.Notify(ctx, title, body); err != nil {
+			log.Warn("scheduler: notify failed", "err", err)
+		}
+	}
+	// Scheduled announcements (PR poll, commit reminder) both pop on screen and
+	// are spoken.
+	notify := func(msg string) {
+		log.Info("scheduler: notify", "msg", msg)
+		desktop("Pylon", msg)
+		speak(msg)
 	}
 
 	gh := cfg.Services.GitHub
@@ -545,17 +570,43 @@ func registerScheduler(d *daemon.Daemon, cfg config.Config, registry *services.R
 		}
 	}
 
-	// Morning briefing: speak the composed briefing.today every day at the
-	// configured time. The registry owns the briefing service (buildServiceRegistry).
+	// Morning briefing: a start-of-day moment, not a persistent widget. It pops a
+	// desktop notification (greeting as title, dated summary as body) and is
+	// spoken — once per day, both when the daemon starts (you turned the machine
+	// on) and at the configured time, deduped via the context store.
 	if cfg.Briefing.Enabled {
+		brief := briefing.New()
+		brief.SetDispatcher(registry)
+		runBriefing := func(ctx context.Context) {
+			today := time.Now().Format("2006-01-02")
+			if last, ok, _ := database.GetContext(briefingLastKey); ok && last == today {
+				return // already briefed today
+			}
+			title, body := brief.Notification(ctx)
+			desktop(title, body)
+			speak(title + ". " + body)
+			if err := database.SetContext(briefingLastKey, today); err != nil {
+				log.Warn("scheduler: briefing dedup save failed", "err", err)
+			}
+			log.Info("scheduler: briefing delivered", "title", title)
+		}
+
+		// On daemon start (machine powered on in the morning) — brief once, after
+		// a short settle so services are up.
+		d.Register("briefing-startup", func(ctx context.Context) error {
+			select {
+			case <-time.After(3 * time.Second):
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+			runBriefing(ctx)
+			<-ctx.Done()
+			return ctx.Err()
+		})
+
+		// And at the configured time, for a machine left on overnight.
 		if h, m, ok := parseHM(cfg.Briefing.Time); ok {
-			sched.DailyAt("morning-briefing", h, m, func(ctx context.Context) {
-				if text, ok, err := registry.Dispatch(ctx, intent.Command{Action: briefing.ActionToday}); ok && err == nil {
-					notify(text)
-				} else if err != nil {
-					log.Warn("scheduler: briefing failed", "err", err)
-				}
-			})
+			sched.DailyAt("morning-briefing", h, m, runBriefing)
 			log.Info("scheduler: morning briefing enabled", "at", cfg.Briefing.Time)
 		} else {
 			log.Warn("scheduler: briefing time malformed, disabled", "time", cfg.Briefing.Time)

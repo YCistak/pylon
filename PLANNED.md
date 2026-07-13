@@ -349,15 +349,24 @@ go test ./services/spotify/...    → mock API, command mapping
 ### Modules
 
 **3.1 Morning Briefing** — ✅ built 2026-07-13 (`internal/briefing`)
-- Auto-triggered at configured time every morning (`briefing.enabled`/`time`; scheduler `DailyAt`)
-- A first-class Service (`briefing.today`): reachable via the daily schedule, the
-  intent engine ("brifing ver"), `pylon do briefing.today`, and the Brifing widget
+- **A start-of-day moment, NOT a widget** (revised 2026-07-13 per user: a briefing
+  is momentary, a widget is a persistent glanceable tile — wrong fit). Surfaces as
+  a **desktop notification** (`internal/notify`, notify-send/osascript) — greeting
+  as title, dated summary as body — **plus spoken**
+- Fires **once per day**, both when the daemon starts (machine powered on) and at
+  `briefing.time` (default 08:00), deduped via the `briefing.last_shown` context key
+- A first-class Service (`briefing.today`): still reachable via the intent engine
+  ("brifing ver") and `pylon do briefing.today`
 - Content: dated Turkish greeting + today's calendar + open GitHub items + unread
   news — each section reuses the service's own reply via the registry and is
   dropped if that service isn't configured
-- Read aloud (shares the scheduler's TTS `notify` path)
 - **Deferred:** weather + exchange rates sections (need a weather API/location and
   the 3.4 exchange service; add as further `Section`s once those exist)
+
+**3.1a Desktop notifications** — ✅ built 2026-07-13 (`internal/notify`)
+- Engine-agnostic `notify.cmd` with {title}/{body} placeholders (voice-TTS-style);
+  per-OS default notify-send (Linux) / osascript (macOS); Windows unset. `notify.enabled`
+- The scheduler's PR poll + commit reminder now also pop on screen, not just spoken
 
 **3.2 Work Session Tracking**
 - Timer starts when VSCode opens, stops when it closes

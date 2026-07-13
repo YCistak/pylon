@@ -86,14 +86,22 @@ services:
     # client_id: ...
     redirect_port: 8888
 
-# Morning briefing: spoken every day at `time` — today's date plus your
-# calendar, open GitHub items and unread news (each section skipped if its
-# service isn't configured). Also on demand: `pylon do briefing.today`, the
-# "brifing ver" voice command, or the Brifing widget.
+# Morning briefing — a start-of-day moment: a desktop notification (greeting +
+# today's date, calendar, open GitHub items, unread news; sections skipped if the
+# service isn't configured) plus spoken aloud. Fires once per day, both when the
+# daemon starts and at `time` (deduped). On demand: `pylon do briefing.today` or
+# the "brifing ver" voice command.
 briefing:
   enabled: true
   time: "08:00"
   timezone: "Europe/Istanbul"
+
+# Desktop notifications. `cmd` is a command template with {title}/{body}
+# placeholders; empty uses the per-OS default (notify-send on Linux, osascript on
+# macOS). Example override: ["notify-send", "-u", "normal", "{title}", "{body}"].
+notify:
+  enabled: true
+  # cmd: []
 
 work:
   daily_goal_hours: 4
