@@ -53,14 +53,12 @@ type ActionSpec struct {
 	Args []string
 }
 
-// builtinActions is Pylon's core action vocabulary. Media/lock are enum-only
-// (their names are self-explanatory); remind and chat carry prompt rules.
+// builtinActions is Pylon's core action vocabulary. The media/lock/close actions
+// are declared and executed by the system service (internal/services/system),
+// which is always registered; here we keep only remind and chat, which carry
+// prompt rules and are handled inside the daemon rather than by a service.
 func builtinActions() []ActionSpec {
 	return []ActionSpec{
-		{Name: ActionLockScreen},
-		{Name: ActionMediaPlay}, {Name: ActionMediaPause},
-		{Name: ActionMediaNext}, {Name: ActionMediaPrev},
-		{Name: ActionVolumeUp}, {Name: ActionVolumeDown}, {Name: ActionMute},
 		{
 			Name: ActionRemindOnExit,
 			Args: []string{"process", "content"},
