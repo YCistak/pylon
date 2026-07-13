@@ -141,6 +141,7 @@ type GoogleService struct {
 
 // Briefing configures the morning briefing.
 type Briefing struct {
+	Enabled  bool   `yaml:"enabled"`  // speak a morning briefing daily at Time
 	Time     string `yaml:"time"`     // HH:MM
 	Timezone string `yaml:"timezone"` // IANA tz, e.g. Europe/Istanbul
 }
@@ -201,6 +202,7 @@ func Default() Config {
 			},
 		},
 		Briefing: Briefing{
+			Enabled:  true,
 			Time:     "08:00",
 			Timezone: "Europe/Istanbul",
 		},

@@ -6,6 +6,7 @@ import {
   iconSpotify,
   iconFreshRSS,
   iconDocker,
+  iconBriefing,
 } from './icons.js'
 
 // Registry of widget TYPES the user can add. Each type offers one or more
@@ -13,6 +14,12 @@ import {
 // are configured copies of a type — multiple instances of the same type are
 // allowed (e.g. two GitHub widgets, one PRs one Issues).
 export const CATALOG = [
+  {
+    type: 'briefing', icon: iconBriefing, title: 'Brifing', accent: '#f6c453',
+    modes: [
+      { id: 'today', label: 'Günün özeti', action: 'briefing.today', params: [] },
+    ],
+  },
   {
     type: 'calendar', icon: iconGoogleCalendar, title: 'Takvim', accent: '#7c8cf8',
     modes: [

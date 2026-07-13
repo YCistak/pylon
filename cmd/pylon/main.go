@@ -20,6 +20,7 @@ import (
 
 	"golang.org/x/term"
 
+	"github.com/YCistak/pylon/internal/briefing"
 	"github.com/YCistak/pylon/internal/config"
 	"github.com/YCistak/pylon/internal/daemon"
 	"github.com/YCistak/pylon/internal/db"
@@ -132,9 +133,15 @@ func cmdStart() error {
 		DB:         database,
 	})
 
+	// Services are built once and shared: the intent engine dispatches user
+	// commands to them, and the scheduler's morning briefing composes their
+	// replies. Registering their actions teaches the LLM the vocabulary.
+	registry := buildServiceRegistry(cfg, log)
+	intent.SetActions(registry.Specs()...)
+
 	registerWatcher(d, cfg, database, log)
-	registerScheduler(d, cfg, log)
-	registerIntent(d, cfg, database, log)
+	registerScheduler(d, cfg, registry, log)
+	registerIntent(d, cfg, database, registry, log)
 
 	return d.Run(context.Background())
 }
@@ -143,12 +150,7 @@ func cmdStart() error {
 // command: the local Router runs first (free), and only unresolved input falls
 // back to the configured LLM chain, which tries each model in order and falls
 // through on quota/rate-limit.
-func registerIntent(d *daemon.Daemon, cfg config.Config, database *db.DB, log *slog.Logger) {
-	// Services contribute actions to the LLM vocabulary; register them before
-	// building the chain so the model knows them.
-	registry := buildServiceRegistry(cfg, log)
-	intent.SetActions(registry.Specs()...)
-
+func registerIntent(d *daemon.Daemon, cfg config.Config, database *db.DB, registry *services.Registry, log *slog.Logger) {
 	router := intent.NewRouter(cfg.Intent.RouterThreshold)
 	chain := buildIntentChain(cfg, log)
 	if chain.Configured() {
@@ -267,7 +269,13 @@ func buildServiceRegistry(cfg config.Config, log *slog.Logger) *services.Registr
 		log.Info("services: docker enabled")
 	}
 
-	return services.NewRegistry(svcs...)
+	// The morning briefing composes the other services' replies, so it registers
+	// last and is wired to dispatch through the very registry it lives in.
+	brief := briefing.New()
+	svcs = append(svcs, brief)
+	reg := services.NewRegistry(svcs...)
+	brief.SetDispatcher(reg)
+	return reg
 }
 
 func spotifyConfig(cfg config.Config) spotify.Config {
@@ -479,7 +487,7 @@ func registerWatcher(d *daemon.Daemon, cfg config.Config, database *db.DB, log *
 // are GitHub's 15-minute PR poll and the daily commit-reminder (Phase 2.2);
 // Phase 3's briefing/report will register here too. Jobs notify through the
 // same TTS path the watcher uses (logging when TTS is off).
-func registerScheduler(d *daemon.Daemon, cfg config.Config, log *slog.Logger) {
+func registerScheduler(d *daemon.Daemon, cfg config.Config, registry *services.Registry, log *slog.Logger) {
 	sched := scheduler.New(scheduler.Options{Logger: log})
 
 	var speaker voice.Speaker
@@ -520,6 +528,23 @@ func registerScheduler(d *daemon.Daemon, cfg config.Config, log *slog.Logger) {
 				}
 			})
 			log.Info("scheduler: commit reminder enabled", "at", gh.CommitReminder, "repos", len(gh.Repos))
+		}
+	}
+
+	// Morning briefing: speak the composed briefing.today every day at the
+	// configured time. The registry owns the briefing service (buildServiceRegistry).
+	if cfg.Briefing.Enabled {
+		if h, m, ok := parseHM(cfg.Briefing.Time); ok {
+			sched.DailyAt("morning-briefing", h, m, func(ctx context.Context) {
+				if text, ok, err := registry.Dispatch(ctx, intent.Command{Action: briefing.ActionToday}); ok && err == nil {
+					notify(text)
+				} else if err != nil {
+					log.Warn("scheduler: briefing failed", "err", err)
+				}
+			})
+			log.Info("scheduler: morning briefing enabled", "at", cfg.Briefing.Time)
+		} else {
+			log.Warn("scheduler: briefing time malformed, disabled", "time", cfg.Briefing.Time)
 		}
 	}
 
