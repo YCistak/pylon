@@ -2,6 +2,7 @@
   import { onDestroy } from 'svelte'
   import { fly } from 'svelte/transition'
   import { Do } from '../../wailsjs/go/main/App.js'
+  import { daemonOnline } from './daemon.js'
 
   export let icon = ''
   export let title = ''
@@ -11,7 +12,7 @@
   export let accent = 'var(--accent)'
   export let onEdit = null
 
-  let state = 'loading' // loading | ok | error
+  let state = 'connecting' // connecting | loading | ok | error
   let text = ''
   let spinning = false
   let timer = null
@@ -24,13 +25,20 @@
   }
 
   async function load() {
+    // On a cold launch the GUI is still bringing the daemon up; don't flash a
+    // hard error — sit in "connecting" and let the daemonOnline flip retry us.
+    if ($daemonOnline !== true) { state = 'connecting'; return }
     state = 'loading'
     spinning = true
     try {
       text = await Do(action, params)
       state = 'ok'
     } catch (e) {
-      text = friendlyError((e && e.message) ? e.message : String(e))
+      const msg = (e && e.message) ? e.message : String(e)
+      // A dial failure means the daemon went away — treat as connecting, not a
+      // service error, so it recovers on its own when the socket comes back.
+      if (/daemon çalışmıyor/i.test(msg)) { state = 'connecting'; return }
+      text = friendlyError(msg)
       state = 'error'
     } finally {
       spinning = false
@@ -42,10 +50,18 @@
     if (minutes > 0) timer = setInterval(load, minutes * 60 * 1000)
   }
 
+  // Reload on any of: action/params edited in Settings, or the daemon flipping
+  // online (which changes the key and re-fires load once the socket answers).
+  let lastKey = null
+  function maybeLoad(key) {
+    if (key === lastKey) return
+    lastKey = key
+    load()
+  }
+
   onDestroy(() => { if (timer) clearInterval(timer) })
   $: scheduleRefresh(refresh)
-  // Initial load, and reload whenever action/params change (e.g. edited in Settings).
-  $: action, params, load()
+  $: maybeLoad(`${action}|${JSON.stringify(params)}|${$daemonOnline}`)
 </script>
 
 <div class="widget {state}" style="--wa: {accent}" in:fly={{ y: 12, duration: 320 }}>
@@ -62,6 +78,8 @@
   <div class="body">
     {#if state === 'loading'}
       <span class="skeleton"></span>
+    {:else if state === 'connecting'}
+      <span class="connecting">Bağlanıyor…</span>
     {:else}
       <span class="value">{text}</span>
     {/if}
@@ -114,6 +132,7 @@
 
   .body { color: var(--text-0); font-size: 15px; line-height: 1.45; min-height: 22px; font-weight: 600; }
   .value { display: inline-block; }
+  .connecting { font-size: 12px; font-weight: 500; color: var(--text-3); }
   .widget.error .body { color: var(--err); font-size: 12px; font-weight: 500; }
 
   .skeleton {
