@@ -9,12 +9,14 @@ import (
 type capture struct {
 	name string
 	args []string
+	env  []string
 	err  error
 }
 
-func (c *capture) run(_ context.Context, name string, args []string) error {
+func (c *capture) run(_ context.Context, name string, args, env []string) error {
 	c.name = name
 	c.args = append([]string(nil), args...)
+	c.env = append([]string(nil), env...)
 	return c.err
 }
 
@@ -38,12 +40,39 @@ func TestNotifySubstitutesTitleAndBody(t *testing.T) {
 	}
 }
 
-func TestNotifySubstitutesInsideSingleArg(t *testing.T) {
+// TestNotifyExportsTitleBodyEnv verifies title/body reach the command via
+// PYLON_TITLE/PYLON_BODY environment variables — the safe channel for
+// templates (like the macOS osascript default) that would otherwise need to
+// embed untrusted content inside a scripted string.
+func TestNotifyExportsTitleBodyEnv(t *testing.T) {
 	cap := &capture{}
-	n := &cmdNotifier{cmd: []string{"osascript", "-e", `display notification "{body}" with title "{title}"`}, run: cap.run}
-	_ = n.Notify(context.Background(), "Pylon", "merhaba")
-	if cap.args[1] != `display notification "merhaba" with title "Pylon"` {
-		t.Fatalf("scripted arg %q", cap.args[1])
+	n := &cmdNotifier{
+		cmd: []string{"osascript", "-e", `display notification (system attribute "PYLON_BODY") with title (system attribute "PYLON_TITLE")`},
+		run: cap.run,
+	}
+	title := `Pylon" -- injected`
+	body := `"; do shell script "touch /tmp/pwned`
+	if err := n.Notify(context.Background(), title, body); err != nil {
+		t.Fatal(err)
+	}
+	wantTitleEnv, wantBodyEnv := "PYLON_TITLE="+title, "PYLON_BODY="+body
+	var gotTitle, gotBody bool
+	for _, e := range cap.env {
+		if e == wantTitleEnv {
+			gotTitle = true
+		}
+		if e == wantBodyEnv {
+			gotBody = true
+		}
+	}
+	if !gotTitle || !gotBody {
+		t.Fatalf("env %v missing PYLON_TITLE/PYLON_BODY with malicious values", cap.env)
+	}
+	// The malicious content must never be substituted into the script arg —
+	// only read out-of-band via `system attribute`.
+	scriptArg := cap.args[len(cap.args)-1]
+	if scriptArg != `display notification (system attribute "PYLON_BODY") with title (system attribute "PYLON_TITLE")` {
+		t.Fatalf("script arg was mutated with untrusted content: %q", scriptArg)
 	}
 }
 
