@@ -123,7 +123,10 @@ function migrateFromV1() {
 function load() {
   try {
     const raw = localStorage.getItem(KEY)
-    if (raw) return JSON.parse(raw)
+    // Drop instances whose type is no longer in the catalog. A saved layout
+    // outlives the catalog, so a type that disappears would otherwise reach
+    // withAction() with no entry and take the whole home render down.
+    if (raw) return JSON.parse(raw).filter((w) => catalogEntry(w.type))
   } catch {
     // fall through to migration/empty
   }
