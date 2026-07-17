@@ -91,7 +91,10 @@ jobs:
           # Process substitution, not a pipe: a piped `while` runs in a subshell
           # where `exit 1` would only kill the subshell and pass the step.
           while IFS= read -r -d '' f; do
-            hits=$(grep -aoE '/(home|Users)/[^/ ]+/|[A-Za-z]:\\Users\\[^\\ ]+' "$f" | sort -u | head -5)
+            # `|| true`: grep exits 1 when it matches nothing — the clean
+            # case — and the runner's shell is `bash -e -o pipefail`, so that
+            # would abort the step and report a leak-free build as a failure.
+            hits=$(grep -aoE '/(home|Users)/[^/ ]+/|[A-Za-z]:\\Users\\[^\\ ]+' "$f" | sort -u | head -5 || true)
             if [ -n "$hits" ]; then
               echo "::error::$f leaks a build path"
               echo "$hits"
