@@ -1,0 +1,152 @@
+name: Release
+
+# Tag a version to publish it:
+#
+#   git tag v0.1.0 && git push origin v0.1.0
+#
+# Each platform builds on its own runner. That is not a preference: Wails
+# refuses to cross-compile to macOS (it warns and exits 0, producing nothing),
+# so a real Mac is the only way to get a Mac build — and the same native path
+# then keeps Linux and Windows honest.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write # create the release and upload assets
+
+jobs:
+  build:
+    name: build (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: linux-amd64
+            wails_platform: linux/amd64
+          - os: macos-latest
+            target: macos-universal
+            wails_platform: darwin/universal # one binary for Intel + Apple Silicon
+          - os: windows-latest
+            target: windows-amd64
+            wails_platform: windows/amd64
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: pylon-ui/frontend/package-lock.json
+
+      - name: Install webkit2gtk (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev
+
+      # Pinned to the version pylon-ui/go.mod builds against, so the CLI and the
+      # library cannot drift apart mid-release.
+      - name: Install Wails
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.12.0
+
+      # -trimpath drops the build machine's absolute paths out of the binary;
+      # -s -w drops the symbol table. Together they cut ~30% and leave nothing
+      # about where this was built.
+      - name: Build daemon
+        shell: bash
+        run: |
+          ext=""
+          [ "$RUNNER_OS" = "Windows" ] && ext=".exe"
+          mkdir -p dist
+          go build -trimpath \
+            -ldflags "-s -w -X main.version=${GITHUB_REF_NAME}" \
+            -o "dist/pylon${ext}" ./cmd/pylon
+
+      - name: Build GUI
+        shell: bash
+        working-directory: pylon-ui
+        # webkit2_41 selects webkit2gtk-4.1 on Linux and is inert elsewhere.
+        run: |
+          wails build -platform ${{ matrix.wails_platform }} \
+            -tags webkit2_41 -trimpath -clean \
+            -ldflags "-X main.version=${GITHUB_REF_NAME}"
+
+      # Guard the property -trimpath is here for: a release binary must not name
+      # the machine that built it. grep -a rather than strings, which Git Bash
+      # on the Windows runner does not ship — a missing strings would make this
+      # check pass silently, which is worse than not having it.
+      - name: Check binaries carry no build paths
+        shell: bash
+        run: |
+          leaked=0
+          # Process substitution, not a pipe: a piped `while` runs in a subshell
+          # where `exit 1` would only kill the subshell and pass the step.
+          while IFS= read -r -d '' f; do
+            hits=$(grep -aoE '/(home|Users)/[^/ ]+/|[A-Za-z]:\\Users\\[^\\ ]+' "$f" | sort -u | head -5)
+            if [ -n "$hits" ]; then
+              echo "::error::$f leaks a build path"
+              echo "$hits"
+              leaked=1
+            fi
+          done < <(find dist pylon-ui/build/bin -type f -print0)
+          [ "$leaked" -eq 0 ] || exit 1
+          echo "clean"
+
+      - name: Package
+        shell: bash
+        run: |
+          name="pylon-${GITHUB_REF_NAME}-${{ matrix.target }}"
+          mkdir -p "out/$name"
+          cp dist/pylon* "out/$name/"
+          cp pylon.yaml "out/$name/"
+          # The GUI is a .app bundle on macOS and a bare binary elsewhere.
+          cp -R pylon-ui/build/bin/* "out/$name/"
+          cd out
+          case "$RUNNER_OS" in
+            Linux)   tar czf "$name.tar.gz" "$name" ;;
+            # zip keeps the .app bundle intact; 7z is the one preinstalled on
+            # the Windows runner, where Git Bash has no zip.
+            macOS)   zip -qry "$name.zip" "$name" ;;
+            Windows) 7z a -tzip "$name.zip" "$name" > /dev/null ;;
+          esac
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}
+          path: |
+            out/*.tar.gz
+            out/*.zip
+          if-no-files-found: error
+
+  release:
+    name: publish
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        # Draft: a release is hard to unpublish, and process watching plus
+        # machine control are still Linux-only (see watcher/proc_other.go), so
+        # the notes need a human read before anyone downloads a Windows build.
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --title "${GITHUB_REF_NAME}" \
+            --generate-notes \
+            --draft \
+            artifacts/*
