@@ -103,8 +103,11 @@ watch_processes:
   - name: cs2
     tasks_on_exit: true
 
-# Runtime paths (defaults shown). DB defaults to ~/.config/pylon/pylon.db.
+# Runtime paths. Left unset on purpose: the defaults are platform-specific
+# (/tmp/pylon.sock on Linux/macOS, %LocalAppData%\pylon\pylon.sock on Windows,
+# DB under the user config dir). Setting them here would pin a Unix path into a
+# config that ships to every platform. Uncomment only to override.
 paths:
-  socket: /tmp/pylon.sock
-  pid: /tmp/pylon.pid
+  # socket: /tmp/pylon.sock
+  # pid: /tmp/pylon.pid
   # db: /home/you/.config/pylon/pylon.db

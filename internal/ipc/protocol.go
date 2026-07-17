@@ -1,9 +1,9 @@
 // Package ipc defines the wire protocol shared between the Pylon CLI and the
 // running daemon. Messages are newline-delimited JSON over a Unix socket.
+//
+// The default socket/PID locations are platform-specific; see paths_unix.go and
+// paths_windows.go.
 package ipc
-
-// DefaultSocketPath is where the daemon listens unless overridden via config.
-const DefaultSocketPath = "/tmp/pylon.sock"
 
 // Request is a command sent from the CLI to the daemon.
 type Request struct {

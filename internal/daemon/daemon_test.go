@@ -127,6 +127,38 @@ func TestSecondInstanceRefused(t *testing.T) {
 	}
 }
 
+// The Windows defaults live under %LocalAppData%\pylon, which does not exist
+// until a first run — and the PID file is written before the socket is bound,
+// so it is the PID write that hits the missing directory first. /tmp always
+// existing kept this hidden on Unix.
+func TestRunCreatesMissingPathDirs(t *testing.T) {
+	// A Unix socket path is capped at 104 bytes on macOS (108 on Linux), and
+	// t.TempDir() spends ~80 of them there on /var/folders plus the test name —
+	// so a nested dir under it overflows and bind fails for a reason that has
+	// nothing to do with what this test checks. Hence a short root of our own.
+	// The real defaults are far shorter (/tmp, %LocalAppData%\pylon).
+	root, err := os.MkdirTemp("", "p")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(root) })
+
+	dir := filepath.Join(root, "a", "b")
+	sock := filepath.Join(dir, "pylon.sock")
+	pid := filepath.Join(dir, "pylon.pid")
+
+	d := New(Options{SocketPath: sock, PIDPath: pid, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { done <- d.Run(ctx) }()
+
+	waitForSocket(t, sock)
+	if _, err := os.Stat(pid); err != nil {
+		t.Errorf("pid file not created in a missing dir: %v", err)
+	}
+}
+
 func TestStaleSocketReclaimed(t *testing.T) {
 	dir := t.TempDir()
 	sock := filepath.Join(dir, "pylon.sock")

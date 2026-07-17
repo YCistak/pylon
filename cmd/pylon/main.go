@@ -553,7 +553,7 @@ func parseHM(s string) (hour, min int, ok bool) {
 func socketPath() string {
 	cfg, err := config.Load(configPath())
 	if err != nil {
-		return ipc.DefaultSocketPath
+		return ipc.DefaultSocketPath()
 	}
 	return cfg.Paths.Socket
 }

@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"time"
 )
@@ -126,8 +127,12 @@ func locatePylonBinary() (string, error) {
 	if wd, err := os.Getwd(); err == nil {
 		dirs = append(dirs, wd, filepath.Join(wd, ".."))
 	}
+	name := "pylon"
+	if runtime.GOOS == "windows" {
+		name = "pylon.exe" // a bare "pylon" stat never matches on Windows
+	}
 	for _, d := range dirs {
-		c := filepath.Join(d, "pylon")
+		c := filepath.Join(d, name)
 		if fi, err := os.Stat(c); err == nil && !fi.IsDir() {
 			if abs, err := filepath.Abs(c); err == nil {
 				return abs, nil

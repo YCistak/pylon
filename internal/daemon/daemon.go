@@ -47,8 +47,8 @@ type service struct {
 
 // Options configures a Daemon.
 type Options struct {
-	SocketPath string // defaults to ipc.DefaultSocketPath
-	PIDPath    string // defaults to /tmp/pylon.pid
+	SocketPath string // defaults to ipc.DefaultSocketPath()
+	PIDPath    string // defaults to ipc.DefaultPIDPath()
 	Logger     *slog.Logger
 	DB         *db.DB // optional persistence handle for handlers
 }
@@ -57,10 +57,10 @@ type Options struct {
 // call Run to start listening.
 func New(opts Options) *Daemon {
 	if opts.SocketPath == "" {
-		opts.SocketPath = ipc.DefaultSocketPath
+		opts.SocketPath = ipc.DefaultSocketPath()
 	}
 	if opts.PIDPath == "" {
-		opts.PIDPath = "/tmp/pylon.pid"
+		opts.PIDPath = ipc.DefaultPIDPath()
 	}
 	if opts.Logger == nil {
 		opts.Logger = slog.New(slog.NewTextHandler(os.Stderr, nil))
@@ -121,6 +121,14 @@ func (d *Daemon) registerBuiltins() {
 // Run starts the daemon: writes the PID file, opens the socket, and serves
 // requests until ctx is cancelled or a shutdown signal arrives. It blocks.
 func (d *Daemon) Run(ctx context.Context) error {
+	// Neither the PID write nor AF_UNIX creates its parent directory, and the
+	// PID file goes first — so both directories have to exist before anything
+	// else runs. On Unix this never showed, the defaults living in /tmp; on
+	// Windows they sit under %LocalAppData%\pylon, absent until a first run.
+	if err := ensureDirs(d.pidPath, d.socketPath); err != nil {
+		return err
+	}
+
 	if err := d.writePIDFile(); err != nil {
 		return err
 	}
