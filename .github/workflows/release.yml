@@ -64,12 +64,23 @@ jobs:
       - name: Build daemon
         shell: bash
         run: |
-          ext=""
-          [ "$RUNNER_OS" = "Windows" ] && ext=".exe"
           mkdir -p dist
-          go build -trimpath \
-            -ldflags "-s -w -X main.version=${GITHUB_REF_NAME}" \
-            -o "dist/pylon${ext}" ./cmd/pylon
+          flags=(-trimpath -ldflags "-s -w -X main.version=${GITHUB_REF_NAME}")
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            # `wails -platform darwin/universal` only covers the GUI. A plain
+            # `go build` here would inherit the runner's arm64 and ship a
+            # daemon that cannot start on an Intel Mac — in a package named
+            # "universal", next to a GUI that runs fine there.
+            GOARCH=amd64 go build "${flags[@]}" -o dist/pylon-amd64 ./cmd/pylon
+            GOARCH=arm64 go build "${flags[@]}" -o dist/pylon-arm64 ./cmd/pylon
+            lipo -create -output dist/pylon dist/pylon-amd64 dist/pylon-arm64
+            rm dist/pylon-amd64 dist/pylon-arm64
+            lipo -info dist/pylon
+          else
+            ext=""
+            [ "$RUNNER_OS" = "Windows" ] && ext=".exe"
+            go build "${flags[@]}" -o "dist/pylon${ext}" ./cmd/pylon
+          fi
 
       - name: Build GUI
         shell: bash
