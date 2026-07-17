@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -134,7 +135,14 @@ func TestFileStoreRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("key file missing: %v", err)
 	}
-	if keyInfo.Mode().Perm() != 0o600 {
+	// 0600 is how "only the owner reads the key" is spelled on Unix. Windows
+	// has no mode bits — WriteFile's perm only drives the read-only flag, so
+	// the key reports 0666 there — and the same property instead comes from the
+	// ACL the vault inherits from the user profile, which os.UserConfigDir()
+	// puts it under. Asserting the Unix spelling on Windows would fail a
+	// protection that holds; the package's threat model (casual reads, not
+	// someone who can already read the user's home) is met either way.
+	if runtime.GOOS != "windows" && keyInfo.Mode().Perm() != 0o600 {
 		t.Fatalf("key perms = %v want 0600", keyInfo.Mode().Perm())
 	}
 }
