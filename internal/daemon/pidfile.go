@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -13,6 +14,21 @@ import (
 
 // ErrAlreadyRunning is returned by Run when another live daemon owns the PID file.
 var ErrAlreadyRunning = errors.New("pylon daemon already running")
+
+// ensureDirs creates the parent directory of each path. Paths sharing a parent
+// (the usual case) collapse into one harmless repeat MkdirAll.
+func ensureDirs(paths ...string) error {
+	for _, p := range paths {
+		dir := filepath.Dir(p)
+		if dir == "" || dir == "." {
+			continue
+		}
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return fmt.Errorf("create %s: %w", dir, err)
+		}
+	}
+	return nil
+}
 
 // writePIDFile records the current PID, refusing if a live daemon already owns it.
 func (d *Daemon) writePIDFile() error {

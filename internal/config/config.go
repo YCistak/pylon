@@ -8,9 +8,12 @@ package config
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/YCistak/pylon/internal/ipc"
 )
 
 // Config is the fully-resolved Pylon configuration.
@@ -213,8 +216,8 @@ func Default() Config {
 			{Name: "cs2", TasksOnExit: true},
 		},
 		Paths: Paths{
-			Socket: "/tmp/pylon.sock",
-			PID:    "/tmp/pylon.pid",
+			Socket: ipc.DefaultSocketPath(),
+			PID:    ipc.DefaultPIDPath(),
 			DB:     defaultDBPath(),
 		},
 	}
@@ -267,7 +270,9 @@ func (c Config) Validate() error {
 // defaultDBPath returns ~/.local/share/pylon/pylon.db, falling back to /tmp.
 func defaultDBPath() string {
 	if dir, err := os.UserConfigDir(); err == nil {
-		return dir + "/pylon/pylon.db"
+		return filepath.Join(dir, "pylon", "pylon.db")
 	}
-	return "/tmp/pylon.db"
+	// No user config dir (stripped account, no profile): fall back to the
+	// platform temp dir rather than a hardcoded /tmp, which Windows lacks.
+	return filepath.Join(os.TempDir(), "pylon.db")
 }

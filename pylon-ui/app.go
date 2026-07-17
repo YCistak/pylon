@@ -5,12 +5,32 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"os"
+	"path/filepath"
+	"runtime"
 	"time"
 )
 
-// daemonSocket is where the Pylon daemon listens (ipc.DefaultSocketPath). The
-// GUI is just another client of the daemon — it never embeds the daemon logic.
-const daemonSocket = "/tmp/pylon.sock"
+// daemonSocket reports where the Pylon daemon listens. It must agree with
+// internal/ipc.DefaultSocketPath(), which this module cannot import: that path
+// is under the daemon's internal/, and the GUI is a separate module on purpose
+// (see the wire-protocol note below), so the rule forbids it. The values are
+// therefore kept in sync by hand — PYLON_SOCKET overrides both sides, which is
+// also the escape hatch when a config sets a custom paths.socket.
+func daemonSocket() string {
+	if p := os.Getenv("PYLON_SOCKET"); p != "" {
+		return p
+	}
+	if runtime.GOOS == "windows" {
+		// Windows has no /tmp; mirror ipc/paths_windows.go.
+		dir, err := os.UserCacheDir()
+		if err != nil {
+			dir = os.TempDir()
+		}
+		return filepath.Join(dir, "pylon", "pylon.sock")
+	}
+	return "/tmp/pylon.sock"
+}
 
 // request / response mirror internal/ipc.{Request,Response}. The GUI is a
 // separate Go module (so the daemon's CGo-free build never pulls in Wails), so
@@ -53,7 +73,7 @@ func (a *App) shutdown(ctx context.Context) {
 // send dials the daemon, sends one request, and returns the reply. A dial error
 // here means the daemon isn't running.
 func send(req request) (response, error) {
-	conn, err := net.DialTimeout("unix", daemonSocket, 2*time.Second)
+	conn, err := net.DialTimeout("unix", daemonSocket(), 2*time.Second)
 	if err != nil {
 		return response{}, fmt.Errorf("daemon çalışmıyor (pylon start): %w", err)
 	}
