@@ -62,11 +62,26 @@ jobs:
           go-version-file: pylon-ui/go.mod
           cache: true
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: pylon-ui/frontend/package-lock.json
+
       - name: Install webkit2gtk (Linux)
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev
+
+      # main.go embeds frontend/dist, which is gitignored and normally produced
+      # by `wails build`. Going straight to `go build` fails the embed, so the
+      # frontend has to be built first.
+      - name: Build frontend
+        working-directory: pylon-ui/frontend
+        run: |
+          npm ci
+          npm run build
 
       - name: Build
         working-directory: pylon-ui
