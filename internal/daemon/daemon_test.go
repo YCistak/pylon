@@ -132,7 +132,18 @@ func TestSecondInstanceRefused(t *testing.T) {
 // so it is the PID write that hits the missing directory first. /tmp always
 // existing kept this hidden on Unix.
 func TestRunCreatesMissingPathDirs(t *testing.T) {
-	dir := filepath.Join(t.TempDir(), "absent", "nested")
+	// A Unix socket path is capped at 104 bytes on macOS (108 on Linux), and
+	// t.TempDir() spends ~80 of them there on /var/folders plus the test name —
+	// so a nested dir under it overflows and bind fails for a reason that has
+	// nothing to do with what this test checks. Hence a short root of our own.
+	// The real defaults are far shorter (/tmp, %LocalAppData%\pylon).
+	root, err := os.MkdirTemp("", "p")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(root) })
+
+	dir := filepath.Join(root, "a", "b")
 	sock := filepath.Join(dir, "pylon.sock")
 	pid := filepath.Join(dir, "pylon.pid")
 
