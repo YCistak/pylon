@@ -1,0 +1,75 @@
+name: CI
+
+# Pylon is developed on Linux but ships to macOS and Windows, where whole
+# subsystems differ (process listing, the IPC socket, machine control). Those
+# platforms cannot be exercised locally, and cross-compiling only proves the
+# code builds — the bugs live at runtime. These runners are the only place the
+# daemon is actually executed on a real macOS and a real Windows.
+on:
+  push:
+    branches: [master, dev]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: daemon (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # Never cancel the other platforms on a failure: a Windows-only break is
+      # exactly the signal this matrix exists to surface, and losing the macOS
+      # result with it would hide half the picture.
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build
+        run: go build ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test ./...
+
+  # The GUI is a separate module (it keeps Wails out of the daemon's CGo-free
+  # build), so it needs its own job — and its own system libraries on Linux.
+  gui:
+    name: gui (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: pylon-ui/go.mod
+          cache: true
+
+      - name: Install webkit2gtk (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev
+
+      - name: Build
+        working-directory: pylon-ui
+        # webkit2_41 is a no-op off Linux, where the tag selects webkit2gtk-4.1
+        # over the unavailable 4.0.
+        run: go build -tags webkit2_41 ./...
