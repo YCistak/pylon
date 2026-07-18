@@ -146,10 +146,37 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
           merge-multiple: true
+
+      # The updater installs nothing whose hash is not in a SHA256SUMS this
+      # signature covers, so this step is what makes `pylon update` possible at
+      # all. No key configured means no signature — and an unsigned release
+      # simply leaves updating disabled, rather than shipping something the
+      # client would have to trust blindly.
+      - name: Sign checksums
+        env:
+          RELEASE_SIGNING_KEY: ${{ secrets.RELEASE_SIGNING_KEY }}
+        run: |
+          cd artifacts
+          sha256sum * > SHA256SUMS
+          if [ -z "$RELEASE_SIGNING_KEY" ]; then
+            echo "::warning::RELEASE_SIGNING_KEY is unset — releasing unsigned, self-update will refuse this build"
+            rm SHA256SUMS
+            exit 0
+          fi
+          cd ..
+          go run ./cmd/pylon-sign sign artifacts/SHA256SUMS
+          cat artifacts/SHA256SUMS
 
       - name: Create release
         env:
