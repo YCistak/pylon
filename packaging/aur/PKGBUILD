@@ -1,0 +1,50 @@
+# Maintainer: YCistak <your-contact-here>  # fill in before publishing to AUR
+#
+# This packages the prebuilt release binaries (the -bin convention) rather than
+# building from source: the CI release is already trimpath-stripped and the
+# GUI's Wails/webkit toolchain is awkward to reproduce in a clean chroot. The
+# binaries are pure Go apart from the GUI's webkit runtime dependency, declared
+# below.
+#
+# Self-update is a no-op once installed here: pylon sees itself under /usr/bin
+# and defers to pacman (see internal/selfupdate.Packaged), so `pacman -Syu` is
+# the single update path and this package can never fight it.
+pkgname=pylon-bin
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Personal AI assistant daemon — voice-first, context-aware, local"
+arch=('x86_64')
+url="https://github.com/YCistak/pylon"
+license=('AGPL-3.0-only')
+# webkit2gtk-4.1 + gtk3 are the GUI's runtime libraries; the daemon needs neither.
+depends=('webkit2gtk-4.1' 'gtk3')
+# pw-record/pw-play (voice capture/playback) and edge-tts (the example TTS) are
+# optional — Pylon runs without voice.
+optdepends=('pipewire-tools: microphone capture and playback for voice'
+            'docker: container control widget')
+provides=('pylon')
+conflicts=('pylon')
+options=('!strip') # binaries ship already stripped (-s -w); re-stripping is wasted work
+source=("pylon-$pkgver.tar.gz::$url/releases/download/v$pkgver/pylon-v$pkgver-linux-amd64.tar.gz"
+        "pylon.desktop"
+        "appicon.png::$url/raw/v$pkgver/pylon-ui/build/appicon.png")
+sha256sums=('97caed2bec06e8b88d48e7125da80899488f260b68184a1dd520928124105218'
+            'SKIP'
+            '28332a3b130d1970d208e40b7ab2c84f9ead10199f8c058e08e07fe21fe7ea49')
+
+package() {
+  cd "$srcdir/pylon-v$pkgver-linux-amd64"
+
+  # Daemon + GUI. The GUI auto-starts the daemon over IPC, so a user only ever
+  # launches pylon-ui, but the CLI is useful on its own (pylon say, secret, …).
+  install -Dm755 pylon    "$pkgdir/usr/bin/pylon"
+  install -Dm755 pylon-ui "$pkgdir/usr/bin/pylon-ui"
+
+  # The shipped pylon.yaml is an example, not a live config: Pylon looks for one
+  # via $PYLON_CONFIG or ./pylon.yaml, never here. Installing it read-only under
+  # /usr/share documents the schema without pretending to be the active file.
+  install -Dm644 pylon.yaml "$pkgdir/usr/share/doc/$pkgname/pylon.yaml.example"
+
+  install -Dm644 "$srcdir/pylon.desktop" "$pkgdir/usr/share/applications/pylon.desktop"
+  install -Dm644 "$srcdir/appicon.png"   "$pkgdir/usr/share/icons/hicolor/512x512/apps/pylon.png"
+}
