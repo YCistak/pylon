@@ -36,6 +36,7 @@ and moves on when one hits its quota.
 | **github** | open PRs and issues, PR polling, a daily commit nudge |
 | **freshrss** | unread count from your FreshRSS instance |
 | **docker** | list, inspect, start/stop/restart containers |
+| **sysmon** | CPU load, RAM, free disk, temperature, uptime (Linux) |
 | **calendar / drive** | today's events, recent files (Google) |
 | **spotify** | playback control, now playing |
 | **system** | lock the screen, volume, media keys, close an app |
