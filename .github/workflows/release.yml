@@ -105,7 +105,14 @@ jobs:
             # `|| true`: grep exits 1 when it matches nothing — the clean
             # case — and the runner's shell is `bash -e -o pipefail`, so that
             # would abort the step and report a leak-free build as a failure.
-            hits=$(grep -aoE '/(home|Users)/[^/ ]+/|[A-Za-z]:\\Users\\[^\\ ]+' "$f" | sort -u | head -5 || true)
+            #
+            # /home/linuxbrew/ is allow-listed: it is a deliberate string
+            # constant (a Homebrew install prefix that self-update matches on,
+            # see internal/selfupdate/packaged.go), not the build machine's home
+            # leaking in. It is a shared, identity-free path — unlike the
+            # /home/<username>/ this guard exists to catch.
+            hits=$(grep -aoE '/(home|Users)/[^/ ]+/|[A-Za-z]:\\Users\\[^\\ ]+' "$f" \
+              | grep -vFx '/home/linuxbrew/' | sort -u | head -5 || true)
             if [ -n "$hits" ]; then
               echo "::error::$f leaks a build path"
               echo "$hits"
