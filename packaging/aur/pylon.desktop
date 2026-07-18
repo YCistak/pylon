@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Pylon
+Comment=Personal AI assistant
+Exec=pylon-ui
+Icon=pylon
+Terminal=false
+Categories=Utility;
+StartupNotify=true
+StartupWMClass=pylon-ui
