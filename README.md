@@ -33,6 +33,7 @@ and moves on when one hits its quota.
 | --- | --- |
 | **calc** | arithmetic, spoken back |
 | **exchange** | live currency and crypto rates |
+| **weather** | current conditions, today's high/low, rain chance (Open-Meteo) |
 | **github** | open PRs and issues, PR polling, a daily commit nudge |
 | **freshrss** | unread count from your FreshRSS instance |
 | **docker** | list, inspect, start/stop/restart containers |

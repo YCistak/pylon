@@ -86,6 +86,12 @@ services:
     # client_id: ...
     redirect_port: 8888
 
+# Weather (Open-Meteo, no API key). Unset location defaults to İstanbul.
+weather:
+  # latitude: 41.0082
+  # longitude: 28.9784
+  # name: "İstanbul"
+
 briefing:
   time: "08:00"
   timezone: "Europe/Istanbul"
