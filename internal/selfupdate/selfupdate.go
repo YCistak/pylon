@@ -36,7 +36,7 @@ import (
 // an unconfigured project must not be a softer target than a configured one.
 // A var only so the tests can install a throwaway key; nothing outside this
 // package can reach it.
-var publicKey = ""
+var publicKey = "5KVJP2O/qZgWZ5mFrowyouDhdvil2wNI+RS1B4WAbxc="
 
 // latestURL is the GitHub API for the newest published release. Drafts and
 // prereleases are excluded by the endpoint itself, which is what we want — a
