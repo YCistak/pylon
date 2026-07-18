@@ -2,6 +2,12 @@
 
 > A personal AI assistant daemon — voice-first, context-aware, runs on your machine.
 
+[![CI](https://github.com/YCistak/pylon/actions/workflows/ci.yml/badge.svg)](https://github.com/YCistak/pylon/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/YCistak/pylon?sort=semver)](https://github.com/YCistak/pylon/releases)
+[![License](https://img.shields.io/badge/license-AGPL--3.0-blue)](#license)
+![Platforms](https://img.shields.io/badge/platforms-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey)
+![Go](https://img.shields.io/badge/Go-1.26-00ADD8?logo=go&logoColor=white)
+
 Pylon watches what you do — when work ends, when a game closes, when the day
 starts — and acts on it. You talk to it; it carries the context. Everything runs
 locally: a Go daemon owns the state, and the GUI is just one of its clients.
@@ -9,6 +15,10 @@ locally: a Go daemon owns the state, and the GUI is just one of its clients.
 **Status: early.** Usable daily on Linux, which is where it is developed. macOS
 and Windows run the daemon and most services, but not everything — see
 [Platform support](#platform-support) before installing.
+
+<p align="center">
+  <img src="docs/img/pylon-home.png" alt="Pylon's home screen: the Pylon orb with live GitHub, FreshRSS and Docker widgets" width="720">
+</p>
 
 ---
 
