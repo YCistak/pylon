@@ -14,8 +14,9 @@ import (
 
 // Calendar actions.
 const (
-	ActionListToday intent.Action = "calendar.list_today"
-	ActionAddEvent  intent.Action = "calendar.add_event"
+	ActionListToday  intent.Action = "calendar.list_today"
+	ActionCountToday intent.Action = "calendar.count_today"
+	ActionAddEvent   intent.Action = "calendar.add_event"
 )
 
 // Event is the minimal shape Pylon needs (decoupled from the API for testing).
@@ -57,6 +58,10 @@ func (c *Calendar) Actions() []intent.ActionSpec {
 			Desc: `"calendar.list_today": list the user's Google Calendar events for today. No args needed.`,
 		},
 		{
+			Name: ActionCountToday,
+			Desc: `"calendar.count_today": say only how many events the user has today, not the list. No args. Use for "bugün kaç etkinliğim var", "programım yoğun mu".`,
+		},
+		{
 			Name: ActionAddEvent,
 			Args: []string{"content", "datetime"},
 			Desc: `"calendar.add_event": add a calendar event. Put the event title in "content" and the start time in "datetime" (absolute ISO-8601). Use for "yarın saat üçte diş hekimi randevusu ekle".`,
@@ -72,6 +77,8 @@ func (c *Calendar) Execute(ctx context.Context, action intent.Action, args map[s
 	switch action {
 	case ActionListToday:
 		return c.listToday(ctx, api)
+	case ActionCountToday:
+		return c.countToday(ctx, api)
 	case ActionAddEvent:
 		return c.addEvent(ctx, api, args)
 	default:
@@ -95,6 +102,22 @@ func (c *Calendar) listToday(ctx context.Context, api calAPI) (string, error) {
 		parts = append(parts, fmt.Sprintf("%s %s", e.Start.Local().Format("15:04"), e.Summary))
 	}
 	return fmt.Sprintf("Bugün %d etkinlik: %s.", len(events), strings.Join(parts, "; ")), nil
+}
+
+// countToday reports only how many events today has, for the briefing and for
+// "bugün kaç etkinliğim var" — the same fetch as listToday, without the list.
+func (c *Calendar) countToday(ctx context.Context, api calAPI) (string, error) {
+	now := c.now()
+	start := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	end := start.Add(24 * time.Hour)
+	events, err := api.list(ctx, c.cfg.CalendarID, start, end)
+	if err != nil {
+		return "", err
+	}
+	if len(events) == 0 {
+		return "Bugün takvimin boş.", nil
+	}
+	return fmt.Sprintf("Bugün %d etkinliğin var.", len(events)), nil
 }
 
 func (c *Calendar) addEvent(ctx context.Context, api calAPI, args map[string]string) (string, error) {
