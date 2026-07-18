@@ -78,6 +78,8 @@ func main() {
 		err = cmdAuth(os.Args[2:])
 	case "secret":
 		err = cmdSecret(os.Args[2:])
+	case "update":
+		err = cmdUpdate(os.Args[2:])
 	case "version", "--version", "-v":
 		fmt.Println("pylon", version)
 	case "-h", "--help", "help":
@@ -107,6 +109,7 @@ usage:
   pylon auth google   authorize Google (Calendar) — one-time OAuth consent
   pylon secret set <name>   save a credential to the encrypted vault (ref as secret:<name>)
   pylon secret rm  <name>   remove a saved credential
+  pylon update [--check]    install the newest release (--check only reports)
 `)
 }
 
