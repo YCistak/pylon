@@ -153,8 +153,41 @@ func cmdStart() error {
 	registerWatcher(d, cfg, database, log)
 	registerScheduler(d, cfg, registry, log)
 	registerIntent(d, cfg, database, registry, log)
+	registerSecrets(d)
 
 	return d.Run(context.Background())
+}
+
+// registerSecrets lets the GUI manage the encrypted vault over IPC: the Settings
+// API-key field saves keys here (set), checks whether one exists (has), or clears
+// it (rm). Values ride the local Unix socket and are AES-encrypted at rest — the
+// same path as `pylon secret set`, never written to config in plaintext.
+func registerSecrets(d *daemon.Daemon) {
+	d.Handle("secret", func(req ipc.Request) ipc.Response {
+		if len(req.Args) < 2 {
+			return ipc.Response{OK: false, Error: "usage: secret <set|rm|has> <name> [value]"}
+		}
+		op, name := req.Args[0], req.Args[1]
+		switch op {
+		case "set":
+			if len(req.Args) < 3 {
+				return ipc.Response{OK: false, Error: "secret set için değer gerekli"}
+			}
+			if err := secrets.Set(name, req.Args[2]); err != nil {
+				return ipc.Response{OK: false, Error: err.Error()}
+			}
+			return ipc.Response{OK: true, Text: "kaydedildi"}
+		case "rm":
+			if err := secrets.Delete(name); err != nil {
+				return ipc.Response{OK: false, Error: err.Error()}
+			}
+			return ipc.Response{OK: true, Text: "silindi"}
+		case "has":
+			return ipc.Response{OK: true, Text: strconv.FormatBool(secrets.Has(name))}
+		default:
+			return ipc.Response{OK: false, Error: "bilinmeyen işlem: " + op}
+		}
+	})
 }
 
 // briefingPresenter builds the desktop banner presenter from config.
@@ -466,7 +499,15 @@ func registerRecall(d *daemon.Daemon, database *db.DB) {
 func buildIntentChain(cfg config.Config, log *slog.Logger) *intent.Chain {
 	var parsers []intent.Parser
 	for _, m := range cfg.Intent.Models {
+		// Prefer the environment; fall back to a key saved in the encrypted vault
+		// under the provider name (what the GUI's API-key field writes), so a user
+		// who never set an env var can still enable the model from Settings.
 		key := os.Getenv(m.APIKeyEnv)
+		if key == "" {
+			if v, err := secrets.Resolve("secret:" + m.Provider); err == nil {
+				key = v
+			}
+		}
 		if key == "" {
 			log.Warn("intent: skipping model, no API key", "provider", m.Provider, "model", m.Model, "env", m.APIKeyEnv)
 			continue

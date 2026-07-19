@@ -10,12 +10,24 @@ export function Do(arg1, arg2) {
   return window['go']['main']['App']['Do'](arg1, arg2);
 }
 
+export function HasSecret(arg1) {
+  return window['go']['main']['App']['HasSecret'](arg1);
+}
+
 export function Listen() {
   return window['go']['main']['App']['Listen']();
 }
 
 export function Platform() {
   return window['go']['main']['App']['Platform']();
+}
+
+export function RestartDaemon() {
+  return window['go']['main']['App']['RestartDaemon']();
+}
+
+export function SetSecret(arg1, arg2) {
+  return window['go']['main']['App']['SetSecret'](arg1, arg2);
 }
 
 export function Status() {

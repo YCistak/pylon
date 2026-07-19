@@ -63,6 +63,17 @@ func Set(name, value string) error {
 	return Default.Set(name, value)
 }
 
+// Has reports whether a secret with this name is stored. It never returns the
+// value, so the GUI can show "saved ✓" without decrypting anything into view.
+func Has(name string) bool {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return false
+	}
+	_, err := Default.Get(name)
+	return err == nil
+}
+
 // Delete removes a named secret. Removing a missing one is not an error.
 func Delete(name string) error {
 	if name = strings.TrimSpace(name); name == "" {
