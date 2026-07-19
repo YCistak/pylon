@@ -6,6 +6,7 @@ import {
   iconSpotify,
   iconFreshRSS,
   iconDocker,
+  iconWeather,
   iconSysmon,
 } from './icons.js'
 
@@ -41,6 +42,12 @@ export const CATALOG = [
         id: 'find', label: 'Ara', action: 'drive.find',
         params: [{ key: 'query', label: 'Arama', placeholder: 'ör. bütçe.xlsx' }],
       },
+    ],
+  },
+  {
+    type: 'weather', icon: iconWeather, title: 'Hava', accent: '#38bdf8',
+    modes: [
+      { id: 'today', label: 'Bugün', action: 'weather.today', params: [] },
     ],
   },
   {
