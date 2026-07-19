@@ -73,12 +73,19 @@ func (a *App) shutdown(ctx context.Context) {
 // send dials the daemon, sends one request, and returns the reply. A dial error
 // here means the daemon isn't running.
 func send(req request) (response, error) {
+	return sendTimeout(req, 20*time.Second)
+}
+
+// sendTimeout is send with an explicit read/write deadline, for calls that run
+// longer than a widget fetch — e.g. push-to-talk records for several seconds
+// before it can answer.
+func sendTimeout(req request, timeout time.Duration) (response, error) {
 	conn, err := net.DialTimeout("unix", daemonSocket(), 2*time.Second)
 	if err != nil {
 		return response{}, fmt.Errorf("daemon çalışmıyor (pylon start): %w", err)
 	}
 	defer conn.Close()
-	_ = conn.SetDeadline(time.Now().Add(20 * time.Second))
+	_ = conn.SetDeadline(time.Now().Add(timeout))
 
 	if err := json.NewEncoder(conn).Encode(req); err != nil {
 		return response{}, err
@@ -100,6 +107,34 @@ func (a *App) DaemonRunning() bool {
 // Status returns the daemon's status line ("running (pid …), N pending task(s)").
 func (a *App) Status() (string, error) {
 	resp, err := send(request{Cmd: "status"})
+	if err != nil {
+		return "", err
+	}
+	if !resp.OK {
+		return "", fmt.Errorf("%s", resp.Error)
+	}
+	return resp.Text, nil
+}
+
+// Listen runs one push-to-talk cycle in the daemon: record from the mic,
+// transcribe, run the intent, and speak the reply. Returns the reply text
+// (prefixed with what was heard) for the UI to show. It can take several seconds
+// — the mic records first — so it uses a long deadline.
+func (a *App) Listen() (string, error) {
+	resp, err := sendTimeout(request{Cmd: "listen"}, 70*time.Second)
+	if err != nil {
+		return "", err
+	}
+	if !resp.OK {
+		return "", fmt.Errorf("%s", resp.Error)
+	}
+	return resp.Text, nil
+}
+
+// Briefing composes today's briefing and presents it: the desktop banner plus
+// spoken delivery. Returns the briefing text.
+func (a *App) Briefing() (string, error) {
+	resp, err := sendTimeout(request{Cmd: "briefing"}, 40*time.Second)
 	if err != nil {
 		return "", err
 	}

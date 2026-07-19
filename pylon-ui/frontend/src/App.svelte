@@ -4,6 +4,7 @@
   import Widget from './lib/Widget.svelte'
   import DockerWidget from './lib/DockerWidget.svelte'
   import PylonStage from './lib/PylonStage.svelte'
+  import VoiceBar from './lib/VoiceBar.svelte'
   import Settings from './lib/Settings.svelte'
   import DockerPage from './lib/DockerPage.svelte'
   import { widgets, catalogEntry, modeOf } from './lib/widgets.js'
@@ -65,6 +66,7 @@
 
       <section class="center">
         <PylonStage />
+        <VoiceBar />
         {#if empty}
           <p class="hint" in:fade>
             Henüz widget yok — <button class="link" on:click={toggleSettings}>Ayarlar</button>'dan ekle.

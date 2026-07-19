@@ -237,8 +237,11 @@ func registerIntent(d *daemon.Daemon, cfg config.Config, database *db.DB, regist
 		log.Info("persona: style learning enabled")
 	}
 
-	d.Handle("say", func(req ipc.Request) ipc.Response {
-		text := strings.TrimSpace(strings.Join(req.Args, " "))
+	// runIntent resolves one utterance (local router first, LLM chain on miss),
+	// executes it, and remembers the turn. Shared by the "say" and "listen"
+	// handlers so typed and spoken input take the exact same path.
+	runIntent := func(text string) ipc.Response {
+		text = strings.TrimSpace(text)
 		if text == "" {
 			return ipc.Response{OK: false, Error: "empty command"}
 		}
@@ -271,6 +274,50 @@ func registerIntent(d *daemon.Daemon, cfg config.Config, database *db.DB, regist
 
 		resp := executeCommand(cmd, database, registry)
 		rememberTurn(database, text, resp, log)
+		return resp
+	}
+
+	d.Handle("say", func(req ipc.Request) ipc.Response {
+		return runIntent(strings.Join(req.Args, " "))
+	})
+
+	// "listen" runs one push-to-talk cycle inside the daemon: record from the
+	// mic, transcribe, resolve+execute the intent, then speak the reply. The GUI's
+	// mic button calls this, so voice works from a click without a terminal. The
+	// reply text comes back prefixed with what was heard, for the UI to show.
+	d.Handle("listen", func(ipc.Request) ipc.Response {
+		if cfg.Voice.STTBin == "" || cfg.Voice.STTModel == "" {
+			return ipc.Response{OK: false, Error: "ses tanıma yapılandırılmadı (voice.stt_bin / stt_model)"}
+		}
+		pipe := voice.NewPipeline(voice.Options{
+			STTBin:        cfg.Voice.STTBin,
+			STTModel:      cfg.Voice.STTModel,
+			Language:      cfg.Voice.Language,
+			TTSCmd:        cfg.Voice.TTSCmd,
+			RecordCmd:     cfg.Voice.RecordCmd,
+			RecordSeconds: cfg.Voice.RecordSeconds,
+			PlayCmd:       cfg.Voice.PlayCmd,
+		})
+		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		defer cancel()
+
+		heard, err := pipe.Capture(ctx)
+		if err != nil {
+			log.Warn("listen: capture failed", "err", err)
+			return ipc.Response{OK: false, Error: "ses alınamadı: " + err.Error()}
+		}
+		if heard = strings.TrimSpace(heard); heard == "" {
+			return ipc.Response{OK: true, Text: "ses algılanamadı"}
+		}
+		log.Info("listen", "heard", heard)
+
+		resp := runIntent(heard)
+		if resp.OK && resp.Text != "" {
+			if err := pipe.Speak(ctx, resp.Text); err != nil {
+				log.Warn("listen: speak failed", "err", err)
+			}
+			resp.Text = "» " + heard + "\n" + resp.Text
+		}
 		return resp
 	})
 

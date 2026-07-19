@@ -3,6 +3,7 @@
   import { PAGE_CATALOG, pageCatalogEntry, sidebarPages } from './sidebarPages.js'
   import Widget from './Widget.svelte'
   import DockerWidget from './DockerWidget.svelte'
+  import VoiceSettings from './VoiceSettings.svelte'
 
   export let editing = null // widget instance handed in from App (pen icon)
 
@@ -150,7 +151,9 @@
     </ul>
   </section>
 
-  <p class="note">Parola ekleme, servis aç/kapa ve ses ayarları — 4. adımda gelecek.</p>
+  <VoiceSettings />
+
+  <p class="note">Parola ekleme ve servis aç/kapa — sonraki adımda gelecek.</p>
 </div>
 
 {#if draft}
