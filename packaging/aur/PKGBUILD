@@ -10,7 +10,11 @@
 # and defers to pacman (see internal/selfupdate.Packaged), so `pacman -Syu` is
 # the single update path and this package can never fight it.
 pkgname=pylon-bin
-pkgver=0.1.0
+# AUR pkgver can't contain a hyphen, so the semver prerelease "v0.1.0-alpha.1"
+# maps to pkgver 0.1.0alpha1; _tag is the real upstream tag/release the sources
+# are fetched from.
+pkgver=0.1.0alpha1
+_tag=v0.1.0-alpha.1
 pkgrel=1
 pkgdesc="Personal AI assistant daemon — voice-first, context-aware, local"
 arch=('x86_64')
@@ -25,15 +29,18 @@ optdepends=('pipewire-tools: microphone capture and playback for voice'
 provides=('pylon')
 conflicts=('pylon')
 options=('!strip') # binaries ship already stripped (-s -w); re-stripping is wasted work
-source=("pylon-$pkgver.tar.gz::$url/releases/download/v$pkgver/pylon-v$pkgver-linux-amd64.tar.gz"
+source=("pylon-$pkgver.tar.gz::$url/releases/download/$_tag/pylon-$_tag-linux-amd64.tar.gz"
         "pylon.desktop"
-        "appicon.png::$url/raw/v$pkgver/pylon-ui/build/appicon.png")
-sha256sums=('97caed2bec06e8b88d48e7125da80899488f260b68184a1dd520928124105218'
+        "appicon.png::$url/raw/$_tag/pylon-ui/build/appicon.png")
+# The release tarball's sum is regenerated (updpkgsums) once the $_tag release is
+# actually published — the alpha build doesn't exist yet. The icon is the same
+# file at any tag, so its sum stays valid.
+sha256sums=('SKIP'
             'SKIP'
             '28332a3b130d1970d208e40b7ab2c84f9ead10199f8c058e08e07fe21fe7ea49')
 
 package() {
-  cd "$srcdir/pylon-v$pkgver-linux-amd64"
+  cd "$srcdir/pylon-$_tag-linux-amd64"
 
   # Daemon + GUI. The GUI auto-starts the daemon over IPC, so a user only ever
   # launches pylon-ui, but the CLI is useful on its own (pylon say, secret, …).
