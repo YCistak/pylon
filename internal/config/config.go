@@ -152,10 +152,14 @@ type GoogleService struct {
 	CalendarID   string `yaml:"calendar_id"`   // "primary" by default
 }
 
-// Briefing configures the morning briefing.
+// Briefing configures the daily briefing: when it runs and how it is presented
+// on the desktop. BannerCmd receives the briefing text on stdin and shows it as
+// an on-screen banner (see scripts/briefing_banner.py, a Wayland layer-shell
+// overlay); empty disables the banner.
 type Briefing struct {
-	Time     string `yaml:"time"`     // HH:MM
-	Timezone string `yaml:"timezone"` // IANA tz, e.g. Europe/Istanbul
+	Time      string   `yaml:"time"`       // HH:MM
+	Timezone  string   `yaml:"timezone"`   // IANA tz, e.g. Europe/Istanbul
+	BannerCmd []string `yaml:"banner_cmd"` // desktop banner command; text on stdin
 }
 
 // Work configures session tracking.
