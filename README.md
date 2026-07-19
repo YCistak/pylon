@@ -16,10 +16,6 @@ locally: a Go daemon owns the state, and the GUI is just one of its clients.
 and Windows run the daemon and most services, but not everything — see
 [Platform support](#platform-support) before installing.
 
-<p align="center">
-  <img src="docs/img/pylon-home.png" alt="Pylon's home screen: the Pylon orb with live GitHub, FreshRSS and Docker widgets" width="720">
-</p>
-
 ---
 
 ## What it does
