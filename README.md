@@ -56,7 +56,7 @@ that touches the OS. Tested on real runners for each platform:
 | calc, exchange, github, freshrss | ✅ | ✅ | ✅ |
 | Google, Spotify | ✅ | ✅ | ✅ |
 | Docker | ✅ | ✅ | ❌ needs npipe |
-| Voice (STT/TTS) | ✅ | ✅ | ⚠️ needs a non-shell TTS command |
+| Voice (STT/TTS) | ✅ | ✅ | ✅ (`scripts/tts.ps1`) |
 | Screen lock, volume, media keys | ✅ | ❌ | ❌ |
 | Process watching | ✅ | ✅ | ✅ |
 
@@ -137,10 +137,11 @@ voice:
   tts_cmd: ["/path/edge_tts.sh", "{file}", "tr-TR-EmelNeural"]
 ```
 
-`scripts/edge_tts.sh` wraps [edge-tts](https://github.com/rany2/edge-tts) as a
-ready example. Recording and playback default per-OS (`pw-record`/`pw-play` on
-Linux, `sox`/`afplay` on macOS, `ffmpeg`/PowerShell on Windows) and are
-overridable.
+Two ready examples ship in `scripts/`: `edge_tts.sh` wraps
+[edge-tts](https://github.com/rany2/edge-tts) on Unix, and `tts.ps1` uses
+Windows' built-in SAPI voices (no install). Recording and playback default
+per-OS (`pw-record`/`pw-play` on Linux, `sox`/`afplay` on macOS,
+`ffmpeg`/PowerShell on Windows) and are overridable.
 
 Then bind `pylon listen` to a hotkey in your desktop environment for
 push-to-talk.
