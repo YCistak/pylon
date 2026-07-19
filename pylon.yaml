@@ -10,6 +10,10 @@ voice:
   # tts_cmd: synthesis command — text on stdin, write a WAV to {file}. Engine-
   # agnostic. Examples:
   #   piper:  ["piper", "-m", "/path/voice.onnx", "-f", "{file}"]
+  #   edge:   ["/path/scripts/edge_tts.sh", "{file}", "tr-TR-EmelNeural"]  (Unix)
+  #   Windows (built-in SAPI, no install — Windows PowerShell 5.1):
+  #     ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",
+  #      "-File", "C:\\path\\scripts\\tts.ps1", "{file}"]
   #   XTTS server (natural, GPU): a curl client posting text to the local server:
   #     ["curl", "-sf", "--data-binary", "@-", "-o", "{file}", "http://127.0.0.1:5067/tts"]
   tts_cmd: []                       # empty → spoken replies disabled (text still printed)
@@ -85,6 +89,12 @@ services:
   spotify:
     # client_id: ...
     redirect_port: 8888
+
+# Weather (Open-Meteo, no API key). Unset location defaults to İstanbul.
+weather:
+  # latitude: 41.0082
+  # longitude: 28.9784
+  # name: "İstanbul"
 
 briefing:
   time: "08:00"

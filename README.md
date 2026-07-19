@@ -16,10 +16,6 @@ locally: a Go daemon owns the state, and the GUI is just one of its clients.
 and Windows run the daemon and most services, but not everything — see
 [Platform support](#platform-support) before installing.
 
-<p align="center">
-  <img src="docs/img/pylon-home.png" alt="Pylon's home screen: the Pylon orb with live GitHub, FreshRSS and Docker widgets" width="720">
-</p>
-
 ---
 
 ## What it does
@@ -33,9 +29,11 @@ and moves on when one hits its quota.
 | --- | --- |
 | **calc** | arithmetic, spoken back |
 | **exchange** | live currency and crypto rates |
+| **weather** | current conditions, today's high/low, rain chance (Open-Meteo) |
 | **github** | open PRs and issues, PR polling, a daily commit nudge |
 | **freshrss** | unread count from your FreshRSS instance |
 | **docker** | list, inspect, start/stop/restart containers |
+| **sysmon** | CPU load, RAM, free disk, temperature, uptime (Linux) |
 | **calendar / drive** | today's events, recent files (Google) |
 | **spotify** | playback control, now playing |
 | **system** | lock the screen, volume, media keys, close an app |
@@ -60,14 +58,14 @@ that touches the OS. Tested on real runners for each platform:
 | calc, exchange, github, freshrss | ✅ | ✅ | ✅ |
 | Google, Spotify | ✅ | ✅ | ✅ |
 | Docker | ✅ | ✅ | ❌ needs npipe |
-| Voice (STT/TTS) | ✅ | ✅ | ⚠️ needs a non-shell TTS command |
+| Voice (STT/TTS) | ✅ | ✅ | ✅ (`scripts/tts.ps1`) |
 | Screen lock, volume, media keys | ✅ | ❌ | ❌ |
-| Process watching | ✅ | ❌ | ❌ |
+| Process watching | ✅ | ✅ | ✅ |
 
-Process watching reads `/proc`, which only Linux has; macOS and Windows need
-their own listers (`ps`/kqueue, WMI). Machine control shells out to
-`loginctl`/`pactl`/`playerctl`. Both degrade with a message rather than
-crashing — the rest of Pylon works.
+Process watching uses `/proc` on Linux, `ps` on macOS and `tasklist` on
+Windows. Machine control still shells out to `loginctl`/`pactl`/`playerctl`, so
+it is Linux-only for now; it degrades with a message rather than crashing — the
+rest of Pylon works.
 
 ---
 
@@ -141,10 +139,11 @@ voice:
   tts_cmd: ["/path/edge_tts.sh", "{file}", "tr-TR-EmelNeural"]
 ```
 
-`scripts/edge_tts.sh` wraps [edge-tts](https://github.com/rany2/edge-tts) as a
-ready example. Recording and playback default per-OS (`pw-record`/`pw-play` on
-Linux, `sox`/`afplay` on macOS, `ffmpeg`/PowerShell on Windows) and are
-overridable.
+Two ready examples ship in `scripts/`: `edge_tts.sh` wraps
+[edge-tts](https://github.com/rany2/edge-tts) on Unix, and `tts.ps1` uses
+Windows' built-in SAPI voices (no install). Recording and playback default
+per-OS (`pw-record`/`pw-play` on Linux, `sox`/`afplay` on macOS,
+`ffmpeg`/PowerShell on Windows) and are overridable.
 
 Then bind `pylon listen` to a hotkey in your desktop environment for
 push-to-talk.

@@ -1,4 +1,4 @@
-//go:build !linux
+//go:build !linux && !darwin && !windows
 
 package watcher
 
@@ -7,9 +7,8 @@ import (
 	"runtime"
 )
 
-// ListProcesses is not yet implemented outside Linux. Windows (WMI) and macOS
-// (kqueue / ps) listers are planned with the cross-platform work in Phase 4.
-// Until then, callers should inject a Lister explicitly on these platforms.
+// ListProcesses has no implementation on platforms beyond Linux, macOS and
+// Windows. Callers there must inject a Lister explicitly (watcher.Options.List).
 func ListProcesses() (map[string]struct{}, error) {
-	return nil, fmt.Errorf("watcher: process listing not implemented on %s yet", runtime.GOOS)
+	return nil, fmt.Errorf("watcher: process listing not implemented on %s", runtime.GOOS)
 }

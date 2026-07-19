@@ -84,6 +84,16 @@ type Services struct {
 	FreshRSS FreshRSSService `yaml:"freshrss"`
 	Spotify  SpotifyService  `yaml:"spotify"`
 	Docker   DockerService   `yaml:"docker"`
+	Weather  WeatherService  `yaml:"weather"`
+}
+
+// WeatherService sets the location the weather service reports for. It uses
+// Open-Meteo (no API key); an unset location defaults to İstanbul. Find your
+// coordinates at e.g. https://open-meteo.com/en/docs (geocoding) or any map.
+type WeatherService struct {
+	Latitude  float64 `yaml:"latitude"`
+	Longitude float64 `yaml:"longitude"`
+	Name      string  `yaml:"name"` // spoken place name, e.g. "İstanbul"
 }
 
 // DockerService lets Pylon observe and control Docker containers on the host
