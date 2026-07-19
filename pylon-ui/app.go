@@ -161,6 +161,33 @@ func (a *App) Platform() string {
 	return "linux"
 }
 
+// SetSecret saves a credential to the daemon's encrypted vault (e.g. the Gemini
+// API key under "gemini"). The value is AES-encrypted at rest — the Settings
+// form never writes it to config in plaintext.
+func (a *App) SetSecret(name, value string) error {
+	resp, err := send(request{Cmd: "secret", Args: []string{"set", name, value}})
+	if err != nil {
+		return err
+	}
+	if !resp.OK {
+		return fmt.Errorf("%s", resp.Error)
+	}
+	return nil
+}
+
+// HasSecret reports whether a secret is stored, without revealing it — so the
+// Settings form can show "saved" without decrypting anything into view.
+func (a *App) HasSecret(name string) bool {
+	resp, err := send(request{Cmd: "secret", Args: []string{"has", name}})
+	return err == nil && resp.OK && resp.Text == "true"
+}
+
+// RestartDaemon bounces the daemon so a newly saved key/config is picked up.
+// It only restarts a daemon the GUI started; a hand-started one is left alone.
+func (a *App) RestartDaemon() {
+	a.daemon.restart()
+}
+
 // Do runs a service action directly (no LLM) and returns its speakable text —
 // the data source for every home widget. e.g. Do("freshrss.unread_count").
 func (a *App) Do(action string, params map[string]string) (string, error) {

@@ -5,8 +5,14 @@ export function DaemonRunning():Promise<boolean>;
 
 export function Do(arg1:string,arg2:Record<string, string>):Promise<string>;
 
+export function HasSecret(arg1:string):Promise<boolean>;
+
 export function Listen():Promise<string>;
 
 export function Platform():Promise<string>;
+
+export function RestartDaemon():Promise<void>;
+
+export function SetSecret(arg1:string,arg2:string):Promise<void>;
 
 export function Status():Promise<string>;
