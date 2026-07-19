@@ -1,20 +1,20 @@
 <script>
   import { fade, fly } from 'svelte/transition'
-  import { Listen, Briefing } from '../../wailsjs/go/main/App.js'
+  import { Listen } from '../../wailsjs/go/main/App.js'
   import { daemonOnline } from './daemon.js'
 
-  // One shared busy flag: the mic and the briefing both talk to the daemon and
-  // shouldn't overlap (the mic holds the recorder; a second call would queue).
-  let busy = null // null | 'listen' | 'briefing'
+  // Push-to-talk: hold the daemon for one record→answer cycle. Everything else
+  // (the daily briefing included) is asked for by voice — e.g. "brifing ver".
+  let listening = false
   let heard = '' // what the mic transcribed (shown dimmer, above the reply)
-  let reply = '' // Pylon's answer / the briefing text
+  let reply = '' // Pylon's answer
   let error = ''
 
   $: offline = $daemonOnline !== true
 
   async function talk() {
-    if (busy || offline) return
-    busy = 'listen'
+    if (listening || offline) return
+    listening = true
     heard = ''
     reply = ''
     error = ''
@@ -31,22 +31,7 @@
     } catch (e) {
       error = String(e?.message || e)
     } finally {
-      busy = null
-    }
-  }
-
-  async function brief() {
-    if (busy || offline) return
-    busy = 'briefing'
-    heard = ''
-    reply = ''
-    error = ''
-    try {
-      reply = await Briefing()
-    } catch (e) {
-      error = String(e?.message || e)
-    } finally {
-      busy = null
+      listening = false
     }
   }
 </script>
@@ -55,23 +40,13 @@
   <div class="buttons">
     <button
       class="btn talk"
-      class:listening={busy === 'listen'}
+      class:listening
       on:click={talk}
-      disabled={!!busy || offline}
-      title="Konuşarak sor"
+      disabled={listening || offline}
+      title="Konuşarak sor — örn. “brifing ver”"
     >
       <span class="ic" aria-hidden="true">🎤</span>
-      {busy === 'listen' ? 'Dinliyorum…' : 'Konuş'}
-    </button>
-
-    <button
-      class="btn brief"
-      on:click={brief}
-      disabled={!!busy || offline}
-      title="Günün brifingini ver"
-    >
-      <span class="ic" aria-hidden="true">📰</span>
-      {busy === 'briefing' ? 'Hazırlıyorum…' : 'Brifing Ver'}
+      {listening ? 'Dinliyorum…' : 'Konuş'}
     </button>
   </div>
 

@@ -19,6 +19,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/YCistak/pylon/internal/banner"
 	"github.com/YCistak/pylon/internal/intent"
 )
 
@@ -37,15 +38,18 @@ type NewsSource interface {
 	UnreadCount(ctx context.Context) (int, error)
 }
 
-// Service is the briefing Service. Its sources are wired after construction
-// (SetSources), since which ones exist depends on what the user has configured.
+// Service is the briefing Service. Its sources and banner presenter are wired
+// after construction (SetSources / SetPresenter), since which ones exist depends
+// on what the user has configured.
 type Service struct {
-	now  func() time.Time // injectable clock; defaults to time.Now
-	cal  CalendarSource   // nil when calendar isn't authorized
-	news NewsSource        // nil when no RSS is configured
+	now  func() time.Time  // injectable clock; defaults to time.Now
+	cal  CalendarSource    // nil when calendar isn't authorized
+	news NewsSource         // nil when no RSS is configured
+	pres *banner.Presenter // desktop banner; nil (or disabled) shows nothing
 }
 
-// New builds the briefing service. Call SetSources with whatever is configured.
+// New builds the briefing service. Call SetSources / SetPresenter with whatever
+// is configured.
 func New() *Service {
 	return &Service{now: time.Now}
 }
@@ -55,6 +59,13 @@ func New() *Service {
 func (s *Service) SetSources(cal CalendarSource, news NewsSource) {
 	s.cal = cal
 	s.news = news
+}
+
+// SetPresenter wires the desktop banner. However the briefing is triggered —
+// spoken ("brifing ver"), the daily scheduler, or the CLI — running the action
+// shows the banner, so the whole delivery lives in one place.
+func (s *Service) SetPresenter(p *banner.Presenter) {
+	s.pres = p
 }
 
 func (s *Service) Name() string { return "briefing" }
@@ -71,7 +82,17 @@ func (s *Service) Actions() []intent.ActionSpec {
 func (s *Service) Execute(ctx context.Context, action intent.Action, _ map[string]string) (string, error) {
 	switch action {
 	case ActionToday:
-		return s.compose(ctx), nil
+		text := s.compose(ctx)
+		// Presenting the briefing shows the desktop banner; the caller speaks the
+		// returned text (the listen handler, the scheduler). Show is
+		// fire-and-forget, so this doesn't block the reply.
+		if s.pres != nil {
+			if err := s.pres.Show(ctx, text); err != nil {
+				// A banner is a nicety; never fail the briefing over it.
+				_ = err
+			}
+		}
+		return text, nil
 	default:
 		return "", fmt.Errorf("briefing: bilinmeyen aksiyon %q", action)
 	}
