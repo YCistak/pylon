@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 )
 
@@ -131,17 +132,33 @@ func (a *App) Listen() (string, error) {
 	return resp.Text, nil
 }
 
-// Briefing composes today's briefing and presents it: the desktop banner plus
-// spoken delivery. Returns the briefing text.
-func (a *App) Briefing() (string, error) {
-	resp, err := sendTimeout(request{Cmd: "briefing"}, 40*time.Second)
-	if err != nil {
-		return "", err
+// Platform reports the desktop the GUI is running on, so the settings UI can
+// show the right way to bind the push-to-talk key. Returns one of: "hyprland",
+// "sway", "gnome", "kde", "linux" (other), "macos", "windows".
+func (a *App) Platform() string {
+	switch runtime.GOOS {
+	case "darwin":
+		return "macos"
+	case "windows":
+		return "windows"
 	}
-	if !resp.OK {
-		return "", fmt.Errorf("%s", resp.Error)
+	if os.Getenv("HYPRLAND_INSTANCE_SIGNATURE") != "" {
+		return "hyprland"
 	}
-	return resp.Text, nil
+	if os.Getenv("SWAYSOCK") != "" {
+		return "sway"
+	}
+	switch d := strings.ToLower(os.Getenv("XDG_CURRENT_DESKTOP")); {
+	case strings.Contains(d, "hyprland"):
+		return "hyprland"
+	case strings.Contains(d, "sway"), strings.Contains(d, "i3"):
+		return "sway"
+	case strings.Contains(d, "gnome"):
+		return "gnome"
+	case strings.Contains(d, "kde"), strings.Contains(d, "plasma"):
+		return "kde"
+	}
+	return "linux"
 }
 
 // Do runs a service action directly (no LLM) and returns its speakable text —
