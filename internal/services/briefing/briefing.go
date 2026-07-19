@@ -1,12 +1,16 @@
-// Package briefing composes Pylon's daily briefing: a dated greeting followed
-// by one line from each configured source — today's weather, how many calendar
-// events, unread news. It reuses each service's own action reply through the
-// registry (a Dispatcher), so it never re-implements their formatting; a section
-// whose service is unconfigured or errors is simply dropped.
+// Package briefing composes Pylon's daily briefing: a dated greeting followed by
+// one short clause per configured source — today's weather, how many calendar
+// events, unread news — in one flowing line.
+//
+// The briefing reads each source's raw value (a count, a forecast) and phrases
+// the clause itself, so it controls the wording and the line reads as a whole
+// rather than a list of each service's own sentence. A source that is not
+// configured (nil) or that errors simply drops its clause; a missing source
+// never blanks the greeting.
 //
 // The briefing is itself a Service (action "briefing.today"), reachable through
-// the same registry as any other: the GUI fetches it to show a banner, and the
-// intent engine resolves "brifing ver".
+// the same registry as any other: the daemon fetches it to show the desktop
+// banner, and the intent engine resolves "brifing ver".
 package briefing
 
 import (
@@ -21,44 +25,37 @@ import (
 // ActionToday builds and returns the full briefing text.
 const ActionToday intent.Action = "briefing.today"
 
-// Dispatcher runs a resolved command against the service registry.
-// *services.Registry satisfies this; tests pass a fake.
-type Dispatcher interface {
-	Dispatch(ctx context.Context, cmd intent.Command) (text string, ok bool, err error)
+// CalendarSource reports how many events today holds. *google.Calendar
+// satisfies it; tests pass a fake.
+type CalendarSource interface {
+	TodayCount(ctx context.Context) (int, error)
 }
 
-// Section is one line of the briefing: a service action, in speaking order.
-type Section struct {
-	Action intent.Action
-	Args   map[string]string
+// NewsSource reports how many unread items there are. *freshrss.FreshRSS
+// satisfies it; tests pass a fake.
+type NewsSource interface {
+	UnreadCount(ctx context.Context) (int, error)
 }
 
-// DefaultSections are the briefing's sources, in the order they are spoken:
-// weather, then how busy today is, then unread news. Each drops silently if its
-// service is not configured.
-func DefaultSections() []Section {
-	return []Section{
-		{Action: "weather.today"},
-		{Action: "calendar.count_today"},
-		{Action: "freshrss.unread_count"},
-	}
-}
-
-// Service is the briefing Service. Its Dispatcher is the registry it lives in,
-// so it is wired after the registry is built (SetDispatcher).
+// Service is the briefing Service. Its sources are wired after construction
+// (SetSources), since which ones exist depends on what the user has configured.
 type Service struct {
-	dispatch Dispatcher
-	now      func() time.Time // injectable clock; defaults to time.Now
-	sections []Section
+	now  func() time.Time // injectable clock; defaults to time.Now
+	cal  CalendarSource   // nil when calendar isn't authorized
+	news NewsSource        // nil when no RSS is configured
 }
 
-// New builds the briefing service. Call SetDispatcher with the registry before use.
+// New builds the briefing service. Call SetSources with whatever is configured.
 func New() *Service {
-	return &Service{now: time.Now, sections: DefaultSections()}
+	return &Service{now: time.Now}
 }
 
-// SetDispatcher wires the registry the briefing dispatches its sections through.
-func (s *Service) SetDispatcher(d Dispatcher) { s.dispatch = d }
+// SetSources wires the data sources the briefing reads. Pass nil for any source
+// that isn't configured — its clause is then skipped.
+func (s *Service) SetSources(cal CalendarSource, news NewsSource) {
+	s.cal = cal
+	s.news = news
+}
 
 func (s *Service) Name() string { return "briefing" }
 
@@ -80,28 +77,58 @@ func (s *Service) Execute(ctx context.Context, action intent.Action, _ map[strin
 	}
 }
 
-// compose builds the briefing: a time-of-day greeting and dated opener, then
-// each available section's own reply appended in order.
+// compose builds the briefing: a time-of-day greeting and dated opener, then one
+// clause per available source in order (weather → calendar → news). Each clause
+// is a full short sentence, so they join into a flowing line.
 func (s *Service) compose(ctx context.Context) string {
-	now := time.Now
-	if s.now != nil {
-		now = s.now
-	}
-	t := now()
+	t := s.clock()
 	parts := []string{fmt.Sprintf("%s! Bugün %d %s %s.", helloWord(t), t.Day(), trMonths[t.Month()], trDays[t.Weekday()])}
 
-	if s.dispatch != nil {
-		for _, sec := range s.sections {
-			text, ok, err := s.dispatch.Dispatch(ctx, intent.Command{Action: sec.Action, Args: sec.Args})
-			if !ok || err != nil {
-				continue
-			}
-			if text = strings.TrimSpace(text); text != "" {
-				parts = append(parts, text)
-			}
-		}
+	// Weather slots in here once its source is wired.
+	if line := s.calendarLine(ctx); line != "" {
+		parts = append(parts, line)
+	}
+	if line := s.newsLine(ctx); line != "" {
+		parts = append(parts, line)
 	}
 	return strings.Join(parts, " ")
+}
+
+// calendarLine phrases today's event count, or an empty-day note. It is dropped
+// when calendar isn't configured or the fetch fails.
+func (s *Service) calendarLine(ctx context.Context) string {
+	if s.cal == nil {
+		return ""
+	}
+	n, err := s.cal.TodayCount(ctx)
+	if err != nil {
+		return ""
+	}
+	if n == 0 {
+		return "Takvim boş."
+	}
+	return fmt.Sprintf("Takvimde %d etkinlik var.", n)
+}
+
+// newsLine phrases the unread count. It is dropped when no RSS is configured,
+// the fetch fails, or there is nothing unread (no news is not worth saying).
+func (s *Service) newsLine(ctx context.Context) string {
+	if s.news == nil {
+		return ""
+	}
+	n, err := s.news.UnreadCount(ctx)
+	if err != nil || n <= 0 {
+		return ""
+	}
+	return fmt.Sprintf("%d okunmamış haber var.", n)
+}
+
+// clock returns the current time from the injectable clock.
+func (s *Service) clock() time.Time {
+	if s.now != nil {
+		return s.now()
+	}
+	return time.Now()
 }
 
 // helloWord is the bare time-of-day greeting.

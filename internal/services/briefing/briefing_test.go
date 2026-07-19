@@ -6,74 +6,80 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/YCistak/pylon/internal/intent"
 )
 
-// fakeDispatch returns a canned reply per action, or reports the action as
-// unavailable (ok=false) when it has none — mirroring a service that is not
-// configured.
-type fakeDispatch struct {
-	replies map[intent.Action]string
-	errs    map[intent.Action]error
+type fakeCal struct {
+	n   int
+	err error
 }
 
-func (f fakeDispatch) Dispatch(_ context.Context, cmd intent.Command) (string, bool, error) {
-	if err, ok := f.errs[cmd.Action]; ok {
-		return "", true, err
-	}
-	if r, ok := f.replies[cmd.Action]; ok {
-		return r, true, nil
-	}
-	return "", false, nil // unconfigured service
+func (f fakeCal) TodayCount(context.Context) (int, error) { return f.n, f.err }
+
+type fakeNews struct {
+	n   int
+	err error
 }
 
-func briefingAt(t time.Time, d Dispatcher) *Service {
-	return &Service{now: func() time.Time { return t }, sections: DefaultSections(), dispatch: d}
+func (f fakeNews) UnreadCount(context.Context) (int, error) { return f.n, f.err }
+
+func briefingAt(t time.Time, cal CalendarSource, news NewsSource) *Service {
+	s := &Service{now: func() time.Time { return t }}
+	s.SetSources(cal, news)
+	return s
 }
 
-func TestComposeJoinsSectionsAfterGreeting(t *testing.T) {
+func TestComposeJoinsClausesAfterGreeting(t *testing.T) {
 	morning := time.Date(2026, 7, 19, 8, 0, 0, 0, time.UTC) // a Sunday
-	s := briefingAt(morning, fakeDispatch{replies: map[intent.Action]string{
-		"weather.today":        "İstanbul'da hava açık, şu an 24 derece.",
-		"calendar.count_today": "Bugün 3 etkinliğin var.",
-		"freshrss.unread_count": "12 okunmamış haberin var.",
-	}})
+	s := briefingAt(morning, fakeCal{n: 3}, fakeNews{n: 12})
 
 	out, err := s.Execute(context.Background(), ActionToday, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"Günaydın", "19 Temmuz Pazar", "24 derece", "3 etkinliğin", "12 okunmamış"} {
+	for _, want := range []string{"Günaydın", "19 Temmuz Pazar", "Takvimde 3 etkinlik var", "12 okunmamış haber var"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("briefing %q missing %q", out, want)
 		}
 	}
-	// Order: greeting first, then weather before news.
+	// Greeting first; calendar before news.
 	if strings.Index(out, "Günaydın") != 0 {
 		t.Errorf("greeting not first: %q", out)
 	}
-	if strings.Index(out, "derece") > strings.Index(out, "haberin") {
-		t.Errorf("sections out of order: %q", out)
+	if strings.Index(out, "Takvimde") > strings.Index(out, "okunmamış") {
+		t.Errorf("clauses out of order: %q", out)
+	}
+	// The date's "Bugün" must not be echoed by a clause.
+	if strings.Count(out, "Bugün") != 1 {
+		t.Errorf("Bugün should appear once, got %q", out)
 	}
 }
 
-// An unconfigured or failing section is dropped, and the briefing still reads as
-// a whole sentence — a missing service must never blank the greeting.
-func TestComposeSkipsUnavailableSections(t *testing.T) {
+// A nil source and an erroring source both drop their clause, and the briefing
+// still reads as a whole — a missing source must never blank the greeting.
+func TestComposeSkipsUnavailableSources(t *testing.T) {
 	morning := time.Date(2026, 7, 19, 8, 0, 0, 0, time.UTC)
-	s := briefingAt(morning, fakeDispatch{
-		replies: map[intent.Action]string{"weather.today": "Hava açık."},
-		errs:    map[intent.Action]error{"freshrss.unread_count": errors.New("down")},
-		// calendar.count_today absent → unconfigured
-	})
+	s := briefingAt(morning, fakeCal{err: errors.New("down")}, nil) // cal errors, no news
 
 	out, _ := s.Execute(context.Background(), ActionToday, nil)
-	if !strings.Contains(out, "Günaydın") || !strings.Contains(out, "Hava açık") {
-		t.Errorf("kept sections missing: %q", out)
+	if !strings.Contains(out, "Günaydın") || !strings.Contains(out, "19 Temmuz Pazar") {
+		t.Errorf("greeting missing: %q", out)
 	}
-	if strings.Contains(out, "haberin") {
-		t.Errorf("failed section leaked in: %q", out)
+	if strings.Contains(out, "Takvim") || strings.Contains(out, "haber") {
+		t.Errorf("unavailable clause leaked in: %q", out)
+	}
+}
+
+// An empty calendar is stated; zero unread news is not (nothing worth saying).
+func TestComposeEmptyCalendarAndZeroNews(t *testing.T) {
+	morning := time.Date(2026, 7, 19, 8, 0, 0, 0, time.UTC)
+	s := briefingAt(morning, fakeCal{n: 0}, fakeNews{n: 0})
+
+	out, _ := s.Execute(context.Background(), ActionToday, nil)
+	if !strings.Contains(out, "Takvim boş") {
+		t.Errorf("empty calendar not stated: %q", out)
+	}
+	if strings.Contains(out, "okunmamış") {
+		t.Errorf("zero news should be dropped: %q", out)
 	}
 }
 

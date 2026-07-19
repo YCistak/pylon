@@ -285,10 +285,17 @@ func registerIntent(d *daemon.Daemon, cfg config.Config, database *db.DB, regist
 func buildServiceRegistry(cfg config.Config, log *slog.Logger) *services.Registry {
 	var svcs []services.Service
 
+	// The briefing reads these two directly (typed), so capture the concrete
+	// instances as they're built; each stays nil when its service is off.
+	var calSrc briefing.CalendarSource
+	var newsSrc briefing.NewsSource
+
 	gcfg := googleConfig(cfg)
 	switch {
 	case google.Configured(gcfg):
-		svcs = append(svcs, google.NewCalendar(gcfg), google.NewDrive(gcfg))
+		cal := google.NewCalendar(gcfg)
+		svcs = append(svcs, cal, google.NewDrive(gcfg))
+		calSrc = cal
 		log.Info("services: google calendar + drive enabled")
 	case google.HasClient(gcfg):
 		log.Info("services: google credentials found — run `pylon auth google` to enable calendar/drive")
@@ -302,7 +309,9 @@ func buildServiceRegistry(cfg config.Config, log *slog.Logger) *services.Registr
 
 	fcfg := freshrssConfig(cfg)
 	if freshrss.Configured(fcfg) {
-		svcs = append(svcs, freshrss.New(fcfg))
+		fr := freshrss.New(fcfg)
+		svcs = append(svcs, fr)
+		newsSrc = fr
 		log.Info("services: freshrss enabled")
 	}
 
@@ -328,13 +337,12 @@ func buildServiceRegistry(cfg config.Config, log *slog.Logger) *services.Registr
 	// available. It owns the media/lock actions the local router emits.
 	svcs = append(svcs, system.New())
 
-	// The briefing composes the other services' replies, so it registers last
-	// and dispatches through the very registry it lives in.
+	// The briefing reads the calendar/news sources directly and phrases its own
+	// clauses; it registers last so the registry can still dispatch its action.
 	brief := briefing.New()
+	brief.SetSources(calSrc, newsSrc)
 	svcs = append(svcs, brief)
-	reg := services.NewRegistry(svcs...)
-	brief.SetDispatcher(reg)
-	return reg
+	return services.NewRegistry(svcs...)
 }
 
 func spotifyConfig(cfg config.Config) spotify.Config {

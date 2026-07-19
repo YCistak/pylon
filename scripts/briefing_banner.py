@@ -29,13 +29,11 @@ DURATION = 30
 
 CSS = b"""
 .banner {
-  background-color: rgba(24, 27, 44, 0.97);
-  background-image: linear-gradient(to right bottom,
-      rgba(124, 140, 248, 0.30), rgba(56, 189, 248, 0.20));
-  border: 1px solid rgba(124, 140, 248, 0.45);
+  background-color: rgba(9, 9, 11, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.10);
   border-radius: 16px;
   padding: 14px 18px;
-  box-shadow: 0 14px 44px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 14px 44px rgba(0, 0, 0, 0.6);
 }
 .msg {
   color: #eef1ff;

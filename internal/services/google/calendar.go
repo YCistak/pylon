@@ -86,10 +86,15 @@ func (c *Calendar) Execute(ctx context.Context, action intent.Action, args map[s
 	}
 }
 
-func (c *Calendar) listToday(ctx context.Context, api calAPI) (string, error) {
+// todayWindow is the [midnight, midnight+24h) range in the clock's location.
+func (c *Calendar) todayWindow() (time.Time, time.Time) {
 	now := c.now()
 	start := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
-	end := start.Add(24 * time.Hour)
+	return start, start.Add(24 * time.Hour)
+}
+
+func (c *Calendar) listToday(ctx context.Context, api calAPI) (string, error) {
+	start, end := c.todayWindow()
 	events, err := api.list(ctx, c.cfg.CalendarID, start, end)
 	if err != nil {
 		return "", err
@@ -104,20 +109,38 @@ func (c *Calendar) listToday(ctx context.Context, api calAPI) (string, error) {
 	return fmt.Sprintf("Bugün %d etkinlik: %s.", len(events), strings.Join(parts, "; ")), nil
 }
 
-// countToday reports only how many events today has, for the briefing and for
-// "bugün kaç etkinliğim var" — the same fetch as listToday, without the list.
+// countToday reports only how many events today has, for "bugün kaç etkinliğim
+// var" — the same fetch as listToday, without the list.
 func (c *Calendar) countToday(ctx context.Context, api calAPI) (string, error) {
-	now := c.now()
-	start := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
-	end := start.Add(24 * time.Hour)
-	events, err := api.list(ctx, c.cfg.CalendarID, start, end)
+	n, err := c.count(ctx, api)
 	if err != nil {
 		return "", err
 	}
-	if len(events) == 0 {
+	if n == 0 {
 		return "Bugün takvimin boş.", nil
 	}
-	return fmt.Sprintf("Bugün %d etkinliğin var.", len(events)), nil
+	return fmt.Sprintf("Bugün %d etkinliğin var.", n), nil
+}
+
+// count is the raw event count for today.
+func (c *Calendar) count(ctx context.Context, api calAPI) (int, error) {
+	start, end := c.todayWindow()
+	events, err := api.list(ctx, c.cfg.CalendarID, start, end)
+	if err != nil {
+		return 0, err
+	}
+	return len(events), nil
+}
+
+// TodayCount returns how many events today has, building the API client on
+// demand. It is the typed entry the daily briefing reads, so the briefing can
+// phrase the count itself rather than reusing the action's sentence.
+func (c *Calendar) TodayCount(ctx context.Context) (int, error) {
+	api, err := c.client(ctx)
+	if err != nil {
+		return 0, err
+	}
+	return c.count(ctx, api)
 }
 
 func (c *Calendar) addEvent(ctx context.Context, api calAPI, args map[string]string) (string, error) {
