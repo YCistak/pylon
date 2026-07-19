@@ -160,11 +160,22 @@ func briefingPresenter(cfg config.Config) *banner.Presenter {
 	return banner.NewPresenter(cfg.Briefing.BannerCmd)
 }
 
-// showBriefing composes today's briefing through the registry and presents it on
-// the desktop banner. It returns the composed text (for the CLI/IPC caller) and
-// only errors when the compose itself fails; a banner failure is logged, not
-// fatal, since the text is still useful.
-func showBriefing(ctx context.Context, registry *services.Registry, pres *banner.Presenter, log *slog.Logger) (string, error) {
+// briefingSpeaker builds the TTS speaker from config, or nil when no tts_cmd is
+// set (the briefing is then banner-only).
+func briefingSpeaker(cfg config.Config) voice.Speaker {
+	if len(cfg.Voice.TTSCmd) == 0 {
+		return nil
+	}
+	return voice.NewSpeaker(cfg.Voice.TTSCmd, cfg.Voice.PlayCmd)
+}
+
+// showBriefing composes today's briefing and presents it two ways at once: the
+// desktop banner (instant) and, when a speaker is configured, spoken aloud. It
+// returns the composed text (for the CLI/IPC caller) and only errors when the
+// compose itself fails; presentation failures are logged, not fatal, since the
+// text is still useful. Both the banner and the speech are fire-and-forget, so
+// the caller isn't blocked while the briefing is read out.
+func showBriefing(ctx context.Context, registry *services.Registry, pres *banner.Presenter, speaker voice.Speaker, log *slog.Logger) (string, error) {
 	text, ok, err := registry.Dispatch(ctx, intent.Command{Action: briefing.ActionToday})
 	if err != nil {
 		return "", err
@@ -174,6 +185,17 @@ func showBriefing(ctx context.Context, registry *services.Registry, pres *banner
 	}
 	if err := pres.Show(ctx, text); err != nil {
 		log.Warn("briefing: banner failed", "err", err)
+	}
+	if speaker != nil {
+		// Speak on its own context so a short request timeout doesn't cut the
+		// read-out short; the banner already showed instantly.
+		go func() {
+			sctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+			defer cancel()
+			if err := speaker.Say(sctx, text); err != nil {
+				log.Warn("briefing: speak failed", "err", err)
+			}
+		}()
 	}
 	return text, nil
 }
@@ -260,14 +282,15 @@ func registerIntent(d *daemon.Daemon, cfg config.Config, database *db.DB, regist
 		}
 	})
 
-	// "briefing" composes today's briefing and shows it on the desktop banner,
-	// returning the text. Bind `pylon briefing` to a hotkey, or let the scheduler
-	// fire it daily.
+	// "briefing" composes today's briefing, shows it on the desktop banner and
+	// speaks it, returning the text. Bind `pylon briefing` to a hotkey, or let the
+	// scheduler fire it daily.
 	pres := briefingPresenter(cfg)
+	speaker := briefingSpeaker(cfg)
 	d.Handle("briefing", func(ipc.Request) ipc.Response {
 		ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
 		defer cancel()
-		text, err := showBriefing(ctx, registry, pres, log)
+		text, err := showBriefing(ctx, registry, pres, speaker, log)
 		if err != nil {
 			return ipc.Response{OK: false, Error: err.Error()}
 		}
@@ -599,13 +622,14 @@ func registerScheduler(d *daemon.Daemon, cfg config.Config, registry *services.R
 		}
 	}
 
-	// Daily briefing: compose today's greeting + weather/calendar/news and show
-	// it as a desktop banner at the configured time. Silently idle if the time is
-	// malformed. (Spoken delivery lands later; the banner is the first cut.)
+	// Daily briefing: compose today's greeting + weather/calendar/news and, at the
+	// configured time, show it as a desktop banner and speak it. Silently idle if
+	// the time is malformed.
 	if h, m, ok := parseHM(cfg.Briefing.Time); ok {
 		pres := briefingPresenter(cfg)
+		speaker := briefingSpeaker(cfg)
 		sched.DailyAt("briefing", h, m, func(ctx context.Context) {
-			if _, err := showBriefing(ctx, registry, pres, log); err != nil {
+			if _, err := showBriefing(ctx, registry, pres, speaker, log); err != nil {
 				log.Warn("scheduler: briefing failed", "err", err)
 			}
 		})
