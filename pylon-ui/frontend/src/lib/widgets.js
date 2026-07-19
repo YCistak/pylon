@@ -7,6 +7,7 @@ import {
   iconFreshRSS,
   iconDocker,
   iconWeather,
+  iconSysmon,
 } from './icons.js'
 
 // Registry of widget TYPES the user can add. Each type offers one or more
@@ -53,6 +54,12 @@ export const CATALOG = [
     type: 'spotify', icon: iconSpotify, title: 'Spotify', accent: '#1db954',
     modes: [
       { id: 'now_playing', label: 'Şu an çalan', action: 'spotify.now_playing', params: [] },
+    ],
+  },
+  {
+    type: 'sysmon', icon: iconSysmon, title: 'Sistem', accent: '#8b5cf6',
+    modes: [
+      { id: 'stats', label: 'Sistem durumu', action: 'sysmon.stats', params: [] },
     ],
   },
   {
