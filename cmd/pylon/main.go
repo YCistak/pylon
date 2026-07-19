@@ -36,6 +36,7 @@ import (
 	ghsvc "github.com/YCistak/pylon/internal/services/github"
 	"github.com/YCistak/pylon/internal/services/google"
 	"github.com/YCistak/pylon/internal/services/spotify"
+	"github.com/YCistak/pylon/internal/services/sysmon"
 	"github.com/YCistak/pylon/internal/services/system"
 	"github.com/YCistak/pylon/internal/voice"
 	"github.com/YCistak/pylon/internal/watcher"
@@ -278,6 +279,9 @@ func buildServiceRegistry(cfg config.Config, log *slog.Logger) *services.Registr
 
 	// Exchange rates/crypto use free key-less APIs — always available.
 	svcs = append(svcs, exchange.New())
+
+	// System vitals read /proc and /sys — no configuration, always available.
+	svcs = append(svcs, sysmon.New(""))
 
 	// System control (lock/volume/media/close) needs no configuration — always
 	// available. It owns the media/lock actions the local router emits.
