@@ -58,12 +58,12 @@ that touches the OS. Tested on real runners for each platform:
 | Docker | ✅ | ✅ | ❌ needs npipe |
 | Voice (STT/TTS) | ✅ | ✅ | ⚠️ needs a non-shell TTS command |
 | Screen lock, volume, media keys | ✅ | ❌ | ❌ |
-| Process watching | ✅ | ❌ | ❌ |
+| Process watching | ✅ | ✅ | ✅ |
 
-Process watching reads `/proc`, which only Linux has; macOS and Windows need
-their own listers (`ps`/kqueue, WMI). Machine control shells out to
-`loginctl`/`pactl`/`playerctl`. Both degrade with a message rather than
-crashing — the rest of Pylon works.
+Process watching uses `/proc` on Linux, `ps` on macOS and `tasklist` on
+Windows. Machine control still shells out to `loginctl`/`pactl`/`playerctl`, so
+it is Linux-only for now; it degrades with a message rather than crashing — the
+rest of Pylon works.
 
 ---
 
