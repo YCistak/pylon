@@ -5,6 +5,10 @@ export function DaemonRunning():Promise<boolean>;
 
 export function Do(arg1:string,arg2:Record<string, string>):Promise<string>;
 
+export function GoogleLogin():Promise<void>;
+
+export function GoogleStatus():Promise<string>;
+
 export function HasSecret(arg1:string):Promise<boolean>;
 
 export function Listen():Promise<string>;

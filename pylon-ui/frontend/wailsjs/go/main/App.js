@@ -10,6 +10,14 @@ export function Do(arg1, arg2) {
   return window['go']['main']['App']['Do'](arg1, arg2);
 }
 
+export function GoogleLogin() {
+  return window['go']['main']['App']['GoogleLogin']();
+}
+
+export function GoogleStatus() {
+  return window['go']['main']['App']['GoogleStatus']();
+}
+
 export function HasSecret(arg1) {
   return window['go']['main']['App']['HasSecret'](arg1);
 }

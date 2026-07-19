@@ -3,6 +3,7 @@
   import { PAGE_CATALOG, pageCatalogEntry, sidebarPages } from './sidebarPages.js'
   import Widget from './Widget.svelte'
   import DockerWidget from './DockerWidget.svelte'
+  import Accounts from './Accounts.svelte'
   import ApiKeys from './ApiKeys.svelte'
   import VoiceSettings from './VoiceSettings.svelte'
 
@@ -151,6 +152,8 @@
       {/each}
     </ul>
   </section>
+
+  <Accounts />
 
   <ApiKeys />
 
