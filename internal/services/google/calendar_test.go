@@ -100,3 +100,30 @@ func TestActionsDeclared(t *testing.T) {
 		t.Fatalf("missing calendar actions: %v", names)
 	}
 }
+
+func TestCountTodaySpeaksOnlyCount(t *testing.T) {
+	at := func(h, m int) time.Time { return time.Date(2026, 6, 14, h, m, 0, 0, time.Local) }
+	c := testCalendar(&fakeCal{events: []Event{
+		{Summary: "Toplantı", Start: at(15, 0)},
+		{Summary: "Spor", Start: at(18, 30)},
+	}})
+	got, err := c.Execute(context.Background(), ActionCountToday, nil)
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if !strings.Contains(got, "2 etkinliğin var") {
+		t.Errorf("count = %q, want the number", got)
+	}
+	// The count must NOT leak the event titles — that is list_today's job.
+	if strings.Contains(got, "Toplantı") || strings.Contains(got, "Spor") {
+		t.Errorf("count_today leaked the event list: %q", got)
+	}
+}
+
+func TestCountTodayEmpty(t *testing.T) {
+	c := testCalendar(&fakeCal{})
+	got, _ := c.Execute(context.Background(), ActionCountToday, nil)
+	if !strings.Contains(got, "boş") {
+		t.Errorf("empty day = %q, want 'boş'", got)
+	}
+}

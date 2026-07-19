@@ -20,6 +20,7 @@ import (
 
 	"golang.org/x/term"
 
+	"github.com/YCistak/pylon/internal/banner"
 	"github.com/YCistak/pylon/internal/config"
 	"github.com/YCistak/pylon/internal/daemon"
 	"github.com/YCistak/pylon/internal/db"
@@ -29,6 +30,7 @@ import (
 	"github.com/YCistak/pylon/internal/scheduler"
 	"github.com/YCistak/pylon/internal/secrets"
 	"github.com/YCistak/pylon/internal/services"
+	"github.com/YCistak/pylon/internal/services/briefing"
 	"github.com/YCistak/pylon/internal/services/calc"
 	"github.com/YCistak/pylon/internal/services/docker"
 	"github.com/YCistak/pylon/internal/services/exchange"
@@ -72,6 +74,8 @@ func main() {
 		err = cmdSay(os.Args[2:])
 	case "do":
 		err = cmdDo(os.Args[2:])
+	case "briefing":
+		err = cmdBriefing()
 	case "recall":
 		err = cmdRecall(os.Args[2:])
 	case "listen":
@@ -106,6 +110,7 @@ usage:
   pylon stop          stop a running daemon
   pylon status        show daemon status
   pylon say <text>    send a text command through the intent engine
+  pylon briefing      compose today's briefing and show it as a desktop banner
   pylon recall [n]    show the last n remembered turns (default 5)
   pylon listen        push-to-talk: record, transcribe, run, speak the reply
   pylon auth google   authorize Google (Calendar) — one-time OAuth consent
@@ -140,23 +145,68 @@ func cmdStart() error {
 		DB:         database,
 	})
 
+	// The service registry is shared: the intent engine dispatches to it, and the
+	// scheduler's daily briefing composes its sections through it.
+	registry := buildServiceRegistry(cfg, log)
+	intent.SetActions(registry.Specs()...)
+
 	registerWatcher(d, cfg, database, log)
-	registerScheduler(d, cfg, log)
-	registerIntent(d, cfg, database, log)
+	registerScheduler(d, cfg, registry, log)
+	registerIntent(d, cfg, database, registry, log)
 
 	return d.Run(context.Background())
+}
+
+// briefingPresenter builds the desktop banner presenter from config.
+func briefingPresenter(cfg config.Config) *banner.Presenter {
+	return banner.NewPresenter(cfg.Briefing.BannerCmd)
+}
+
+// briefingSpeaker builds the TTS speaker from config, or nil when no tts_cmd is
+// set (the briefing is then banner-only).
+func briefingSpeaker(cfg config.Config) voice.Speaker {
+	if len(cfg.Voice.TTSCmd) == 0 {
+		return nil
+	}
+	return voice.NewSpeaker(cfg.Voice.TTSCmd, cfg.Voice.PlayCmd)
+}
+
+// showBriefing composes today's briefing and presents it two ways at once: the
+// desktop banner (instant) and, when a speaker is configured, spoken aloud. It
+// returns the composed text (for the CLI/IPC caller) and only errors when the
+// compose itself fails; presentation failures are logged, not fatal, since the
+// text is still useful. Both the banner and the speech are fire-and-forget, so
+// the caller isn't blocked while the briefing is read out.
+func showBriefing(ctx context.Context, registry *services.Registry, pres *banner.Presenter, speaker voice.Speaker, log *slog.Logger) (string, error) {
+	text, ok, err := registry.Dispatch(ctx, intent.Command{Action: briefing.ActionToday})
+	if err != nil {
+		return "", err
+	}
+	if !ok || strings.TrimSpace(text) == "" {
+		return "", nil
+	}
+	if err := pres.Show(ctx, text); err != nil {
+		log.Warn("briefing: banner failed", "err", err)
+	}
+	if speaker != nil {
+		// Speak on its own context so a short request timeout doesn't cut the
+		// read-out short; the banner already showed instantly.
+		go func() {
+			sctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+			defer cancel()
+			if err := speaker.Say(sctx, text); err != nil {
+				log.Warn("briefing: speak failed", "err", err)
+			}
+		}()
+	}
+	return text, nil
 }
 
 // registerIntent wires the two-tier intent path into the daemon's "say"
 // command: the local Router runs first (free), and only unresolved input falls
 // back to the configured LLM chain, which tries each model in order and falls
 // through on quota/rate-limit.
-func registerIntent(d *daemon.Daemon, cfg config.Config, database *db.DB, log *slog.Logger) {
-	// Services contribute actions to the LLM vocabulary; register them before
-	// building the chain so the model knows them.
-	registry := buildServiceRegistry(cfg, log)
-	intent.SetActions(registry.Specs()...)
-
+func registerIntent(d *daemon.Daemon, cfg config.Config, database *db.DB, registry *services.Registry, log *slog.Logger) {
 	router := intent.NewRouter(cfg.Intent.RouterThreshold)
 	chain := buildIntentChain(cfg, log)
 	if chain.Configured() {
@@ -234,6 +284,24 @@ func registerIntent(d *daemon.Daemon, cfg config.Config, database *db.DB, log *s
 		}
 	})
 
+	// "briefing" composes today's briefing, shows it on the desktop banner and
+	// speaks it, returning the text. Bind `pylon briefing` to a hotkey, or let the
+	// scheduler fire it daily.
+	pres := briefingPresenter(cfg)
+	speaker := briefingSpeaker(cfg)
+	d.Handle("briefing", func(ipc.Request) ipc.Response {
+		ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
+		defer cancel()
+		text, err := showBriefing(ctx, registry, pres, speaker, log)
+		if err != nil {
+			return ipc.Response{OK: false, Error: err.Error()}
+		}
+		if text == "" {
+			return ipc.Response{OK: true, Text: "brifing için yapılandırılmış kaynak yok"}
+		}
+		return ipc.Response{OK: true, Text: text}
+	})
+
 	registerRecall(d, database)
 }
 
@@ -242,10 +310,17 @@ func registerIntent(d *daemon.Daemon, cfg config.Config, database *db.DB, log *s
 func buildServiceRegistry(cfg config.Config, log *slog.Logger) *services.Registry {
 	var svcs []services.Service
 
+	// The briefing reads these two directly (typed), so capture the concrete
+	// instances as they're built; each stays nil when its service is off.
+	var calSrc briefing.CalendarSource
+	var newsSrc briefing.NewsSource
+
 	gcfg := googleConfig(cfg)
 	switch {
 	case google.Configured(gcfg):
-		svcs = append(svcs, google.NewCalendar(gcfg), google.NewDrive(gcfg))
+		cal := google.NewCalendar(gcfg)
+		svcs = append(svcs, cal, google.NewDrive(gcfg))
+		calSrc = cal
 		log.Info("services: google calendar + drive enabled")
 	case google.HasClient(gcfg):
 		log.Info("services: google credentials found — run `pylon auth google` to enable calendar/drive")
@@ -259,7 +334,9 @@ func buildServiceRegistry(cfg config.Config, log *slog.Logger) *services.Registr
 
 	fcfg := freshrssConfig(cfg)
 	if freshrss.Configured(fcfg) {
-		svcs = append(svcs, freshrss.New(fcfg))
+		fr := freshrss.New(fcfg)
+		svcs = append(svcs, fr)
+		newsSrc = fr
 		log.Info("services: freshrss enabled")
 	}
 
@@ -291,6 +368,11 @@ func buildServiceRegistry(cfg config.Config, log *slog.Logger) *services.Registr
 	// available. It owns the media/lock actions the local router emits.
 	svcs = append(svcs, system.New())
 
+	// The briefing reads the calendar/news sources directly and phrases its own
+	// clauses; it registers last so the registry can still dispatch its action.
+	brief := briefing.New()
+	brief.SetSources(calSrc, newsSrc)
+	svcs = append(svcs, brief)
 	return services.NewRegistry(svcs...)
 }
 
@@ -504,7 +586,7 @@ func registerWatcher(d *daemon.Daemon, cfg config.Config, database *db.DB, log *
 // are GitHub's 15-minute PR poll and the daily commit-reminder (Phase 2.2);
 // Phase 3's briefing/report will register here too. Jobs notify through the
 // same TTS path the watcher uses (logging when TTS is off).
-func registerScheduler(d *daemon.Daemon, cfg config.Config, log *slog.Logger) {
+func registerScheduler(d *daemon.Daemon, cfg config.Config, registry *services.Registry, log *slog.Logger) {
 	sched := scheduler.New(scheduler.Options{Logger: log})
 
 	var speaker voice.Speaker
@@ -546,6 +628,20 @@ func registerScheduler(d *daemon.Daemon, cfg config.Config, log *slog.Logger) {
 			})
 			log.Info("scheduler: commit reminder enabled", "at", gh.CommitReminder, "repos", len(gh.Repos))
 		}
+	}
+
+	// Daily briefing: compose today's greeting + weather/calendar/news and, at the
+	// configured time, show it as a desktop banner and speak it. Silently idle if
+	// the time is malformed.
+	if h, m, ok := parseHM(cfg.Briefing.Time); ok {
+		pres := briefingPresenter(cfg)
+		speaker := briefingSpeaker(cfg)
+		sched.DailyAt("briefing", h, m, func(ctx context.Context) {
+			if _, err := showBriefing(ctx, registry, pres, speaker, log); err != nil {
+				log.Warn("scheduler: briefing failed", "err", err)
+			}
+		})
+		log.Info("scheduler: daily briefing enabled", "at", cfg.Briefing.Time)
 	}
 
 	d.Register("scheduler", sched.Run)
@@ -592,6 +688,21 @@ func cmdDo(args []string) error {
 		return errors.New("usage: pylon do <action> [k=v ...]")
 	}
 	resp, err := daemon.Send(socketPath(), ipc.Request{Cmd: "do", Args: args})
+	if err != nil {
+		return fmt.Errorf("daemon not reachable: %w", err)
+	}
+	if !resp.OK {
+		return errors.New(resp.Error)
+	}
+	fmt.Println(resp.Text)
+	return nil
+}
+
+// cmdBriefing asks the daemon to compose today's briefing and show it on the
+// desktop banner, printing the text. Bind this to a hotkey for an on-demand
+// briefing; the scheduler fires the same path daily.
+func cmdBriefing() error {
+	resp, err := daemon.Send(socketPath(), ipc.Request{Cmd: "briefing"})
 	if err != nil {
 		return fmt.Errorf("daemon not reachable: %w", err)
 	}
