@@ -188,6 +188,29 @@ func (a *App) RestartDaemon() {
 	a.daemon.restart()
 }
 
+// GoogleStatus reports the Google connection: "connected" (signed in),
+// "ready" (can sign in), or "unavailable" (no OAuth client in this build).
+func (a *App) GoogleStatus() string {
+	resp, err := send(request{Cmd: "auth", Args: []string{"google", "status"}})
+	if err != nil || !resp.OK {
+		return "unavailable"
+	}
+	return resp.Text
+}
+
+// GoogleLogin runs the browser OAuth consent for Google (Calendar, Drive). It
+// blocks until the user finishes in the browser, so it uses a long deadline.
+func (a *App) GoogleLogin() error {
+	resp, err := sendTimeout(request{Cmd: "auth", Args: []string{"google", "login"}}, 5*time.Minute)
+	if err != nil {
+		return err
+	}
+	if !resp.OK {
+		return fmt.Errorf("%s", resp.Error)
+	}
+	return nil
+}
+
 // Do runs a service action directly (no LLM) and returns its speakable text —
 // the data source for every home widget. e.g. Do("freshrss.unread_count").
 func (a *App) Do(action string, params map[string]string) (string, error) {

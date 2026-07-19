@@ -154,8 +154,45 @@ func cmdStart() error {
 	registerScheduler(d, cfg, registry, log)
 	registerIntent(d, cfg, database, registry, log)
 	registerSecrets(d)
+	registerAuth(d, cfg)
 
 	return d.Run(context.Background())
+}
+
+// registerAuth lets the GUI sign services in over IPC. Currently Google
+// (Calendar/Drive): "auth google status" reports connected / ready / unavailable,
+// and "auth google login" runs the browser OAuth consent — the same flow as
+// `pylon auth google`, saving the token to the encrypted vault.
+func registerAuth(d *daemon.Daemon, cfg config.Config) {
+	d.Handle("auth", func(req ipc.Request) ipc.Response {
+		if len(req.Args) < 2 || req.Args[0] != "google" {
+			return ipc.Response{OK: false, Error: "usage: auth google <status|login>"}
+		}
+		gcfg := googleConfig(cfg)
+		switch req.Args[1] {
+		case "status":
+			switch {
+			case google.Configured(gcfg):
+				return ipc.Response{OK: true, Text: "connected"}
+			case google.HasClient(gcfg):
+				return ipc.Response{OK: true, Text: "ready"}
+			default:
+				return ipc.Response{OK: true, Text: "unavailable"}
+			}
+		case "login":
+			if !google.HasClient(gcfg) {
+				return ipc.Response{OK: false, Error: "Google girişi bu Pylon sürümünde henüz yapılandırılmadı"}
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+			defer cancel()
+			if err := google.Authorize(ctx, gcfg); err != nil {
+				return ipc.Response{OK: false, Error: err.Error()}
+			}
+			return ipc.Response{OK: true, Text: "bağlandı"}
+		default:
+			return ipc.Response{OK: false, Error: "bilinmeyen: " + req.Args[1]}
+		}
+	})
 }
 
 // registerSecrets lets the GUI manage the encrypted vault over IPC: the Settings
