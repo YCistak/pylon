@@ -10,6 +10,42 @@ export function Do(arg1, arg2) {
   return window['go']['main']['App']['Do'](arg1, arg2);
 }
 
+export function GoogleLogin() {
+  return window['go']['main']['App']['GoogleLogin']();
+}
+
+export function GoogleStatus() {
+  return window['go']['main']['App']['GoogleStatus']();
+}
+
+export function HasSecret(arg1) {
+  return window['go']['main']['App']['HasSecret'](arg1);
+}
+
+export function Hotkey() {
+  return window['go']['main']['App']['Hotkey']();
+}
+
+export function Listen() {
+  return window['go']['main']['App']['Listen']();
+}
+
+export function Platform() {
+  return window['go']['main']['App']['Platform']();
+}
+
+export function RestartDaemon() {
+  return window['go']['main']['App']['RestartDaemon']();
+}
+
+export function SetHotkey(arg1) {
+  return window['go']['main']['App']['SetHotkey'](arg1);
+}
+
+export function SetSecret(arg1, arg2) {
+  return window['go']['main']['App']['SetSecret'](arg1, arg2);
+}
+
 export function Status() {
   return window['go']['main']['App']['Status']();
 }

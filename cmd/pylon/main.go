@@ -25,6 +25,7 @@ import (
 	"github.com/YCistak/pylon/internal/config"
 	"github.com/YCistak/pylon/internal/daemon"
 	"github.com/YCistak/pylon/internal/db"
+	"github.com/YCistak/pylon/internal/hotkey"
 	"github.com/YCistak/pylon/internal/intent"
 	"github.com/YCistak/pylon/internal/ipc"
 	"github.com/YCistak/pylon/internal/profile"
@@ -169,8 +170,194 @@ func cmdStart() error {
 	registerWatcher(d, cfg, database, log)
 	registerScheduler(d, cfg, registry, log)
 	registerIntent(d, cfg, database, registry, log)
+	registerSecrets(d)
+	registerAuth(d, cfg)
+	registerHotkey(d, cfg, database, log)
 
 	return d.Run(context.Background())
+}
+
+// registerAuth lets the GUI sign services in over IPC. Currently Google
+// (Calendar/Drive): "auth google status" reports connected / ready / unavailable,
+// and "auth google login" runs the browser OAuth consent — the same flow as
+// `pylon auth google`, saving the token to the encrypted vault.
+func registerAuth(d *daemon.Daemon, cfg config.Config) {
+	d.Handle("auth", func(req ipc.Request) ipc.Response {
+		if len(req.Args) < 2 || req.Args[0] != "google" {
+			return ipc.Response{OK: false, Error: "usage: auth google <status|login>"}
+		}
+		gcfg := googleConfig(cfg)
+		switch req.Args[1] {
+		case "status":
+			switch {
+			case google.Configured(gcfg):
+				return ipc.Response{OK: true, Text: "connected"}
+			case google.HasClient(gcfg):
+				return ipc.Response{OK: true, Text: "ready"}
+			default:
+				return ipc.Response{OK: true, Text: "unavailable"}
+			}
+		case "login":
+			if !google.HasClient(gcfg) {
+				return ipc.Response{OK: false, Error: "Google girişi bu Pylon sürümünde henüz yapılandırılmadı"}
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+			defer cancel()
+			if err := google.Authorize(ctx, gcfg); err != nil {
+				return ipc.Response{OK: false, Error: err.Error()}
+			}
+			return ipc.Response{OK: true, Text: "bağlandı"}
+		default:
+			return ipc.Response{OK: false, Error: "bilinmeyen: " + req.Args[1]}
+		}
+	})
+}
+
+// registerSecrets lets the GUI manage the encrypted vault over IPC: the Settings
+// API-key field saves keys here (set), checks whether one exists (has), or clears
+// it (rm). Values ride the local Unix socket and are AES-encrypted at rest — the
+// same path as `pylon secret set`, never written to config in plaintext.
+func registerSecrets(d *daemon.Daemon) {
+	d.Handle("secret", func(req ipc.Request) ipc.Response {
+		if len(req.Args) < 2 {
+			return ipc.Response{OK: false, Error: "usage: secret <set|rm|has> <name> [value]"}
+		}
+		op, name := req.Args[0], req.Args[1]
+		switch op {
+		case "set":
+			if len(req.Args) < 3 {
+				return ipc.Response{OK: false, Error: "secret set için değer gerekli"}
+			}
+			if err := secrets.Set(name, req.Args[2]); err != nil {
+				return ipc.Response{OK: false, Error: err.Error()}
+			}
+			return ipc.Response{OK: true, Text: "kaydedildi"}
+		case "rm":
+			if err := secrets.Delete(name); err != nil {
+				return ipc.Response{OK: false, Error: err.Error()}
+			}
+			return ipc.Response{OK: true, Text: "silindi"}
+		case "has":
+			return ipc.Response{OK: true, Text: strconv.FormatBool(secrets.Has(name))}
+		default:
+			return ipc.Response{OK: false, Error: "bilinmeyen işlem: " + op}
+		}
+	})
+}
+
+// hotkeyContextKey is where the chosen push-to-talk shortcut is remembered, so
+// the daemon can re-register it on the next start.
+const hotkeyContextKey = "voice.hotkey"
+
+// registerHotkey owns the push-to-talk shortcut. Wayland gives an application no
+// way to grab a global hotkey for itself, and editing the user's compositor
+// config to get one means writing to a file Pylon does not own and cannot
+// cleanly take back — a change that is then hard to find again. Hyprland and
+// Sway both accept bindings over their control socket, so the shortcut is
+// registered at runtime instead: nothing on disk changes, and the daemon
+// re-applies it whenever it starts.
+//
+// "hotkey get" reports the current shortcut and which compositor claimed it;
+// "hotkey set <combo>" changes it. Desktops with no runtime binding API answer
+// with an empty compositor field, which is the GUI's cue to show the user the
+// line to add themselves.
+func registerHotkey(d *daemon.Daemon, cfg config.Config, database *db.DB, log *slog.Logger) {
+	mgr := hotkey.Detect()
+	wm := ""
+	if mgr != nil {
+		wm = mgr.Name()
+	}
+
+	// Bind the running binary by absolute path: "pylon" alone only works if the
+	// compositor's PATH happens to include it, which it will not for a binary
+	// run out of a build or release directory.
+	self, err := os.Executable()
+	if err != nil || self == "" {
+		self = "pylon"
+	}
+	command := self + " listen"
+
+	apply := func(combo hotkey.Combo) error {
+		if mgr == nil {
+			return nil // nothing to apply; the GUI explains the manual route
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		return mgr.Bind(ctx, combo, command)
+	}
+
+	// stored falls back to the config's hotkey, which is what a fresh install
+	// has before the user picks one in the GUI.
+	stored := func() string {
+		if database != nil {
+			if v, ok, err := database.GetContext(hotkeyContextKey); err == nil && ok && v != "" {
+				return v
+			}
+		}
+		return cfg.Voice.Hotkey
+	}
+
+	// Register whatever is remembered as soon as the daemon is up, so the
+	// shortcut survives a reboot without the user doing anything.
+	switch combo, err := hotkey.Parse(stored()); {
+	case err != nil:
+		log.Warn("hotkey: kayıtlı kısayol okunamadı", "value", stored(), "err", err)
+	case mgr == nil:
+		log.Info("hotkey: bu masaüstünde çalışma-anı bağlama yok", "hotkey", combo.String())
+	default:
+		if err := apply(combo); err != nil {
+			log.Warn("hotkey: bağlanamadı", "hotkey", combo.String(), "wm", wm, "err", err)
+		} else {
+			log.Info("hotkey: bağlandı", "hotkey", combo.String(), "wm", wm, "cmd", command)
+		}
+	}
+
+	d.Handle("hotkey", func(req ipc.Request) ipc.Response {
+		if len(req.Args) == 0 {
+			return ipc.Response{OK: false, Error: "usage: hotkey <get|set> [combo]"}
+		}
+		switch req.Args[0] {
+		case "get":
+			// "<combo>\t<compositor>" — an empty second field means the user has
+			// to add the binding themselves. Normalized, so the GUI shows the
+			// same shape whether the value came from config ("super+p") or from
+			// a previous set.
+			combo := stored()
+			if c, err := hotkey.Parse(combo); err == nil {
+				combo = c.String()
+			}
+			return ipc.Response{OK: true, Text: combo + "\t" + wm}
+
+		case "set":
+			if len(req.Args) < 2 {
+				return ipc.Response{OK: false, Error: "hotkey set için kısayol gerekli"}
+			}
+			combo, err := hotkey.Parse(req.Args[1])
+			if err != nil {
+				return ipc.Response{OK: false, Error: err.Error()}
+			}
+			// Drop the previous binding first, or the old shortcut keeps working
+			// alongside the new one.
+			if old, err := hotkey.Parse(stored()); err == nil && mgr != nil && old.String() != combo.String() {
+				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				_ = mgr.Unbind(ctx, old)
+				cancel()
+			}
+			if err := apply(combo); err != nil {
+				return ipc.Response{OK: false, Error: err.Error()}
+			}
+			if database != nil {
+				if err := database.SetContext(hotkeyContextKey, combo.String()); err != nil {
+					log.Warn("hotkey: kaydedilemedi", "err", err)
+				}
+			}
+			log.Info("hotkey: değişti", "hotkey", combo.String(), "wm", wm)
+			return ipc.Response{OK: true, Text: combo.String() + "\t" + wm}
+
+		default:
+			return ipc.Response{OK: false, Error: "bilinmeyen işlem: " + req.Args[0]}
+		}
+	})
 }
 
 // briefingPresenter builds the desktop banner presenter from config.
@@ -185,37 +372,6 @@ func briefingSpeaker(cfg config.Config) voice.Speaker {
 		return nil
 	}
 	return voice.NewSpeaker(cfg.Voice.TTSCmd, cfg.Voice.PlayCmd)
-}
-
-// showBriefing composes today's briefing and presents it two ways at once: the
-// desktop banner (instant) and, when a speaker is configured, spoken aloud. It
-// returns the composed text (for the CLI/IPC caller) and only errors when the
-// compose itself fails; presentation failures are logged, not fatal, since the
-// text is still useful. Both the banner and the speech are fire-and-forget, so
-// the caller isn't blocked while the briefing is read out.
-func showBriefing(ctx context.Context, registry *services.Registry, pres *banner.Presenter, speaker voice.Speaker, log *slog.Logger) (string, error) {
-	text, ok, err := registry.Dispatch(ctx, intent.Command{Action: briefing.ActionToday})
-	if err != nil {
-		return "", err
-	}
-	if !ok || strings.TrimSpace(text) == "" {
-		return "", nil
-	}
-	if err := pres.Show(ctx, text); err != nil {
-		log.Warn("briefing: banner failed", "err", err)
-	}
-	if speaker != nil {
-		// Speak on its own context so a short request timeout doesn't cut the
-		// read-out short; the banner already showed instantly.
-		go func() {
-			sctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-			defer cancel()
-			if err := speaker.Say(sctx, text); err != nil {
-				log.Warn("briefing: speak failed", "err", err)
-			}
-		}()
-	}
-	return text, nil
 }
 
 // registerIntent wires the two-tier intent path into the daemon's "say"
@@ -237,8 +393,11 @@ func registerIntent(d *daemon.Daemon, cfg config.Config, database *db.DB, regist
 		log.Info("persona: style learning enabled")
 	}
 
-	d.Handle("say", func(req ipc.Request) ipc.Response {
-		text := strings.TrimSpace(strings.Join(req.Args, " "))
+	// runIntent resolves one utterance (local router first, LLM chain on miss),
+	// executes it, and remembers the turn. Shared by the "say" and "listen"
+	// handlers so typed and spoken input take the exact same path.
+	runIntent := func(text string) ipc.Response {
+		text = strings.TrimSpace(text)
 		if text == "" {
 			return ipc.Response{OK: false, Error: "empty command"}
 		}
@@ -272,6 +431,50 @@ func registerIntent(d *daemon.Daemon, cfg config.Config, database *db.DB, regist
 		resp := executeCommand(cmd, database, registry)
 		rememberTurn(database, text, resp, log)
 		return resp
+	}
+
+	d.Handle("say", func(req ipc.Request) ipc.Response {
+		return runIntent(strings.Join(req.Args, " "))
+	})
+
+	// "listen" runs one push-to-talk cycle inside the daemon: record from the
+	// mic, transcribe, resolve+execute the intent, then speak the reply. The GUI's
+	// mic button calls this, so voice works from a click without a terminal. The
+	// reply text comes back prefixed with what was heard, for the UI to show.
+	d.Handle("listen", func(ipc.Request) ipc.Response {
+		if cfg.Voice.STTBin == "" || cfg.Voice.STTModel == "" {
+			return ipc.Response{OK: false, Error: "ses tanıma yapılandırılmadı (voice.stt_bin / stt_model)"}
+		}
+		pipe := voice.NewPipeline(voice.Options{
+			STTBin:        cfg.Voice.STTBin,
+			STTModel:      cfg.Voice.STTModel,
+			Language:      cfg.Voice.Language,
+			TTSCmd:        cfg.Voice.TTSCmd,
+			RecordCmd:     cfg.Voice.RecordCmd,
+			RecordSeconds: cfg.Voice.RecordSeconds,
+			PlayCmd:       cfg.Voice.PlayCmd,
+		})
+		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		defer cancel()
+
+		heard, err := pipe.Capture(ctx)
+		if err != nil {
+			log.Warn("listen: capture failed", "err", err)
+			return ipc.Response{OK: false, Error: "ses alınamadı: " + err.Error()}
+		}
+		if heard = strings.TrimSpace(heard); heard == "" {
+			return ipc.Response{OK: true, Text: "ses algılanamadı"}
+		}
+		log.Info("listen", "heard", heard)
+
+		resp := runIntent(heard)
+		if resp.OK && resp.Text != "" {
+			if err := pipe.Speak(ctx, resp.Text); err != nil {
+				log.Warn("listen: speak failed", "err", err)
+			}
+			resp.Text = "» " + heard + "\n" + resp.Text
+		}
+		return resp
 	})
 
 	// "do" runs a service action directly (no LLM), for the GUI's widgets and
@@ -298,24 +501,6 @@ func registerIntent(d *daemon.Daemon, cfg config.Config, database *db.DB, regist
 		default:
 			return ipc.Response{OK: true, Text: text}
 		}
-	})
-
-	// "briefing" composes today's briefing, shows it on the desktop banner and
-	// speaks it, returning the text. Bind `pylon briefing` to a hotkey, or let the
-	// scheduler fire it daily.
-	pres := briefingPresenter(cfg)
-	speaker := briefingSpeaker(cfg)
-	d.Handle("briefing", func(ipc.Request) ipc.Response {
-		ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
-		defer cancel()
-		text, err := showBriefing(ctx, registry, pres, speaker, log)
-		if err != nil {
-			return ipc.Response{OK: false, Error: err.Error()}
-		}
-		if text == "" {
-			return ipc.Response{OK: true, Text: "brifing için yapılandırılmış kaynak yok"}
-		}
-		return ipc.Response{OK: true, Text: text}
 	})
 
 	registerRecall(d, database)
@@ -385,9 +570,11 @@ func buildServiceRegistry(cfg config.Config, log *slog.Logger) *services.Registr
 	svcs = append(svcs, system.New())
 
 	// The briefing reads the calendar/news sources directly and phrases its own
-	// clauses; it registers last so the registry can still dispatch its action.
+	// clauses; running its action also shows the desktop banner, so every trigger
+	// (voice, scheduler, CLI) presents it the same way.
 	brief := briefing.New()
 	brief.SetSources(calSrc, newsSrc)
+	brief.SetPresenter(briefingPresenter(cfg))
 	svcs = append(svcs, brief)
 	return services.NewRegistry(svcs...)
 }
@@ -482,7 +669,15 @@ func registerRecall(d *daemon.Daemon, database *db.DB) {
 func buildIntentChain(cfg config.Config, log *slog.Logger) *intent.Chain {
 	var parsers []intent.Parser
 	for _, m := range cfg.Intent.Models {
+		// Prefer the environment; fall back to a key saved in the encrypted vault
+		// under the provider name (what the GUI's API-key field writes), so a user
+		// who never set an env var can still enable the model from Settings.
 		key := os.Getenv(m.APIKeyEnv)
+		if key == "" {
+			if v, err := secrets.Resolve("secret:" + m.Provider); err == nil {
+				key = v
+			}
+		}
 		if key == "" {
 			log.Warn("intent: skipping model, no API key", "provider", m.Provider, "model", m.Model, "env", m.APIKeyEnv)
 			continue
@@ -646,15 +841,21 @@ func registerScheduler(d *daemon.Daemon, cfg config.Config, registry *services.R
 		}
 	}
 
-	// Daily briefing: compose today's greeting + weather/calendar/news and, at the
-	// configured time, show it as a desktop banner and speak it. Silently idle if
-	// the time is malformed.
+	// Daily briefing: at the configured time, run the briefing action (which shows
+	// the desktop banner) and speak the result. Silently idle if the time is
+	// malformed.
 	if h, m, ok := parseHM(cfg.Briefing.Time); ok {
-		pres := briefingPresenter(cfg)
 		speaker := briefingSpeaker(cfg)
 		sched.DailyAt("briefing", h, m, func(ctx context.Context) {
-			if _, err := showBriefing(ctx, registry, pres, speaker, log); err != nil {
+			text, ok, err := registry.Dispatch(ctx, intent.Command{Action: briefing.ActionToday})
+			if err != nil || !ok {
 				log.Warn("scheduler: briefing failed", "err", err)
+				return
+			}
+			if speaker != nil && strings.TrimSpace(text) != "" {
+				if err := speaker.Say(ctx, text); err != nil {
+					log.Warn("scheduler: briefing speak failed", "err", err)
+				}
 			}
 		})
 		log.Info("scheduler: daily briefing enabled", "at", cfg.Briefing.Time)
@@ -714,11 +915,11 @@ func cmdDo(args []string) error {
 	return nil
 }
 
-// cmdBriefing asks the daemon to compose today's briefing and show it on the
-// desktop banner, printing the text. Bind this to a hotkey for an on-demand
-// briefing; the scheduler fires the same path daily.
+// cmdBriefing runs the briefing action, which shows the desktop banner, and
+// prints the text. Bind this to a hotkey for an on-demand briefing; the
+// scheduler fires the same action daily, and saying "brifing ver" does too.
 func cmdBriefing() error {
-	resp, err := daemon.Send(socketPath(), ipc.Request{Cmd: "briefing"})
+	resp, err := daemon.Send(socketPath(), ipc.Request{Cmd: "do", Args: []string{string(briefing.ActionToday)}})
 	if err != nil {
 		return fmt.Errorf("daemon not reachable: %w", err)
 	}
