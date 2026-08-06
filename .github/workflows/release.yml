@@ -63,9 +63,23 @@ jobs:
       # about where this was built.
       - name: Build daemon
         shell: bash
+        # Bake in the OAuth client IDs the way the Makefile does. Without this
+        # every published binary reports Google and Spotify as unavailable and
+        # the GUI's sign-in button stays greyed out, no matter what the user
+        # configures. Unset secrets expand to empty, which is the old behaviour
+        # — so a fork without them still builds.
+        env:
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          SPOTIFY_CLIENT_ID: ${{ secrets.SPOTIFY_CLIENT_ID }}
         run: |
           mkdir -p dist
-          flags=(-trimpath -ldflags "-s -w -X main.version=${GITHUB_REF_NAME}")
+          gpkg=github.com/YCistak/pylon/internal/services/google
+          spkg=github.com/YCistak/pylon/internal/services/spotify
+          flags=(-trimpath -ldflags "-s -w -X main.version=${GITHUB_REF_NAME} \
+            -X ${gpkg}.embeddedClientID=${GOOGLE_CLIENT_ID} \
+            -X ${gpkg}.embeddedClientSecret=${GOOGLE_CLIENT_SECRET} \
+            -X ${spkg}.embeddedClientID=${SPOTIFY_CLIENT_ID}")
           if [ "$RUNNER_OS" = "macOS" ]; then
             # `wails -platform darwin/universal` only covers the GUI. A plain
             # `go build` here would inherit the runner's arm64 and ship a
