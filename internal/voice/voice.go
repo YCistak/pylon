@@ -13,11 +13,18 @@ type Options struct {
 	STTModel string
 	Language string
 
+	// STTServerAddr is a warm whisper.cpp server ("host:port"). When set, the
+	// Pipeline transcribes over HTTP and skips the per-turn model load, falling
+	// back to STTBin if the server cannot be reached.
+	STTServerAddr string
+
 	TTSCmd []string // synthesis command: text on stdin → WAV at "{file}"
 
-	RecordCmd     []string
-	RecordSeconds int
-	PlayCmd       []string
+	RecordCmd      []string
+	RecordSeconds  int // capture ceiling, not a fixed wait
+	SilenceStop    bool
+	SilenceSeconds float64
+	PlayCmd        []string
 }
 
 // Pipeline is the voice loop split into its two halves: Capture (mic → text) and
@@ -33,9 +40,14 @@ type Pipeline struct {
 
 // NewPipeline assembles the recorder, transcriber, and speaker from Options.
 func NewPipeline(o Options) *Pipeline {
+	cli := NewTranscriber(o.STTBin, o.STTModel, o.Language)
+	stt := cli
+	if o.STTServerAddr != "" {
+		stt = NewServerTranscriber(o.STTServerAddr, o.Language, cli)
+	}
 	return &Pipeline{
-		rec:    NewRecorder(o.RecordCmd, o.RecordSeconds),
-		stt:    NewTranscriber(o.STTBin, o.STTModel, o.Language),
+		rec:    NewRecorder(o.RecordCmd, o.RecordSeconds, o.SilenceStop, o.SilenceSeconds),
+		stt:    stt,
 		tts:    NewSpeaker(o.TTSCmd, o.PlayCmd),
 		tmpWav: tempRecording,
 	}
