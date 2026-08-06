@@ -90,15 +90,27 @@ services:
     # client_id: ...
     redirect_port: 8888
 
-# Weather (Open-Meteo, no API key). Unset location defaults to İstanbul.
-weather:
-  # latitude: 41.0082
-  # longitude: 28.9784
-  # name: "İstanbul"
+  # Weather (Open-Meteo, no API key). Unset location defaults to İstanbul.
+  weather:
+    # latitude: 41.0082
+    # longitude: 28.9784
+    # name: "İstanbul"
+
+  # Docker. Empty socket → the per-OS default (/var/run/docker.sock on Unix).
+  # Set host for a remote daemon (tcp://…), with token for an authenticating
+  # proxy in front of it.
+  docker:
+    # socket: /var/run/docker.sock
+    # host: ""
+    # token: secret:docker
 
 briefing:
   time: "08:00"
   timezone: "Europe/Istanbul"
+  # How the daily briefing is shown. The command receives the text on stdin;
+  # empty falls back to a desktop notification. scripts/briefing_banner.py draws
+  # a Wayland layer-shell overlay:
+  #   banner_cmd: ["python3", "/path/scripts/briefing_banner.py"]
 
 work:
   daily_goal_hours: 4
