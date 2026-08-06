@@ -1,9 +1,12 @@
 package config
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"gopkg.in/yaml.v3"
 )
 
 func TestLoadMissingFileReturnsDefaults(t *testing.T) {
@@ -85,5 +88,38 @@ func TestValidateRejectsBadValues(t *testing.T) {
 				t.Fatalf("%s: expected validation error", name)
 			}
 		})
+	}
+}
+
+// pylon.yaml ships in every release archive and is the only documentation for
+// most settings, so a key written at the wrong nesting level is silently
+// ignored rather than rejected: `weather:` sat at the top level for a while
+// while the code read services.weather, and everyone who set coordinates
+// quietly got İstanbul. Decoding it with KnownFields makes that a build
+// failure — any documented key must correspond to a real field.
+func TestShippedConfigHasNoUnknownKeys(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("..", "..", "pylon.yaml"))
+	if err != nil {
+		t.Fatalf("pylon.yaml okunamadı: %v", err)
+	}
+
+	dec := yaml.NewDecoder(bytes.NewReader(raw))
+	dec.KnownFields(true)
+
+	var cfg Config
+	if err := dec.Decode(&cfg); err != nil {
+		t.Fatalf("pylon.yaml'da koda karşılık gelmeyen anahtar var: %v", err)
+	}
+}
+
+// The shipped file is also the example users copy, so it must survive the real
+// loader and its validation.
+func TestShippedConfigLoadsAndValidates(t *testing.T) {
+	cfg, err := Load(filepath.Join("..", "..", "pylon.yaml"))
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("validate: %v", err)
 	}
 }
