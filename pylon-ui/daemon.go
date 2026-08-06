@@ -62,6 +62,14 @@ func (m *daemonManager) ensureRunning() {
 	waitForDaemon(6 * time.Second)
 }
 
+// restart stops the daemon (if we started it) and brings it back up, so a config
+// or secret change made from Settings takes effect. When a daemon the GUI did
+// not start is running, it is left alone — the user restarts that one by hand.
+func (m *daemonManager) restart() {
+	m.stop()
+	m.ensureRunning()
+}
+
 // stop shuts the daemon down, but only if this process started it.
 func (m *daemonManager) stop() {
 	m.mu.Lock()
