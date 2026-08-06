@@ -61,6 +61,10 @@ type Voice struct {
 	// without one the fixed window is used.
 	SilenceStop    bool    `yaml:"silence_stop"`
 	SilenceSeconds float64 `yaml:"silence_seconds"` // quiet time that ends a capture
+	// SilenceThreshold is the percent of full scale below which audio counts as
+	// quiet. Raise it in a noisy room or with a hot mic; lower it if a soft
+	// voice never triggers the capture.
+	SilenceThreshold float64 `yaml:"silence_threshold"`
 
 	Hotkey string `yaml:"hotkey"` // informational; bind `pylon listen` in your DE/OS
 }
@@ -231,10 +235,11 @@ func Default() Config {
 			Language: "auto",
 			// A ceiling, not a wait: SilenceStop ends the capture as soon as you
 			// stop talking, so this only caps a runaway recording.
-			RecordSeconds:  15,
-			SilenceStop:    true,
-			SilenceSeconds: 1.0,
-			Hotkey:         "super+p",
+			RecordSeconds:    15,
+			SilenceStop:      true,
+			SilenceSeconds:   1.0,
+			SilenceThreshold: 3.0,
+			Hotkey:           "super+p",
 			// STTModel + TTSCmd are user-specific (no default); RecordCmd/PlayCmd
 			// empty → internal/voice fills the per-OS default.
 		},

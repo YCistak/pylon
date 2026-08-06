@@ -2,6 +2,7 @@ package voice
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 )
@@ -20,11 +21,12 @@ type Options struct {
 
 	TTSCmd []string // synthesis command: text on stdin → WAV at "{file}"
 
-	RecordCmd      []string
-	RecordSeconds  int // capture ceiling, not a fixed wait
-	SilenceStop    bool
-	SilenceSeconds float64
-	PlayCmd        []string
+	RecordCmd        []string
+	RecordSeconds    int // capture ceiling, not a fixed wait
+	SilenceStop      bool
+	SilenceSeconds   float64
+	SilenceThreshold float64
+	PlayCmd          []string
 }
 
 // Pipeline is the voice loop split into its two halves: Capture (mic → text) and
@@ -46,12 +48,22 @@ func NewPipeline(o Options) *Pipeline {
 		stt = NewServerTranscriber(o.STTServerAddr, o.Language, cli)
 	}
 	return &Pipeline{
-		rec:    NewRecorder(o.RecordCmd, o.RecordSeconds, o.SilenceStop, o.SilenceSeconds),
+		rec: NewRecorder(RecorderOptions{
+			Cmd:              o.RecordCmd,
+			Seconds:          o.RecordSeconds,
+			SilenceStop:      o.SilenceStop,
+			SilenceSeconds:   o.SilenceSeconds,
+			SilenceThreshold: o.SilenceThreshold,
+		}),
 		stt:    stt,
 		tts:    NewSpeaker(o.TTSCmd, o.PlayCmd),
 		tmpWav: tempRecording,
 	}
 }
+
+// IsNoSpeech reports whether a Capture error is just "nothing was said" — the
+// caller should tell the user that plainly instead of surfacing a failure.
+func IsNoSpeech(err error) bool { return errors.Is(err, errNoSpeech) }
 
 // Capture records a push-to-talk window and returns the transcript.
 func (p *Pipeline) Capture(ctx context.Context) (string, error) {

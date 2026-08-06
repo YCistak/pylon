@@ -1,8 +1,13 @@
 package voice
 
 import (
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // The silence-stop capture must carry both placeholders: {silence} ends the
@@ -14,7 +19,7 @@ func TestSoxSilenceRecordCmd(t *testing.T) {
 		t.Fatalf("binary = %q", cmd[0])
 	}
 	js := strings.Join(cmd, " ")
-	for _, want := range []string{"silence", "{silence}", "trim 0 {seconds}", "{file}", "-r 16000", "-c 1"} {
+	for _, want := range []string{"silence", "{silence}", "{threshold}", "trim 0 {seconds}", "{file}", "-r 16000", "-c 1"} {
 		if !strings.Contains(js, want) {
 			t.Fatalf("cmd missing %q: %v", want, cmd)
 		}
@@ -34,12 +39,12 @@ func TestSoxSilenceRecordCmdWithDeviceFlag(t *testing.T) {
 
 func TestRecordArgsSubstitutes(t *testing.T) {
 	cmd := soxSilenceRecordCmd("rec")
-	args := recordArgs(cmd, "/tmp/r.wav", 15, 1.0)
+	args := recordArgs(cmd, "/tmp/r.wav", 15, 1.0, 3.0)
 	js := strings.Join(args, " ")
 	if strings.Contains(js, "{") {
 		t.Fatalf("unsubstituted placeholder: %v", args)
 	}
-	for _, want := range []string{"/tmp/r.wav", "trim 0 15", "silence 1 0.1 1% 1 1.00 2%"} {
+	for _, want := range []string{"/tmp/r.wav", "trim 0 15", "silence 1 0.1 3.00% 1 1.00 3.00%"} {
 		if !strings.Contains(js, want) {
 			t.Fatalf("args missing %q: %v", want, args)
 		}
@@ -50,21 +55,21 @@ func TestRecordArgsSubstitutes(t *testing.T) {
 // what the user asked for.
 func TestNewRecorderKeepsConfiguredCmd(t *testing.T) {
 	want := []string{"arecord", "-d", "{seconds}", "{file}"}
-	r := NewRecorder(want, 10, true, 1.0).(*cmdRecorder)
+	r := NewRecorder(RecorderOptions{Cmd: want, Seconds: 10, SilenceStop: true, SilenceSeconds: 1.0}).(*cmdRecorder)
 	if strings.Join(r.cmd, " ") != strings.Join(want, " ") {
 		t.Fatalf("configured cmd replaced: %v", r.cmd)
 	}
 }
 
 func TestNewRecorderSilenceStopOffUsesDefault(t *testing.T) {
-	r := NewRecorder(nil, 10, false, 1.0).(*cmdRecorder)
+	r := NewRecorder(RecorderOptions{Seconds: 10, SilenceStop: false, SilenceSeconds: 1.0}).(*cmdRecorder)
 	if strings.Join(r.cmd, " ") != strings.Join(defaultRecordCmd(), " ") {
 		t.Fatalf("expected the plain default, got %v", r.cmd)
 	}
 }
 
 func TestNewRecorderDefaultsSilenceSeconds(t *testing.T) {
-	r := NewRecorder(nil, 10, false, 0).(*cmdRecorder)
+	r := NewRecorder(RecorderOptions{Seconds: 10}).(*cmdRecorder)
 	if r.silence != defaultSilenceSeconds {
 		t.Fatalf("silence = %v", r.silence)
 	}
@@ -78,5 +83,52 @@ func TestPickRecordCmdFallsBackWhenBinaryMissing(t *testing.T) {
 	got := pickRecordCmd(true)
 	if strings.Join(got, " ") != strings.Join(defaultRecordCmd(), " ") {
 		t.Fatalf("expected fallback to the default recorder, got %v", got)
+	}
+}
+
+// Only a silence-triggered capture may wait for speech to begin; a fixed-window
+// recorder must keep the old, tighter deadline.
+func TestTimeoutAddsSpeechStartGraceOnlyForSilence(t *testing.T) {
+	r := &cmdRecorder{seconds: 5}
+	if got := r.timeout(true, true); got != 5*time.Second+speechStartGrace+recordGrace {
+		t.Fatalf("silence capture timeout = %v", got)
+	}
+	if got := r.timeout(false, false); got != 5*time.Second {
+		t.Fatalf("fixed-window timeout = %v", got)
+	}
+}
+
+// The Pipeline hands Record an empty temp file. Anything at or below a bare WAV
+// header means the recorder captured nothing.
+func TestHasAudio(t *testing.T) {
+	dir := t.TempDir()
+	empty := filepath.Join(dir, "empty.wav")
+	if err := os.WriteFile(empty, make([]byte, wavHeaderBytes), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if hasAudio(empty) {
+		t.Fatal("a header-only file holds no samples")
+	}
+
+	withSamples := filepath.Join(dir, "full.wav")
+	if err := os.WriteFile(withSamples, make([]byte, wavHeaderBytes+2), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if !hasAudio(withSamples) {
+		t.Fatal("samples past the header should count as audio")
+	}
+	if hasAudio(filepath.Join(dir, "yok.wav")) {
+		t.Fatal("a missing file is not audio")
+	}
+}
+
+// Nothing said is a normal outcome, so callers can tell it apart from a broken
+// recorder and say "ses algılanamadı" instead of surfacing a subprocess error.
+func TestNoSpeechIsRecognisable(t *testing.T) {
+	if !IsNoSpeech(fmt.Errorf("record: %w", errNoSpeech)) {
+		t.Fatal("wrapped errNoSpeech should still be recognisable")
+	}
+	if IsNoSpeech(errors.New("rec: device busy")) {
+		t.Fatal("an ordinary failure must not look like silence")
 	}
 }

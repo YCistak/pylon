@@ -29,7 +29,7 @@ func (f *fakeRun) run(_ context.Context, stdin []byte, name string, args []strin
 }
 
 func TestSubstituteArgs(t *testing.T) {
-	got := substituteArgs([]string{"-d", "{seconds}", "{silence}", "{file}"}, "/tmp/a.wav", 7, 1.5)
+	got := substituteArgs([]string{"-d", "{seconds}", "{silence}", "{file}"}, "/tmp/a.wav", 7, 1.5, 3)
 	want := []string{"-d", "7", "1.50", "/tmp/a.wav"}
 	if strings.Join(got, " ") != strings.Join(want, " ") {
 		t.Fatalf("got %v", got)
@@ -42,7 +42,7 @@ func TestSubstituteArgs(t *testing.T) {
 // "Hava bugün nasıl olacak?".
 func TestSubstituteArgsSilenceKeepsDecimalPoint(t *testing.T) {
 	for _, in := range []float64{1, 2, 0.5} {
-		got := substituteArgs([]string{"{silence}"}, "x.wav", 0, in)
+		got := substituteArgs([]string{"{silence}"}, "x.wav", 0, in, 3)
 		if !strings.Contains(got[0], ".") {
 			t.Fatalf("silence %v rendered as %q — sox would read that as samples", in, got[0])
 		}
