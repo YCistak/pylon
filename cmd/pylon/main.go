@@ -15,6 +15,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -130,7 +131,8 @@ usage:
   pylon briefing      compose today's briefing and show it as a desktop banner
   pylon recall [n]    show the last n remembered turns (default 5)
   pylon listen        push-to-talk: record, transcribe, run, speak the reply
-  pylon auth google   authorize Google (Calendar) — one-time OAuth consent
+  pylon auth <google|spotify>          one-time OAuth consent in the browser
+  pylon auth <google|spotify> logout   forget the saved token
   pylon secret set <name>   save a credential to the encrypted vault (ref as secret:<name>)
   pylon secret rm  <name>   remove a saved credential
   pylon update [--check]    install the newest release (--check only reports)
@@ -178,38 +180,96 @@ func cmdStart() error {
 	return d.Run(context.Background())
 }
 
-// registerAuth lets the GUI sign services in over IPC. Currently Google
-// (Calendar/Drive): "auth google status" reports connected / ready / unavailable,
-// and "auth google login" runs the browser OAuth consent — the same flow as
-// `pylon auth google`, saving the token to the encrypted vault.
+// authProvider is one signable service reduced to what the GUI asks of it. The
+// two predicates are called per request rather than sampled once, because login
+// and logout change their answers while the daemon keeps running.
+type authProvider struct {
+	hasClient func() bool // this build can run the consent flow
+	connected func() bool // a user token is stored
+	login     func(context.Context) error
+	logout    func() error
+	// unavailable explains, to the user, why login can't run in this build.
+	unavailable string
+}
+
+// authProviders enumerates the services the GUI can sign in and out. Adding one
+// here is all it takes for the Accounts card to grow a row — the IPC verbs, the
+// status vocabulary and the GUI bindings are all service-agnostic.
+func authProviders(cfg config.Config) map[string]authProvider {
+	gcfg := googleConfig(cfg)
+	scfg := spotifyConfig(cfg)
+	return map[string]authProvider{
+		"google": {
+			hasClient:   func() bool { return google.HasClient(gcfg) },
+			connected:   func() bool { return google.Configured(gcfg) },
+			login:       func(ctx context.Context) error { return google.Authorize(ctx, gcfg) },
+			logout:      google.Logout,
+			unavailable: "Google girişi bu Pylon sürümünde henüz yapılandırılmadı",
+		},
+		"spotify": {
+			hasClient: func() bool { return spotify.HasClient(scfg) },
+			connected: func() bool { return spotify.Configured(scfg) },
+			login:     func(ctx context.Context) error { return spotify.Authorize(ctx, scfg) },
+			logout:    spotify.Logout,
+			unavailable: "Spotify bağlantısı bu Pylon sürümünde henüz yapılandırılmadı " +
+				"(Redirect URI: " + spotify.RedirectURI(scfg) + ")",
+		},
+	}
+}
+
+// registerAuth lets the GUI sign services in and out over IPC:
+//
+//	auth <service> status   → connected | ready | unavailable
+//	auth <service> login    → runs the browser OAuth consent
+//	auth <service> logout   → forgets the stored token
+//
+// login is the same flow as `pylon auth <service>`, saving the token to the
+// encrypted vault. Signing out only drops the token: the services it enabled
+// stay registered until the daemon restarts, which the GUI triggers.
 func registerAuth(d *daemon.Daemon, cfg config.Config) {
+	providers := authProviders(cfg)
+	names := make([]string, 0, len(providers))
+	for name := range providers {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	usage := "usage: auth <" + strings.Join(names, "|") + "> <status|login|logout>"
+
 	d.Handle("auth", func(req ipc.Request) ipc.Response {
-		if len(req.Args) < 2 || req.Args[0] != "google" {
-			return ipc.Response{OK: false, Error: "usage: auth google <status|login>"}
+		if len(req.Args) < 2 {
+			return ipc.Response{OK: false, Error: usage}
 		}
-		gcfg := googleConfig(cfg)
+		p, ok := providers[req.Args[0]]
+		if !ok {
+			return ipc.Response{OK: false, Error: "bilinmeyen servis: " + req.Args[0] + " — " + usage}
+		}
 		switch req.Args[1] {
 		case "status":
 			switch {
-			case google.Configured(gcfg):
+			case p.connected():
 				return ipc.Response{OK: true, Text: "connected"}
-			case google.HasClient(gcfg):
+			case p.hasClient():
 				return ipc.Response{OK: true, Text: "ready"}
 			default:
 				return ipc.Response{OK: true, Text: "unavailable"}
 			}
 		case "login":
-			if !google.HasClient(gcfg) {
-				return ipc.Response{OK: false, Error: "Google girişi bu Pylon sürümünde henüz yapılandırılmadı"}
+			if !p.hasClient() {
+				return ipc.Response{OK: false, Error: p.unavailable}
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 			defer cancel()
-			if err := google.Authorize(ctx, gcfg); err != nil {
+			if err := p.login(ctx); err != nil {
 				return ipc.Response{OK: false, Error: err.Error()}
 			}
 			return ipc.Response{OK: true, Text: "bağlandı"}
+		case "logout":
+			if err := p.logout(); err != nil {
+				return ipc.Response{OK: false, Error: err.Error()}
+			}
+			return ipc.Response{OK: true, Text: "çıkış yapıldı"}
 		default:
-			return ipc.Response{OK: false, Error: "bilinmeyen: " + req.Args[1]}
+			return ipc.Response{OK: false, Error: "bilinmeyen işlem: " + req.Args[1] + " — " + usage}
 		}
 	})
 }
@@ -1022,10 +1082,11 @@ func cmdListen() error {
 	return nil
 }
 
-// cmdAuth runs a service authorization flow. Currently: `pylon auth google`.
+// cmdAuth runs a service authorization flow: `pylon auth google`,
+// `pylon auth spotify`, or either with `logout` to forget the saved token.
 func cmdAuth(args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: pylon auth <google|spotify>")
+		return errors.New("usage: pylon auth <google|spotify> [logout]")
 	}
 	cfg, err := config.Load(configPath())
 	if err != nil {
@@ -1033,6 +1094,21 @@ func cmdAuth(args []string) error {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
+
+	// Signing out is the same everywhere: drop the token and let the next start
+	// re-derive what is available. Handled before the per-service branches so
+	// each one only has to describe its consent flow.
+	if len(args) > 1 && args[1] == "logout" {
+		logout := map[string]func() error{"google": google.Logout, "spotify": spotify.Logout}[args[0]]
+		if logout == nil {
+			return fmt.Errorf("usage: pylon auth <google|spotify> logout (bilinmeyen: %q)", args[0])
+		}
+		if err := logout(); err != nil {
+			return err
+		}
+		fmt.Printf("✔ %s bağlantısı kaldırıldı.\n", args[0])
+		return nil
+	}
 
 	switch args[0] {
 	case "google":
