@@ -134,6 +134,11 @@ briefing:
   # a Wayland layer-shell overlay:
   #   banner_cmd: ["python3", "/path/scripts/briefing_banner.py"]
 
+# Work sessions. Pylon records how long each tracked app is open and answers
+# "bugün ne kadar çalıştım" from it (`pylon work`, or `pylon work week`). Names
+# are process names as the OS reports them — the same form watch_processes uses.
+# An empty tracked_apps records nothing; daily_goal_hours: 0 drops the progress
+# sentence from the answer. A day starts at midnight in briefing.timezone.
 work:
   daily_goal_hours: 4
   tracked_apps:

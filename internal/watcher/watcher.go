@@ -39,11 +39,12 @@ type Lister func() (map[string]struct{}, error)
 
 // Watcher polls a Lister and reports transitions for the names it watches.
 type Watcher struct {
-	names    map[string]struct{}
-	interval time.Duration
-	list     Lister
-	onEvent  func(Event)
-	log      *slog.Logger
+	names      map[string]struct{}
+	interval   time.Duration
+	list       Lister
+	onEvent    func(Event)
+	onBaseline func([]string)
+	log        *slog.Logger
 
 	running map[string]struct{} // watched names seen on the last poll
 }
@@ -54,7 +55,15 @@ type Options struct {
 	Interval time.Duration // poll interval (default 2s)
 	List     Lister        // process lister (default: platform lister)
 	OnEvent  func(Event)   // called for every transition (must not block long)
-	Logger   *slog.Logger
+
+	// OnBaseline reports the watched processes already running when Run starts.
+	// Those produce no Started event on purpose — they are not transitions — but
+	// a consumer that tracks *state* rather than changes would otherwise never
+	// learn about the editor you left open across a restart, so it is handed the
+	// starting set once, up front.
+	OnBaseline func(running []string)
+
+	Logger *slog.Logger
 }
 
 // New constructs a Watcher. Run must be called to begin polling.
@@ -71,6 +80,9 @@ func New(opts Options) *Watcher {
 	if opts.OnEvent == nil {
 		opts.OnEvent = func(Event) {}
 	}
+	if opts.OnBaseline == nil {
+		opts.OnBaseline = func([]string) {}
+	}
 	names := make(map[string]struct{}, len(opts.Names))
 	for _, n := range opts.Names {
 		if n != "" {
@@ -78,12 +90,13 @@ func New(opts Options) *Watcher {
 		}
 	}
 	return &Watcher{
-		names:    names,
-		interval: opts.Interval,
-		list:     opts.List,
-		onEvent:  opts.OnEvent,
-		log:      opts.Logger,
-		running:  make(map[string]struct{}),
+		names:      names,
+		interval:   opts.Interval,
+		list:       opts.List,
+		onEvent:    opts.OnEvent,
+		onBaseline: opts.OnBaseline,
+		log:        opts.Logger,
+		running:    make(map[string]struct{}),
 	}
 }
 
@@ -103,6 +116,9 @@ func (w *Watcher) Run(ctx context.Context) error {
 	} else {
 		w.log.Warn("watcher: initial poll failed", "err", err)
 	}
+	// Reported even when that poll failed (an empty set), so a consumer waiting
+	// on the baseline is never left hanging on a transient /proc read error.
+	w.onBaseline(keys(w.running))
 
 	ticker := time.NewTicker(w.interval)
 	defer ticker.Stop()
