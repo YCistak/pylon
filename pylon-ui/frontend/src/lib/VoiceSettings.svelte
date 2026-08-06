@@ -1,42 +1,62 @@
 <script>
-  // Voice settings: pick the push-to-talk shortcut and get the exact way to bind
-  // it on your system. A desktop app can't register a global hotkey itself on
-  // most platforms, so the real binding lives in the OS / window manager — this
-  // card captures the combo and shows the matching snippet (hyprland, Sway,
-  // GNOME, KDE, macOS, Windows) that runs `pylon listen`.
-  import { onMount } from 'svelte'
-  import { Platform } from '../../wailsjs/go/main/App.js'
+  // Voice settings: pick the push-to-talk shortcut. A desktop app cannot grab a
+  // global hotkey for itself, so the binding lives in the window manager — but
+  // on Hyprland and Sway the daemon can register it over the compositor's
+  // control socket, which means picking a shortcut here is all there is to it.
+  // No config file is edited, and the daemon re-applies it on every start.
+  //
+  // Everywhere else (GNOME, KDE, macOS, Windows) there is no runtime API, so
+  // the card falls back to showing the line to add by hand. Which case applies
+  // is detected, never asked: the user should not have to tell their own
+  // computer what it is running.
+  import { Platform, Hotkey, SetHotkey } from '../../wailsjs/go/main/App.js'
+  import { daemonOnline } from './daemon.js'
 
-  const KEY = 'pylon.voice.hotkey'
-
-  // Default matches the config's informational hotkey (super+p).
+  // Default matches the config's hotkey (super+p) until the daemon answers.
   let mods = ['SUPER']
   let key = 'P'
-  let platform = 'hyprland'
+  let platform = 'hyprland' // only used for the manual-instructions fallback
+  let wm = ''               // compositor that registered the shortcut, '' if none
   let capturing = false
   let copied = false
+  let error = ''
 
-  const PLATFORMS = [
-    { id: 'hyprland', label: 'Hyprland' },
-    { id: 'sway', label: 'Sway / i3' },
-    { id: 'gnome', label: 'GNOME' },
-    { id: 'kde', label: 'KDE Plasma' },
-    { id: 'linux', label: 'Diğer Linux' },
-    { id: 'macos', label: 'macOS' },
-    { id: 'windows', label: 'Windows' },
-  ]
+  // "<combo>\t<compositor>" — see App.Hotkey.
+  function adopt(reply) {
+    const [combo, compositor] = (reply || '').split('\t')
+    wm = compositor || ''
+    if (!combo) return
+    const parts = combo.split('+')
+    key = parts.pop()
+    mods = parts
+  }
 
-  onMount(async () => {
+  async function load() {
     try {
-      const saved = JSON.parse(localStorage.getItem(KEY) || 'null')
-      if (saved?.key) { mods = saved.mods || []; key = saved.key }
-      if (saved?.platform) platform = saved.platform
-      else platform = (await Platform()) || 'hyprland'
-    } catch {}
-  })
+      adopt(await Hotkey())
+      if (!wm) platform = (await Platform()) || 'linux'
+    } catch { /* daemon still starting; the store retries us */ }
+  }
 
-  function save() {
-    localStorage.setItem(KEY, JSON.stringify({ mods, key, platform }))
+  // The daemon owns the binding, so wait for it rather than reading a local
+  // copy. Same change-only guard the other cards use — the store re-publishes
+  // every 1.5s.
+  let lastOnline
+  $: if ($daemonOnline !== lastOnline) {
+    lastOnline = $daemonOnline
+    if ($daemonOnline) load()
+  }
+
+  // Hand the shortcut to the daemon, which registers it with the compositor at
+  // once and re-applies it on every start. Nothing is written to the user's
+  // window-manager config — see internal/hotkey.
+  async function save() {
+    error = ''
+    try {
+      adopt(await SetHotkey([...mods, key].join('+')))
+    } catch (e) {
+      error = String(e?.message || e)
+    }
   }
 
   // hyprland spells the main key with these names for non-character keys.
@@ -107,8 +127,6 @@
 
   $: bind = bindFor(platform, mods, key)
 
-  function onPlatform(e) { platform = e.target.value; save() }
-
   async function copy() {
     try {
       await navigator.clipboard.writeText(bind.snippet)
@@ -125,9 +143,7 @@
     <div class="card-title"><h3>Ses & Konuşma</h3></div>
   </div>
   <p class="hint">
-    Pylon ile konuşmak için bir kısayol ata. Uygulama global kısayolu kendi
-    yakalayamaz — işletim sistemine göre aşağıdaki bağlamayı ekle, tuşa basınca
-    Pylon dinlemeye başlar (<code>pylon listen</code>).
+    Pylon ile konuşmak için bir kısayol ata. Tuşa basınca Pylon dinlemeye başlar.
   </p>
 
   <div class="row">
@@ -137,20 +153,21 @@
     </button>
   </div>
 
-  <div class="row">
-    <span class="lbl">Sistem</span>
-    <select class="sel" value={platform} on:change={onPlatform}>
-      {#each PLATFORMS as p}
-        <option value={p.id}>{p.label}</option>
-      {/each}
-    </select>
-  </div>
-
-  <div class="bind">
-    <code>{bind.snippet}</code>
-    <button class="copy" on:click={copy}>{copied ? 'Kopyalandı ✓' : 'Kopyala'}</button>
-  </div>
-  <p class="note">{bind.note}</p>
+  {#if error}
+    <p class="note err">{error}</p>
+  {:else if wm}
+    <p class="note ok">
+      {wm} üzerinde etkin — değiştirince hemen geçerli olur ve config dosyana
+      dokunulmaz. Seçtiğin kısayol başka bir şeye bağlıysa Pylon onu devralır.
+    </p>
+  {:else}
+    <!-- No runtime binding API on this desktop, so the user has to add it. -->
+    <div class="bind">
+      <code>{bind.snippet}</code>
+      <button class="copy" on:click={copy}>{copied ? 'Kopyalandı ✓' : 'Kopyala'}</button>
+    </div>
+    <p class="note">{bind.note}</p>
+  {/if}
 </section>
 
 <style>
@@ -163,11 +180,10 @@
   .card-head { margin-bottom: 6px; }
   .card-title h3 { margin: 0; font-size: 15px; color: var(--text-1); }
   .hint { margin: 0 0 14px; font-size: 13px; line-height: 1.5; color: var(--text-2); }
-  .hint code { font-size: 12px; background: var(--surface-2); padding: 1px 5px; border-radius: 5px; }
 
   .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
   .lbl { font-size: 14px; color: var(--text-1); }
-  .combo, .sel {
+  .combo {
     min-width: 150px;
     padding: 8px 14px;
     border-radius: 10px;
@@ -206,4 +222,6 @@
     border: none;
   }
   .note { margin: 10px 2px 0; font-size: 12px; line-height: 1.45; color: var(--text-2); }
+  .note.ok { color: var(--accent-2); }
+  .note.err { color: var(--err, #f2688a); }
 </style>

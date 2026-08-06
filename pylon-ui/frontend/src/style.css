@@ -43,9 +43,30 @@
     /* motion */
     --ease: cubic-bezier(0.22, 1, 0.36, 1);
     --dur: 240ms;
+
+    /* Pylon is a dark-only app. Without this the engine assumes a light page and
+       every control it draws itself — <select> popups, scrollbars, the caret —
+       comes out white against the dark surfaces. */
+    color-scheme: dark;
 }
 
 * { box-sizing: border-box; }
+
+/* Strip the platform's own <select> chrome: on GTK/WebKit it ignores
+   color-scheme and renders a white pill regardless. The arrow is drawn back as
+   a background image so the control still reads as a dropdown. */
+select {
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath fill='none' stroke='%238b98ac' stroke-width='1.6' stroke-linecap='round' d='M1.5 2 6 6.5 10.5 2'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    background-size: 11px;
+    padding-right: 32px;
+}
+/* The popup list is drawn by the platform, so give it opaque colours rather
+   than the translucent --surface tokens it would otherwise inherit. */
+select option { background: var(--panel); color: var(--text-1); }
 
 html, body {
     margin: 0;

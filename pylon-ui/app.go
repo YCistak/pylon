@@ -236,3 +236,31 @@ func (a *App) Do(action string, params map[string]string) (string, error) {
 	}
 	return resp.Text, nil
 }
+
+// Hotkey reports the push-to-talk shortcut as "<combo>\t<compositor>". The
+// second field names the compositor that registered it (Hyprland, Sway) and is
+// empty when this desktop has no way to bind one at runtime — the GUI's cue to
+// show the user the line to add themselves. Tab-separated to match the daemon's
+// plain-text IPC replies rather than introduce a bound struct for two strings.
+func (a *App) Hotkey() string {
+	resp, err := send(request{Cmd: "hotkey", Args: []string{"get"}})
+	if err != nil || !resp.OK {
+		return ""
+	}
+	return resp.Text
+}
+
+// SetHotkey changes the push-to-talk shortcut and registers it immediately,
+// returning the same "<combo>\t<compositor>" pair Hotkey does. The daemon owns
+// the binding, so it takes effect without restarting anything and is re-applied
+// on the next daemon start.
+func (a *App) SetHotkey(combo string) (string, error) {
+	resp, err := send(request{Cmd: "hotkey", Args: []string{"set", combo}})
+	if err != nil {
+		return "", err
+	}
+	if !resp.OK {
+		return "", fmt.Errorf("%s", resp.Error)
+	}
+	return resp.Text, nil
+}

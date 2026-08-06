@@ -25,6 +25,7 @@ import (
 	"github.com/YCistak/pylon/internal/config"
 	"github.com/YCistak/pylon/internal/daemon"
 	"github.com/YCistak/pylon/internal/db"
+	"github.com/YCistak/pylon/internal/hotkey"
 	"github.com/YCistak/pylon/internal/intent"
 	"github.com/YCistak/pylon/internal/ipc"
 	"github.com/YCistak/pylon/internal/profile"
@@ -171,6 +172,7 @@ func cmdStart() error {
 	registerIntent(d, cfg, database, registry, log)
 	registerSecrets(d)
 	registerAuth(d, cfg)
+	registerHotkey(d, cfg, database, log)
 
 	return d.Run(context.Background())
 }
@@ -239,6 +241,121 @@ func registerSecrets(d *daemon.Daemon) {
 			return ipc.Response{OK: true, Text: strconv.FormatBool(secrets.Has(name))}
 		default:
 			return ipc.Response{OK: false, Error: "bilinmeyen işlem: " + op}
+		}
+	})
+}
+
+// hotkeyContextKey is where the chosen push-to-talk shortcut is remembered, so
+// the daemon can re-register it on the next start.
+const hotkeyContextKey = "voice.hotkey"
+
+// registerHotkey owns the push-to-talk shortcut. Wayland gives an application no
+// way to grab a global hotkey for itself, and editing the user's compositor
+// config to get one means writing to a file Pylon does not own and cannot
+// cleanly take back — a change that is then hard to find again. Hyprland and
+// Sway both accept bindings over their control socket, so the shortcut is
+// registered at runtime instead: nothing on disk changes, and the daemon
+// re-applies it whenever it starts.
+//
+// "hotkey get" reports the current shortcut and which compositor claimed it;
+// "hotkey set <combo>" changes it. Desktops with no runtime binding API answer
+// with an empty compositor field, which is the GUI's cue to show the user the
+// line to add themselves.
+func registerHotkey(d *daemon.Daemon, cfg config.Config, database *db.DB, log *slog.Logger) {
+	mgr := hotkey.Detect()
+	wm := ""
+	if mgr != nil {
+		wm = mgr.Name()
+	}
+
+	// Bind the running binary by absolute path: "pylon" alone only works if the
+	// compositor's PATH happens to include it, which it will not for a binary
+	// run out of a build or release directory.
+	self, err := os.Executable()
+	if err != nil || self == "" {
+		self = "pylon"
+	}
+	command := self + " listen"
+
+	apply := func(combo hotkey.Combo) error {
+		if mgr == nil {
+			return nil // nothing to apply; the GUI explains the manual route
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		return mgr.Bind(ctx, combo, command)
+	}
+
+	// stored falls back to the config's hotkey, which is what a fresh install
+	// has before the user picks one in the GUI.
+	stored := func() string {
+		if database != nil {
+			if v, ok, err := database.GetContext(hotkeyContextKey); err == nil && ok && v != "" {
+				return v
+			}
+		}
+		return cfg.Voice.Hotkey
+	}
+
+	// Register whatever is remembered as soon as the daemon is up, so the
+	// shortcut survives a reboot without the user doing anything.
+	switch combo, err := hotkey.Parse(stored()); {
+	case err != nil:
+		log.Warn("hotkey: kayıtlı kısayol okunamadı", "value", stored(), "err", err)
+	case mgr == nil:
+		log.Info("hotkey: bu masaüstünde çalışma-anı bağlama yok", "hotkey", combo.String())
+	default:
+		if err := apply(combo); err != nil {
+			log.Warn("hotkey: bağlanamadı", "hotkey", combo.String(), "wm", wm, "err", err)
+		} else {
+			log.Info("hotkey: bağlandı", "hotkey", combo.String(), "wm", wm, "cmd", command)
+		}
+	}
+
+	d.Handle("hotkey", func(req ipc.Request) ipc.Response {
+		if len(req.Args) == 0 {
+			return ipc.Response{OK: false, Error: "usage: hotkey <get|set> [combo]"}
+		}
+		switch req.Args[0] {
+		case "get":
+			// "<combo>\t<compositor>" — an empty second field means the user has
+			// to add the binding themselves. Normalized, so the GUI shows the
+			// same shape whether the value came from config ("super+p") or from
+			// a previous set.
+			combo := stored()
+			if c, err := hotkey.Parse(combo); err == nil {
+				combo = c.String()
+			}
+			return ipc.Response{OK: true, Text: combo + "\t" + wm}
+
+		case "set":
+			if len(req.Args) < 2 {
+				return ipc.Response{OK: false, Error: "hotkey set için kısayol gerekli"}
+			}
+			combo, err := hotkey.Parse(req.Args[1])
+			if err != nil {
+				return ipc.Response{OK: false, Error: err.Error()}
+			}
+			// Drop the previous binding first, or the old shortcut keeps working
+			// alongside the new one.
+			if old, err := hotkey.Parse(stored()); err == nil && mgr != nil && old.String() != combo.String() {
+				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				_ = mgr.Unbind(ctx, old)
+				cancel()
+			}
+			if err := apply(combo); err != nil {
+				return ipc.Response{OK: false, Error: err.Error()}
+			}
+			if database != nil {
+				if err := database.SetContext(hotkeyContextKey, combo.String()); err != nil {
+					log.Warn("hotkey: kaydedilemedi", "err", err)
+				}
+			}
+			log.Info("hotkey: değişti", "hotkey", combo.String(), "wm", wm)
+			return ipc.Response{OK: true, Text: combo.String() + "\t" + wm}
+
+		default:
+			return ipc.Response{OK: false, Error: "bilinmeyen işlem: " + req.Args[0]}
 		}
 	})
 }

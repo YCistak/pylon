@@ -22,6 +22,10 @@ export function HasSecret(arg1) {
   return window['go']['main']['App']['HasSecret'](arg1);
 }
 
+export function Hotkey() {
+  return window['go']['main']['App']['Hotkey']();
+}
+
 export function Listen() {
   return window['go']['main']['App']['Listen']();
 }
@@ -32,6 +36,10 @@ export function Platform() {
 
 export function RestartDaemon() {
   return window['go']['main']['App']['RestartDaemon']();
+}
+
+export function SetHotkey(arg1) {
+  return window['go']['main']['App']['SetHotkey'](arg1);
 }
 
 export function SetSecret(arg1, arg2) {
