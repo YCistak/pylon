@@ -14,6 +14,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -48,11 +49,26 @@ import (
 // version is set at build time via -ldflags "-X main.version=...".
 var version = "dev"
 
-// configPath is the path to pylon.yaml, overridable via PYLON_CONFIG.
+// configPath finds pylon.yaml, in order: $PYLON_CONFIG, ./pylon.yaml, then
+// ~/.config/pylon/pylon.yaml.
+//
+// The last one is what makes an installed Pylon usable at all. Until it existed
+// the search stopped at the working directory, so launching from a desktop
+// entry or an application menu — where the working directory is the user's home
+// — found nothing and silently ran on defaults: no voice, no services, no
+// briefing, with nothing on screen to say why. The working directory still wins
+// so a checkout keeps using its own pylon.yaml without any setup.
 func configPath() string {
 	if p := os.Getenv("PYLON_CONFIG"); p != "" {
 		return p
 	}
+	if _, err := os.Stat("pylon.yaml"); err == nil {
+		return "pylon.yaml"
+	}
+	if dir, err := os.UserConfigDir(); err == nil {
+		return filepath.Join(dir, "pylon", "pylon.yaml")
+	}
+	// No home directory to fall back on; Load treats a missing file as defaults.
 	return "pylon.yaml"
 }
 
