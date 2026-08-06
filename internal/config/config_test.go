@@ -123,3 +123,70 @@ func TestShippedConfigLoadsAndValidates(t *testing.T) {
 		t.Fatalf("validate: %v", err)
 	}
 }
+
+// The voice defaults must make push-to-talk end on silence, with record_seconds
+// acting as a ceiling rather than a fixed wait.
+func TestVoiceSilenceDefaults(t *testing.T) {
+	cfg := Default()
+	if !cfg.Voice.SilenceStop {
+		t.Fatal("silence_stop should default on")
+	}
+	if cfg.Voice.SilenceSeconds != 1.0 {
+		t.Fatalf("silence_seconds = %v", cfg.Voice.SilenceSeconds)
+	}
+	if cfg.Voice.RecordSeconds != 15 {
+		t.Fatalf("record_seconds ceiling = %v", cfg.Voice.RecordSeconds)
+	}
+	if cfg.Voice.STTServer.Enabled() {
+		t.Fatal("no warm server should be configured by default")
+	}
+}
+
+// pylon.local.yaml sets only bin + port; host must default and the server must
+// come out enabled.
+func TestVoiceSTTServerPartialConfig(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "pylon.yaml")
+	yaml := `
+voice:
+  stt_server:
+    bin: /opt/whisper/whisper-server
+    port: 8910
+`
+	if err := os.WriteFile(path, []byte(yaml), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if !cfg.Voice.STTServer.Enabled() {
+		t.Fatal("stt_server should be enabled when bin is set")
+	}
+	if got := cfg.Voice.STTServer.Addr(); got != "127.0.0.1:8910" {
+		t.Fatalf("addr = %q", got)
+	}
+}
+
+func TestSTTServerAddrDefaults(t *testing.T) {
+	if got := (STTServer{Bin: "x"}).Addr(); got != "127.0.0.1:8910" {
+		t.Fatalf("empty host/port addr = %q", got)
+	}
+	if got := (STTServer{Bin: "x", Host: "0.0.0.0", Port: 9000}).Addr(); got != "0.0.0.0:9000" {
+		t.Fatalf("addr = %q", got)
+	}
+}
+
+// silence_stop: false must survive the overlay onto defaults, which start true.
+func TestVoiceSilenceStopCanBeDisabled(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "pylon.yaml")
+	if err := os.WriteFile(path, []byte("voice:\n  silence_stop: false\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if cfg.Voice.SilenceStop {
+		t.Fatal("explicit silence_stop: false was overridden by the default")
+	}
+}

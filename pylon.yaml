@@ -6,7 +6,28 @@ voice:
   stt_bin: whisper-cli              # whisper.cpp CLI binary (in PATH or absolute)
   stt_model: ""                     # ggml model path, e.g. ~/models/ggml-large-v3.bin
   language: auto                    # auto-detect, or ISO code: tr, en, de, ...
-  record_seconds: 5                 # push-to-talk capture window
+  # The capture ends when you stop talking, so record_seconds is a ceiling for a
+  # runaway recording — not a fixed wait. Silence-stop needs sox (`rec`) on
+  # Linux/Windows; without it Pylon logs one line and uses the fixed window.
+  silence_stop: true                # end the capture once you go quiet
+  silence_seconds: 1.0              # how much quiet ends it
+  silence_threshold: 3.0            # percent of full scale counted as quiet
+  record_seconds: 15                # ceiling on how long you may talk
+  # If the capture never starts, your input gain is the first thing to check —
+  # it matters more than any setting here. Record yourself and look at the level:
+  #   rec -r 16000 -c 1 /tmp/t.wav trim 0 5 && sox /tmp/t.wav -n stat
+  # Speech should peak around 30-70% of full scale. Much lower and it sits in the
+  # room's noise floor, where no threshold can separate the two — raise the mic
+  # instead (Linux/PipeWire: wpctl set-volume @DEFAULT_AUDIO_SOURCE@ 1.0).
+  # Only then tune silence_threshold: up in a noisy room, down for a soft voice.
+  # stt_server keeps a whisper.cpp server warm so each turn skips the model load
+  # (~0.6 s with large-v3-turbo). The daemon owns the process; `pylon listen`
+  # only talks to it. Leave it out to run stt_bin once per turn instead — and if
+  # the server is ever unreachable, transcription falls back to stt_bin anyway.
+  # stt_server:
+  #   bin: /path/whisper.cpp/build/bin/whisper-server
+  #   port: 8910                    # host defaults to 127.0.0.1
+  #   args: []                      # extra whisper-server flags, e.g. ["-t", "8"]
   # tts_cmd: synthesis command — text on stdin, write a WAV to {file}. Engine-
   # agnostic. Examples:
   #   piper:  ["piper", "-m", "/path/voice.onnx", "-f", "{file}"]
@@ -17,8 +38,9 @@ voice:
   #   XTTS server (natural, GPU): a curl client posting text to the local server:
   #     ["curl", "-sf", "--data-binary", "@-", "-o", "{file}", "http://127.0.0.1:5067/tts"]
   tts_cmd: []                       # empty → spoken replies disabled (text still printed)
-  # record_cmd / play_cmd default per-OS (Linux: pw-record/pw-play). Override if
-  # needed; {file} and {seconds} are substituted. Examples:
+  # record_cmd / play_cmd default per-OS (Linux: `rec` when silence_stop is on,
+  # else pw-record; pw-play). A record_cmd set here is always used as-is.
+  # {file}, {seconds} and {silence} are substituted. Examples:
   #   record_cmd: ["arecord", "-q", "-f", "S16_LE", "-r", "16000", "-c", "1", "-d", "{seconds}", "{file}"]
   #   play_cmd:   ["paplay", "{file}"]
   hotkey: "super+p"                 # informational — bind `pylon listen` in your DE/OS
