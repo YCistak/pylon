@@ -189,10 +189,19 @@ func (a *App) RestartDaemon() {
 }
 
 // GoogleStatus reports the Google connection: "connected" (signed in),
-// "ready" (can sign in), or "unavailable" (no OAuth client in this build).
+// "ready" (can sign in), "unavailable" (no OAuth client in this build), or
+// "offline" (the daemon did not answer).
+//
+// "offline" is separate on purpose. Folding an unreachable daemon into
+// "unavailable" made a cold launch — when the GUI has spawned the daemon but it
+// is still coming up — claim Google sign-in is missing from the build, which is
+// both wrong and sounds permanent. The card re-checks once the daemon answers.
 func (a *App) GoogleStatus() string {
 	resp, err := send(request{Cmd: "auth", Args: []string{"google", "status"}})
-	if err != nil || !resp.OK {
+	if err != nil {
+		return "offline"
+	}
+	if !resp.OK {
 		return "unavailable"
 	}
 	return resp.Text

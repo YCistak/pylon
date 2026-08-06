@@ -3,17 +3,30 @@
   // mail and Drive. The OAuth consent runs in the daemon (same flow as
   // `pylon auth google`); when this build has no OAuth client embedded yet the
   // row shows as not-yet-available rather than a dead button.
-  import { onMount } from 'svelte'
-  import { GoogleStatus, GoogleLogin } from '../../wailsjs/go/main/App.js'
+  import { GoogleStatus, GoogleLogin, RestartDaemon } from '../../wailsjs/go/main/App.js'
+  import { daemonOnline } from './daemon.js'
 
-  let status = 'unavailable' // 'connected' | 'ready' | 'unavailable'
+  let status = 'offline' // 'connected' | 'ready' | 'unavailable' | 'offline'
   let busy = false
   let error = ''
 
   async function refresh() {
-    try { status = await GoogleStatus() } catch { status = 'unavailable' }
+    try { status = await GoogleStatus() } catch { status = 'offline' }
   }
-  onMount(refresh)
+
+  // Follow the shared daemon probe rather than checking once on mount: the GUI
+  // spawns the daemon in the background, so a cold launch would otherwise leave
+  // this card stuck on whatever it saw before the socket answered. Same
+  // change-only guard as Widget.svelte — the store re-publishes every 1.5s, and
+  // asking the daemon that often would be pure noise.
+  let lastOnline = undefined
+  function onDaemonChange(online) {
+    if (online === lastOnline) return
+    lastOnline = online
+    if (online === true) refresh()
+    else if (online === false) status = 'offline'
+  }
+  $: onDaemonChange($daemonOnline)
 
   async function login() {
     if (busy || status !== 'ready') return
@@ -21,6 +34,12 @@
     error = ''
     try {
       await GoogleLogin()
+      // buildServiceRegistry only registers Calendar and Drive when a token
+      // exists, and it runs once at daemon startup. Without this bounce the
+      // badge flips to "Bağlı" while those commands keep failing until the
+      // user restarts Pylon themselves. ApiKeys.svelte does the same after
+      // saving a key.
+      RestartDaemon()
       await refresh()
     } catch (e) {
       error = String(e?.message || e)
@@ -48,6 +67,10 @@
       <button class="signin" on:click={login} disabled={busy}>
         {busy ? 'Tarayıcı açıldı…' : 'Google ile Giriş Yap'}
       </button>
+    {:else if status === 'offline'}
+      <button class="signin" disabled title="Pylon bağlantısı bekleniyor">
+        Bağlanılıyor…
+      </button>
     {:else}
       <button class="signin" disabled title="Bu sürümde henüz aktif değil">
         Google ile Giriş Yap
@@ -55,10 +78,12 @@
     {/if}
   </div>
 
-  {#if status === 'unavailable'}
-    <p class="note">Google girişi bu sürümde henüz aktif değil — yakında.</p>
-  {:else if error}
+  {#if error}
     <p class="note err">{error}</p>
+  {:else if status === 'unavailable'}
+    <p class="note">Google girişi bu sürümde henüz aktif değil — yakında.</p>
+  {:else if status === 'offline'}
+    <p class="note">Pylon başlatılıyor — bağlanınca durum güncellenecek.</p>
   {/if}
 </section>
 

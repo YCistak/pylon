@@ -88,3 +88,10 @@ jobs:
         # webkit2_41 is a no-op off Linux, where the tag selects webkit2gtk-4.1
         # over the unavailable 4.0.
         run: go build -tags webkit2_41 ./...
+
+      # The GUI is a separate module, so the daemon job's `go test ./...` never
+      # descends into it. It has tests now (app_test.go); without this step
+      # nothing would ever run them.
+      - name: Test
+        working-directory: pylon-ui
+        run: go test -tags webkit2_41 ./...
