@@ -145,6 +145,42 @@ Windows' built-in SAPI voices (no install). Recording and playback default
 per-OS (`pw-record`/`pw-play` on Linux, `sox`/`afplay` on macOS,
 `ffmpeg`/PowerShell on Windows) and are overridable.
 
+Two more settings decide how fast a spoken turn feels.
+
+`silence_stop` (on by default) ends the capture the moment you stop talking, so a
+two-second question takes two seconds instead of waiting out `record_seconds` —
+which is now only a ceiling on how long you may talk. It needs `sox` on Linux and
+Windows (macOS already records through sox); without it Pylon logs a line and
+keeps the fixed window.
+
+If the capture never starts, check your **input gain** before touching any
+setting — it decides whether this works at all:
+
+```sh
+rec -r 16000 -c 1 /tmp/t.wav trim 0 5 && sox /tmp/t.wav -n stat
+```
+
+Speech should peak around 30-70% of full scale. Much quieter and it sits in the
+room's noise floor, where no threshold can tell the two apart and transcription
+degrades to guesswork — raise the mic instead (PipeWire:
+`wpctl set-volume @DEFAULT_AUDIO_SOURCE@ 1.0`). With a healthy level, tune
+`silence_threshold` (percent, default 3): up in a noisy room, down for a soft
+voice.
+
+`stt_server` points at whisper.cpp's server binary. The daemon starts it, keeps
+the model resident, and stops it on shutdown — taking the model load (~0.6 s with
+large-v3-turbo) out of every turn:
+
+```yaml
+voice:
+  stt_server:
+    bin: /path/whisper.cpp/build/bin/whisper-server
+    port: 8910
+```
+
+If the server is unreachable, transcription falls back to `stt_bin`, so voice
+keeps working — just slower.
+
 Then bind `pylon listen` to a hotkey in your desktop environment for
 push-to-talk.
 

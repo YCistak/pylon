@@ -173,6 +173,7 @@ func cmdStart() error {
 	registerSecrets(d)
 	registerAuth(d, cfg)
 	registerHotkey(d, cfg, database, log)
+	registerSTTServer(d, cfg, log)
 
 	return d.Run(context.Background())
 }
@@ -374,6 +375,50 @@ func briefingSpeaker(cfg config.Config) voice.Speaker {
 	return voice.NewSpeaker(cfg.Voice.TTSCmd, cfg.Voice.PlayCmd)
 }
 
+// voiceOptions maps the voice config onto the pipeline, so `pylon listen` and the
+// daemon's "listen" command always capture and transcribe identically.
+func voiceOptions(cfg config.Config) voice.Options {
+	o := voice.Options{
+		STTBin:           cfg.Voice.STTBin,
+		STTModel:         cfg.Voice.STTModel,
+		Language:         cfg.Voice.Language,
+		TTSCmd:           cfg.Voice.TTSCmd,
+		RecordCmd:        cfg.Voice.RecordCmd,
+		RecordSeconds:    cfg.Voice.RecordSeconds,
+		SilenceStop:      cfg.Voice.SilenceStop,
+		SilenceSeconds:   cfg.Voice.SilenceSeconds,
+		SilenceThreshold: cfg.Voice.SilenceThreshold,
+		PlayCmd:          cfg.Voice.PlayCmd,
+	}
+	// Both the daemon and the CLI talk to the warm server; only the daemon owns
+	// the process (see registerSTTServer).
+	if cfg.Voice.STTServer.Enabled() {
+		o.STTServerAddr = cfg.Voice.STTServer.Addr()
+	}
+	return o
+}
+
+// registerSTTServer keeps a whisper.cpp server warm for the daemon's lifetime,
+// so each spoken turn skips reloading the model (~610 ms with large-v3-turbo).
+// Without stt_server.bin configured, transcription shells out per turn as before.
+func registerSTTServer(d *daemon.Daemon, cfg config.Config, log *slog.Logger) {
+	s := cfg.Voice.STTServer
+	if !s.Enabled() || cfg.Voice.STTModel == "" {
+		return
+	}
+	addr := s.Addr()
+	log.Info("stt server", "addr", addr, "bin", s.Bin)
+	d.Register("stt-server", func(ctx context.Context) error {
+		return voice.RunSTTServer(ctx, voice.ServerOptions{
+			Bin:       s.Bin,
+			Addr:      addr,
+			Model:     cfg.Voice.STTModel,
+			Language:  cfg.Voice.Language,
+			ExtraArgs: s.Args,
+		})
+	})
+}
+
 // registerIntent wires the two-tier intent path into the daemon's "say"
 // command: the local Router runs first (free), and only unresolved input falls
 // back to the configured LLM chain, which tries each model in order and falls
@@ -445,19 +490,14 @@ func registerIntent(d *daemon.Daemon, cfg config.Config, database *db.DB, regist
 		if cfg.Voice.STTBin == "" || cfg.Voice.STTModel == "" {
 			return ipc.Response{OK: false, Error: "ses tanıma yapılandırılmadı (voice.stt_bin / stt_model)"}
 		}
-		pipe := voice.NewPipeline(voice.Options{
-			STTBin:        cfg.Voice.STTBin,
-			STTModel:      cfg.Voice.STTModel,
-			Language:      cfg.Voice.Language,
-			TTSCmd:        cfg.Voice.TTSCmd,
-			RecordCmd:     cfg.Voice.RecordCmd,
-			RecordSeconds: cfg.Voice.RecordSeconds,
-			PlayCmd:       cfg.Voice.PlayCmd,
-		})
+		pipe := voice.NewPipeline(voiceOptions(cfg))
 		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 		defer cancel()
 
 		heard, err := pipe.Capture(ctx)
+		if voice.IsNoSpeech(err) {
+			return ipc.Response{OK: true, Text: "ses algılanamadı"}
+		}
 		if err != nil {
 			log.Warn("listen: capture failed", "err", err)
 			return ipc.Response{OK: false, Error: "ses alınamadı: " + err.Error()}
@@ -938,15 +978,7 @@ func cmdListen() error {
 	if err != nil {
 		return fmt.Errorf("config: %w", err)
 	}
-	pipe := voice.NewPipeline(voice.Options{
-		STTBin:        cfg.Voice.STTBin,
-		STTModel:      cfg.Voice.STTModel,
-		Language:      cfg.Voice.Language,
-		TTSCmd:        cfg.Voice.TTSCmd,
-		RecordCmd:     cfg.Voice.RecordCmd,
-		RecordSeconds: cfg.Voice.RecordSeconds,
-		PlayCmd:       cfg.Voice.PlayCmd,
-	})
+	pipe := voice.NewPipeline(voiceOptions(cfg))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
@@ -955,8 +987,16 @@ func cmdListen() error {
 	if secs <= 0 {
 		secs = 5
 	}
-	fmt.Fprintf(os.Stderr, "dinliyorum (%d sn) — konuş ve bekle, Ctrl+C YAPMA...\n", secs)
+	if cfg.Voice.SilenceStop {
+		fmt.Fprintf(os.Stderr, "dinliyorum — konuş, susunca duracağım (en fazla %d sn)...\n", secs)
+	} else {
+		fmt.Fprintf(os.Stderr, "dinliyorum (%d sn) — konuş ve bekle, Ctrl+C YAPMA...\n", secs)
+	}
 	text, err := pipe.Capture(ctx)
+	if voice.IsNoSpeech(err) {
+		fmt.Fprintln(os.Stderr, "ses algılanamadı")
+		return nil
+	}
 	if err != nil {
 		return err
 	}

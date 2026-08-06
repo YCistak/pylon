@@ -52,10 +52,10 @@ func (s *cmdSpeaker) Say(ctx context.Context, text string) error {
 	defer cleanup()
 
 	// Synthesize: text on stdin, output WAV at {file}.
-	if _, err := s.run(ctx, []byte(text), s.ttsCmd[0], substituteArgs(s.ttsCmd[1:], wav, 0)); err != nil {
+	if _, err := s.run(ctx, []byte(text), s.ttsCmd[0], substituteArgs(s.ttsCmd[1:], wav, 0, 0, 0)); err != nil {
 		return err
 	}
-	_, err = s.run(ctx, nil, s.playCmd[0], substituteArgs(s.playCmd[1:], wav, 0))
+	_, err = s.run(ctx, nil, s.playCmd[0], substituteArgs(s.playCmd[1:], wav, 0, 0, 0))
 	return err
 }
 

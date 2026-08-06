@@ -7,8 +7,10 @@ package config
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -41,17 +43,61 @@ type Voice struct {
 	STTModel string `yaml:"stt_model"` // ggml model path (e.g. ggml-large-v3.bin)
 	Language string `yaml:"language"`  // "auto" (detect) or ISO code: tr, en, ...
 
+	// STTServer keeps a whisper.cpp server warm so each turn skips the model
+	// load (measured ~610 ms with large-v3-turbo). Empty Bin → CLI per turn.
+	STTServer STTServer `yaml:"stt_server"`
+
 	// TTSCmd is the synthesis command: receives the text on stdin and must write
 	// a WAV to the "{file}" placeholder. Engine-agnostic — piper, an XTTS server
 	// client (curl), espeak, etc. Empty disables spoken replies.
 	TTSCmd []string `yaml:"tts_cmd"`
 
 	RecordCmd     []string `yaml:"record_cmd"`     // empty → per-OS default
-	RecordSeconds int      `yaml:"record_seconds"` // push-to-talk capture window
+	RecordSeconds int      `yaml:"record_seconds"` // capture ceiling, not the wait
 	PlayCmd       []string `yaml:"play_cmd"`       // empty → per-OS default
+
+	// SilenceStop ends the capture once you stop talking instead of always
+	// waiting out RecordSeconds. Needs a recorder that can do it (sox `rec`);
+	// without one the fixed window is used.
+	SilenceStop    bool    `yaml:"silence_stop"`
+	SilenceSeconds float64 `yaml:"silence_seconds"` // quiet time that ends a capture
+	// SilenceThreshold is the percent of full scale below which audio counts as
+	// quiet. Raise it in a noisy room or with a hot mic; lower it if a soft
+	// voice never triggers the capture.
+	SilenceThreshold float64 `yaml:"silence_threshold"`
 
 	Hotkey string `yaml:"hotkey"` // informational; bind `pylon listen` in your DE/OS
 }
+
+// STTServer configures the warm speech-to-text server. The daemon owns the
+// process; the CLI only talks to it.
+type STTServer struct {
+	Bin  string   `yaml:"bin"`  // whisper.cpp server binary; empty disables it
+	Host string   `yaml:"host"` // empty → 127.0.0.1
+	Port int      `yaml:"port"` // empty → 8910
+	Args []string `yaml:"args"` // extra flags appended to the server command
+}
+
+// Addr is the host:port the server listens on, with defaults filled in.
+func (s STTServer) Addr() string {
+	host := s.Host
+	if host == "" {
+		host = defaultSTTHost
+	}
+	port := s.Port
+	if port == 0 {
+		port = defaultSTTPort
+	}
+	return net.JoinHostPort(host, strconv.Itoa(port))
+}
+
+// Enabled reports whether a warm server is configured.
+func (s STTServer) Enabled() bool { return s.Bin != "" }
+
+const (
+	defaultSTTHost = "127.0.0.1"
+	defaultSTTPort = 8910
+)
 
 // Intent configures the local router and the LLM fallback chain.
 type Intent struct {
@@ -185,10 +231,15 @@ type Paths struct {
 func Default() Config {
 	return Config{
 		Voice: Voice{
-			STTBin:        "whisper-cli",
-			Language:      "auto",
-			RecordSeconds: 5,
-			Hotkey:        "super+p",
+			STTBin:   "whisper-cli",
+			Language: "auto",
+			// A ceiling, not a wait: SilenceStop ends the capture as soon as you
+			// stop talking, so this only caps a runaway recording.
+			RecordSeconds:    15,
+			SilenceStop:      true,
+			SilenceSeconds:   1.0,
+			SilenceThreshold: 3.0,
+			Hotkey:           "super+p",
 			// STTModel + TTSCmd are user-specific (no default); RecordCmd/PlayCmd
 			// empty → internal/voice fills the per-OS default.
 		},
