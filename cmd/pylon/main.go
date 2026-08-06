@@ -379,15 +379,16 @@ func briefingSpeaker(cfg config.Config) voice.Speaker {
 // daemon's "listen" command always capture and transcribe identically.
 func voiceOptions(cfg config.Config) voice.Options {
 	o := voice.Options{
-		STTBin:         cfg.Voice.STTBin,
-		STTModel:       cfg.Voice.STTModel,
-		Language:       cfg.Voice.Language,
-		TTSCmd:         cfg.Voice.TTSCmd,
-		RecordCmd:      cfg.Voice.RecordCmd,
-		RecordSeconds:  cfg.Voice.RecordSeconds,
-		SilenceStop:    cfg.Voice.SilenceStop,
-		SilenceSeconds: cfg.Voice.SilenceSeconds,
-		PlayCmd:        cfg.Voice.PlayCmd,
+		STTBin:           cfg.Voice.STTBin,
+		STTModel:         cfg.Voice.STTModel,
+		Language:         cfg.Voice.Language,
+		TTSCmd:           cfg.Voice.TTSCmd,
+		RecordCmd:        cfg.Voice.RecordCmd,
+		RecordSeconds:    cfg.Voice.RecordSeconds,
+		SilenceStop:      cfg.Voice.SilenceStop,
+		SilenceSeconds:   cfg.Voice.SilenceSeconds,
+		SilenceThreshold: cfg.Voice.SilenceThreshold,
+		PlayCmd:          cfg.Voice.PlayCmd,
 	}
 	// Both the daemon and the CLI talk to the warm server; only the daemon owns
 	// the process (see registerSTTServer).
@@ -494,6 +495,9 @@ func registerIntent(d *daemon.Daemon, cfg config.Config, database *db.DB, regist
 		defer cancel()
 
 		heard, err := pipe.Capture(ctx)
+		if voice.IsNoSpeech(err) {
+			return ipc.Response{OK: true, Text: "ses algılanamadı"}
+		}
 		if err != nil {
 			log.Warn("listen: capture failed", "err", err)
 			return ipc.Response{OK: false, Error: "ses alınamadı: " + err.Error()}
@@ -989,6 +993,10 @@ func cmdListen() error {
 		fmt.Fprintf(os.Stderr, "dinliyorum (%d sn) — konuş ve bekle, Ctrl+C YAPMA...\n", secs)
 	}
 	text, err := pipe.Capture(ctx)
+	if voice.IsNoSpeech(err) {
+		fmt.Fprintln(os.Stderr, "ses algılanamadı")
+		return nil
+	}
 	if err != nil {
 		return err
 	}

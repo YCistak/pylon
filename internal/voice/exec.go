@@ -38,9 +38,9 @@ func execRun(ctx context.Context, stdin []byte, name string, args []string) ([]b
 	return stdout.Bytes(), nil
 }
 
-// substituteArgs replaces the "{file}", "{seconds}" and "{silence}" placeholders
-// in a command template, returning a fresh slice.
-func substituteArgs(tmpl []string, file string, seconds int, silence float64) []string {
+// substituteArgs replaces the "{file}", "{seconds}", "{silence}" and
+// "{threshold}" placeholders in a command template, returning a fresh slice.
+func substituteArgs(tmpl []string, file string, seconds int, silence, threshold float64) []string {
 	rep := strings.NewReplacer(
 		"{file}", file,
 		"{seconds}", fmt.Sprint(seconds),
@@ -48,6 +48,7 @@ func substituteArgs(tmpl []string, file string, seconds int, silence float64) []
 		// count*, so "1" would end the capture after one sample and clip the
 		// last word, while "1.00" means one second.
 		"{silence}", strconv.FormatFloat(silence, 'f', 2, 64),
+		"{threshold}", strconv.FormatFloat(threshold, 'f', 2, 64)+"%",
 	)
 	out := make([]string, len(tmpl))
 	for i, a := range tmpl {
