@@ -9,6 +9,27 @@
 
   export let editing = null // widget instance handed in from App (pen icon)
 
+  // Settings grew card by card into one long column. Grouping them keeps each
+  // screen to a single question — what's on the home, which accounts, how voice
+  // behaves — instead of making you scroll past all three to reach one.
+  const TABS = [
+    { id: 'gorunum', label: 'Görünüm', hint: 'Ana sayfada ve sol çubukta neyin duracağını seç.' },
+    { id: 'hesaplar', label: 'Hesaplar', hint: 'Servis bağlantıları ve kayıtlı anahtarlar.' },
+    { id: 'ses', label: 'Ses', hint: 'Konuşma tanıma ve bas-konuş kısayolu.' },
+  ]
+  let activeTab = TABS[0].id
+  $: activeHint = TABS.find((t) => t.id === activeTab)?.hint ?? ''
+
+  // Left/right arrows move between tabs, which is what a tablist is expected to
+  // do once the buttons carry tab roles.
+  function onTabKeydown(e) {
+    const i = TABS.findIndex((t) => t.id === activeTab)
+    if (e.key === 'ArrowRight') activeTab = TABS[(i + 1) % TABS.length].id
+    else if (e.key === 'ArrowLeft') activeTab = TABS[(i - 1 + TABS.length) % TABS.length].id
+    else return
+    e.preventDefault()
+  }
+
   let showPicker = false
   let draft = null   // widget instance being created/edited in the modal
   let isNew = false
@@ -29,8 +50,9 @@
     isNew = false
   }
 
-  // Pen icon on Home hands us an instance via bind:editing.
-  $: if (editing) { openEdit(editing); editing = null }
+  // Pen icon on Home hands us an instance via bind:editing. Land on Görünüm too,
+  // so closing the modal leaves you looking at the widget it belongs to.
+  $: if (editing) { activeTab = 'gorunum'; openEdit(editing); editing = null }
 
   function closeModal() { draft = null }
 
@@ -71,9 +93,30 @@
 <div class="settings">
   <header class="head">
     <h2>Ayarlar</h2>
-    <p class="sub">Widget'ları buradan ekle, düzenle veya sil. Ana sayfa yalnızca burada eklediklerini gösterir.</p>
   </header>
 
+  <!-- tabindex="-1": the tablist itself is never a tab stop — focus lands on the
+       selected tab, which carries the roving tabindex below. -->
+  <div class="tabs" role="tablist" tabindex="-1" on:keydown={onTabKeydown}>
+    {#each TABS as t (t.id)}
+      <button
+        class="tab"
+        class:active={activeTab === t.id}
+        role="tab"
+        aria-selected={activeTab === t.id}
+        tabindex={activeTab === t.id ? 0 : -1}
+        on:click={() => (activeTab = t.id)}
+      >{t.label}</button>
+    {/each}
+  </div>
+  <p class="sub">{activeHint}</p>
+
+  <!-- One flex column so every card is spaced the same, whether it lives in
+       this file or comes from a child component. A `.card + .card` rule cannot
+       do that: Svelte scopes it to this component's own elements, so Accounts,
+       ApiKeys and VoiceSettings used to sit flush against each other. -->
+  <div class="panel">
+  {#if activeTab === 'gorunum'}
   <section class="card">
     <div class="card-head">
       <div class="card-title">
@@ -152,12 +195,13 @@
       {/each}
     </ul>
   </section>
-
+  {:else if activeTab === 'hesaplar'}
   <Accounts />
-
   <ApiKeys />
-
+  {:else if activeTab === 'ses'}
   <VoiceSettings />
+  {/if}
+  </div>
 
   <p class="note">Servis aç/kapa ve daha fazlası — sonraki adımda gelecek.</p>
 </div>
@@ -253,10 +297,38 @@
 
 <style>
   .settings { flex: 1; padding: 40px 44px; overflow: auto; max-width: 720px; }
-  .head h2 { margin: 0 0 6px; color: var(--text-0); font-size: 24px; }
-  .sub { color: var(--text-2); line-height: 1.55; margin: 0 0 26px; max-width: 520px; }
+  .head h2 { margin: 0 0 16px; color: var(--text-0); font-size: 24px; }
+  .sub { color: var(--text-2); line-height: 1.55; margin: 0 0 22px; max-width: 520px; }
 
-  .settings .card + .card { margin-top: 18px; }
+  /* Underline-style tabs: the row reads as navigation rather than as three more
+     buttons competing with the ones inside the cards. */
+  .tabs {
+    display: flex; gap: 4px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 16px;
+  }
+  .tab {
+    position: relative;
+    border: 0; background: none; cursor: pointer;
+    font: inherit; font-size: 13px; font-weight: 700;
+    color: var(--text-2);
+    padding: 9px 14px 11px;
+    border-radius: 9px 9px 0 0;
+    transition: color var(--dur), background var(--dur);
+  }
+  .tab::after {
+    content: ''; position: absolute; left: 10px; right: 10px; bottom: -1px;
+    height: 2px; border-radius: 2px;
+    background: var(--accent);
+    transform: scaleX(0);
+    transition: transform var(--dur) var(--ease);
+  }
+  .tab:hover { color: var(--text-1); background: var(--surface); }
+  .tab.active { color: var(--text-0); }
+  .tab.active::after { transform: scaleX(1); }
+  .tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+  .panel { display: flex; flex-direction: column; gap: 18px; }
   .section-hint { color: var(--text-3); font-size: 12.5px; margin: 0 4px 6px; line-height: 1.5; }
   .pill {
     border: 1px solid var(--border-2); background: var(--bg-2); color: var(--text-1);
