@@ -29,10 +29,23 @@ func (f *fakeRun) run(_ context.Context, stdin []byte, name string, args []strin
 }
 
 func TestSubstituteArgs(t *testing.T) {
-	got := substituteArgs([]string{"-d", "{seconds}", "{file}"}, "/tmp/a.wav", 7)
-	want := []string{"-d", "7", "/tmp/a.wav"}
+	got := substituteArgs([]string{"-d", "{seconds}", "{silence}", "{file}"}, "/tmp/a.wav", 7, 1.5)
+	want := []string{"-d", "7", "1.50", "/tmp/a.wav"}
 	if strings.Join(got, " ") != strings.Join(want, " ") {
 		t.Fatalf("got %v", got)
+	}
+}
+
+// sox reads a bare integer as a sample count, not seconds: rendering 1.0 as "1"
+// ends the capture after a single sample and clips the last word. Verified
+// against sox — "1" produced "Hava bugün nasıl?" where "1.00" gave the full
+// "Hava bugün nasıl olacak?".
+func TestSubstituteArgsSilenceKeepsDecimalPoint(t *testing.T) {
+	for _, in := range []float64{1, 2, 0.5} {
+		got := substituteArgs([]string{"{silence}"}, "x.wav", 0, in)
+		if !strings.Contains(got[0], ".") {
+			t.Fatalf("silence %v rendered as %q — sox would read that as samples", in, got[0])
+		}
 	}
 }
 

@@ -9,6 +9,12 @@ func defaultRecordCmd() []string {
 	return []string{"sox", "-d", "-r", "16000", "-c", "1", "-b", "16", "{file}", "trim", "0", "{seconds}"}
 }
 
+// silenceRecordCmd is the same sox capture, ended by silence instead of by the
+// full window. `-d` is sox's default input device, so no separate `rec` needed.
+func silenceRecordCmd() []string {
+	return soxSilenceRecordCmd("sox", "-d")
+}
+
 func defaultPlayCmd() []string {
 	return []string{"afplay", "{file}"}
 }
