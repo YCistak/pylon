@@ -7,7 +7,15 @@ semver precedence — including prerelease ordering.
 
 Cutting a release: [docs/RELEASE.md](docs/RELEASE.md).
 
-## [Unreleased]
+## [0.1.0-alpha.1] — 2026-08-07
+
+The first published release. An earlier tag of this name existed but was never
+published: its draft carried assets built from a different tag, so nothing could
+have installed or verified it. It has been removed and the name reused.
+
+Alpha means alpha. It is used daily on Linux, which is where it is developed;
+macOS and Windows run the daemon and most services but not all of them, and the
+[platform table](README.md#platform-support) is the honest account of which.
 
 ### Added
 
@@ -54,12 +62,10 @@ Cutting a release: [docs/RELEASE.md](docs/RELEASE.md).
 - Config keys the code does not read are gone from the shipped `pylon.yaml`,
   and a test now decodes it strictly so the two cannot drift apart again.
 
-## [0.1.0-alpha.1] — 2026-07-18
+### Everything else in this release
 
-First tagged build. Not published — see
-[docs/RELEASE.md](docs/RELEASE.md#before-you-tag) for what is still in the way.
-
-### Added
+The groundwork, listed once because there is no earlier release to compare it
+against:
 
 - Go daemon with Unix-socket JSON-lines IPC; CLI and Wails/Svelte GUI as
   clients. The daemon holds all state and stays CGo-free, which is what lets it
@@ -77,5 +83,18 @@ First tagged build. Not published — see
 - Signed self-update (`pylon update`), an AUR `pylon-bin` PKGBUILD, and CI
   running the daemon and GUI on Linux, macOS and Windows.
 
-[Unreleased]: https://github.com/YCistak/pylon/compare/v0.1.0-alpha.1...HEAD
+### Known limitations
+
+- **Google and Spotify are unavailable in this build.** Both sign-in flows are
+  implemented and work, but a release build needs the project's OAuth client
+  baked in and no client is configured yet, so the Accounts screen reports them
+  as not yet active. Self-hosters can set `services.google.client_id` /
+  `services.spotify.client_id` in `pylon.yaml` and sign in normally.
+- **`pylon update` will not offer this release.** GitHub's "latest release"
+  endpoint skips prereleases, so an alpha never reaches the updater. Update by
+  downloading until the first stable tag.
+- Docker on Windows needs named-pipe support, and screen lock, volume and media
+  keys are Linux-only. See the
+  [platform table](README.md#platform-support).
+
 [0.1.0-alpha.1]: https://github.com/YCistak/pylon/releases/tag/v0.1.0-alpha.1
