@@ -1,63 +1,47 @@
-# Svelte + Vite
+# frontend
 
-This template should help get you started developing with Svelte in Vite.
+Pylon's GUI frontend: Svelte 3 + Vite. Wails embeds the built `dist/` into the
+Go binary, so this is never served on its own in production.
 
-## Recommended IDE Setup
-
-[VS Code](https://code.visualstudio.com/)
-
-+ [Svelte](https://marketplace.visualstudio.com/items?itemName=svelte.svelte-vscode).
-
-## Need an official Svelte framework?
-
-Check out [SvelteKit](https://github.com/sveltejs/kit#readme), which is also powered by Vite. Deploy anywhere with its
-serverless-first approach and adapt to various platforms, with out of the box support for TypeScript, SCSS, and Less,
-and easily-added support for mdsvex, GraphQL, PostCSS, Tailwind CSS, and more.
-
-## Technical considerations
-
-**Why use this over SvelteKit?**
-
-- It brings its own routing solution which might not be preferable for some users.
-- It is first and foremost a framework that just happens to use Vite under the hood, not a Vite app.
-  `vite dev` and `vite build` wouldn't work in a SvelteKit environment, for example.
-
-This template contains as little as possible to get started with Vite + Svelte, while taking into account the developer
-experience with regards to HMR and intellisense. It demonstrates capabilities on par with the other `create-vite`
-templates and is a good starting point for beginners dipping their toes into a Vite + Svelte project.
-
-Should you later need the extended capabilities and extensibility provided by SvelteKit, the template has been
-structured similarly to SvelteKit so that it is easy to migrate.
-
-**Why `global.d.ts` instead of `compilerOptions.types` inside `jsconfig.json` or `tsconfig.json`?**
-
-Setting `compilerOptions.types` shuts out all other types not explicitly listed in the configuration. Using triple-slash
-references keeps the default TypeScript setting of accepting type information from the entire workspace, while also
-adding `svelte` and `vite/client` type information.
-
-**Why include `.vscode/extensions.json`?**
-
-Other templates indirectly recommend extensions via the README, but this file allows VS Code to prompt the user to
-install the recommended extension upon opening the project.
-
-**Why enable `checkJs` in the JS template?**
-
-It is likely that most cases of changing variable types in runtime are likely to be accidental, rather than deliberate.
-This provides advanced typechecking out of the box. Should you like to take advantage of the dynamically-typed nature of
-JavaScript, it is trivial to change the configuration.
-
-**Why is HMR not preserving my local component state?**
-
-HMR state preservation comes with a number of gotchas! It has been disabled by default in both `svelte-hmr`
-and `@sveltejs/vite-plugin-svelte` due to its often surprising behavior. You can read the
-details [here](https://github.com/rixo/svelte-hmr#svelte-hmr).
-
-If you have state that's important to retain within a component, consider creating an external store which would not be
-replaced by HMR.
-
-```js
-// store.js
-// An extremely simple external store
-import { writable } from 'svelte/store'
-export default writable(0)
+```sh
+npm ci
+npm run build     # → dist/, which pylon-ui embeds
 ```
+
+Building the binary (`make gui` from the repository root) runs this for you.
+
+## Layout
+
+```
+src/
+  App.svelte          three zones: dock, and home | settings | a pinned page
+  lib/
+    Sidebar.svelte      the dock — brand, pinned pages, daemon dot, settings
+    PylonStage.svelte   the orb
+    VoiceBar.svelte     push-to-talk
+    Widget.svelte       generic text card, driven by one Do() action
+    DockerWidget.svelte rich container card (start/stop/restart)
+    DockerPage.svelte   full-screen container manager
+    Settings.svelte     three tabs + the widget editor dialog
+    Accounts.svelte     OAuth sign-in
+    ApiKeys.svelte      vault keys
+    VoiceSettings.svelte push-to-talk shortcut
+    widgets.js          widget catalog + instance store (localStorage)
+    sidebarPages.js     pinnable pages + their store
+    daemon.js           one shared "is the daemon up" store
+    icons.js            inline SVG
+wailsjs/              generated Go bindings — committed, see ../README.md
+```
+
+## House rules
+
+- **Turkish in the interface**, English in code and comments.
+- **Real elements for real behaviour.** A thing you click is a `<button>`;
+  anything with a `role` gets the keyboard handling that role implies. There is
+  no `svelte-ignore` in this tree — the build is expected to be warning-free, so
+  a warning means something to fix rather than something to silence.
+- **State that outlives a session goes to `localStorage` under a versioned key**
+  (`pylon.widgets.v2`, `pylon.sidebar.v1`, `pylon.dockerpage.v1`). Bump the
+  version and migrate, rather than reading an old shape and hoping.
+- **Data comes from the daemon**, always through `Do()` or a bound method. The
+  frontend holds no credentials and reaches nothing over the network itself.

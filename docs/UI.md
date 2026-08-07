@@ -1,136 +1,167 @@
-# Pylon UI — Design
+# Pylon UI
 
-> Status: **planning**. Design evolves through the build; this captures the agreed
-> starting shape and the architecture chosen so it doesn't block the character system.
+The GUI as it is built. This file used to be a design plan written before the
+code; it now describes the code, because the plan and the program had drifted
+far enough apart that the document was worse than nothing — it claimed, among
+other things, an architecture the GUI does not and cannot have.
 
-## Vision
+For running and building it, see [`../pylon-ui/README.md`](../pylon-ui/README.md).
 
-Pylon is voice-first and runs as a headless daemon. The UI is an **optional
-companion window**, not the brain. The main assistant is **Pylon**; later, extra
-**characters** join it in a left sidebar (PLANNED Phase 5). Start simple, grow.
+## The GUI is a daemon client, and only that
 
-## Stack
-
-- **Wails v2** — Go backend + web frontend, one cross-platform desktop binary.
-  Chosen so animations / sprites / characters are easy later (web tech), while the
-  backend stays Go and reuses the existing packages.
-- **Frontend: Svelte** (proposed) — small, fast, no virtual-DOM overhead; good for
-  a widget dashboard and later canvas/sprite animation.
-
-## Architecture — the GUI is a daemon client
-
-The daemon stays the single source of truth and runs independently. The Wails app
-is **another IPC client of the daemon** (like the CLI), talking over the existing
-Unix socket (`/tmp/pylon.sock`, `internal/ipc` JSON Request/Response).
+The daemon owns every piece of state. The GUI is another IPC client of it, like
+the CLI: it opens the Unix socket, sends a JSON request, reads one back.
 
 ```
-┌────────────────────┐        ┌──────────────────────────┐
-│ Wails GUI (Go+web)  │  IPC   │ pylon daemon (headless)  │
-│  - reads widget data│◄──────►│  socket /tmp/pylon.sock  │
-│  - sends "say" etc. │ socket │  services, intent, tasks │
-│  - writes secrets ──┼──┐     └──────────────────────────┘
-└────────────────────┘  │ direct (same module)
-                         ▼
-                 internal/secrets (AES vault)
+┌──────────────────────┐        ┌──────────────────────────┐
+│ pylon-ui (Go + web)  │  IPC   │ pylon daemon (headless)   │
+│  own Go module       │◄──────►│  /tmp/pylon.sock          │
+│  imports nothing     │ socket │  services, intent, memory │
+│  from the daemon     │        │  secrets vault            │
+└──────────────────────┘        └──────────────────────────┘
 ```
 
-- **Widget data + actions** → IPC to the daemon (`status`, `say`, `recall`, plus new
-  read commands per widget, e.g. calendar-today / rss-unread / github-prs).
-- **Secrets** ("parola ekle" button) → the GUI calls `internal/secrets` **directly**
-  (local AES file vault); no daemon round-trip needed. Same code the CLI uses.
-- If the daemon isn't running, the GUI can offer to start it (spawn `pylon start`).
+`pylon-ui/` is a **separate Go module** on purpose. Wails needs CGo and webkit;
+keeping it out of the daemon's module is what lets `go build ./...` stay
+CGo-free and cross-compile to three platforms. The cost is that the GUI cannot
+import the daemon's packages at all, so it carries its own small copy of the
+wire protocol (`request`/`response` in `app.go`), kept in sync by hand.
 
-## Layout
+That constraint is worth stating plainly because it is easy to get backwards:
+**the GUI never touches the secrets vault directly.** It cannot — `internal/secrets`
+lives in the other module. Saving an API key is `SetSecret` → IPC → the daemon's
+`secret set` handler → the same AES-256-GCM vault the CLI writes.
 
-**Pylon is the main character — not one of the sidebar icons.** It is always
-present on the home stage (the host you talk to). The sidebar holds only the
-*secondary* characters (Phase C) plus settings. Pylon is differentiated by being
-the persistent figure on the stage, never a peer in the character list.
+If no daemon is running, the GUI starts one itself (`app.go` `startup` →
+`daemon.go` `ensureRunning`) and stops it again on exit — but only the one it
+started. A daemon you launched yourself is left alone.
 
-**Pylon sits in the center; widgets flank it left and right.** Pylon is the fixed
-focal point of the home; the service widgets are arranged in columns on either side.
+## Screens
 
-```
-┌────┬───────────────────────────────────────────┐
-│ S  │  ┌──────────┐     ╭─────────╮    ┌────────┐ │
-│ I  │  │📅 Takvim │     │         │    │🐙 GitHub│ │
-│ D  │  │ bugün 2  │     │  PYLON  │    │0 beklyn │ │
-│ E  │  └──────────┘     │ (merkez)│    └────────┘ │
-│ B  │  ┌──────────┐     │         │    ┌────────┐ │
-│ A  │  │📰 FreshRSS│     ╰─────────╯    │ ...    │ │
-│ R  │  │ 5206     │      her zaman      └────────┘ │
-│ ⚙  │  └──────────┘       ortada                   │
-└────┴───────────────────────────────────────────┘
-  └ ikincil karakterler (sonra) + ⚙ ayar
-```
-
-- **Pylon (ana karakter):** the fixed **center** of the home — the persistent presence
-  you address directly. Widgets never overlap it; they live in the left/right columns.
-  Distinct from the sidebar characters by being centered and framed, never a peer icon.
-  *Possible later:* promote it to a **floating avatar** that overlays the whole app
-  (user noted this as a future option).
-- **Sidebar (sol bar):** *only* the secondary characters (added in Phase C) and a ⚙
-  settings entry. In the MVP it is nearly empty (just ⚙) since no characters exist yet.
-- **Home (ana sayfa):** Pylon centered, with **widgets in left & right columns** — each
-  a service's at-a-glance view. Widgets are enabled/disabled from Settings; none on Home.
-- **Settings (ayarlar):** opened from the sidebar ⚙, a separate view. Holds service
-  config, the **secret entry** ("type password → save" → AES vault), widget toggles,
-  and voice settings.
-
-## MVP widgets (map to existing services)
-
-| Widget   | Source (daemon)            | Shows                    |
-|----------|----------------------------|--------------------------|
-| Takvim   | `calendar.list_today`      | today's events / count   |
-| FreshRSS | `freshrss.unread_count`    | unread count (5206)      |
-| GitHub   | `github.list_prs`          | review-requested / open  |
-
-(Each widget is read-only at first; clicking opens detail later.)
-
-## Roadmap — simple first, evolution-ready
-
-- **Phase A — MVP shell.** Wails skeleton; sidebar (Pylon + ⚙) and home widget grid
-  (read-only, polling the daemon); Settings view with secret entry + service/widget
-  toggles. Add the daemon IPC read-commands the widgets need.
-- **Phase B — interaction.** Talk to Pylon from the UI (text box → `say`; later a mic
-  button → the voice pipeline). Live updates instead of polling. Conversation history.
-- **Phase C — characters.** The sidebar gains characters; tapping one enters its
-  domain; it animates out to perform a task and returns. This is PLANNED Phase 5 —
-  design-first session (grouping, art style, lore) before building.
-
-## Implementation (Phase A — in progress)
-
-Scaffolded with `wails init -t svelte` in **`pylon-ui/`** — a **separate Go module**
-on purpose: the daemon's `go build ./...` / `go test ./...` never descend into it, so
-they stay CGo-free (Wails needs CGo + webkit). The GUI talks to the daemon over the
-socket and carries its own tiny copy of the wire protocol; it imports nothing from the
-daemon module.
-
-- **Widget data path:** the daemon gained a **`do <action>`** IPC command (and `pylon do`
-  CLI) that dispatches a service action through the registry **without the LLM**. Widgets
-  call `App.Do("freshrss.unread_count")` → the daemon runs the service → text back.
-  Live-verified headless: `pylon do freshrss.unread_count` → "5204 okunmamış haberin var."
-- **Go backend** (`pylon-ui/app.go`): bound methods `DaemonRunning()`, `Status()`,
-  `Do(action)` — a thin Unix-socket client.
-- **Frontend** (`pylon-ui/frontend/src/`): `App.svelte` (3-zone layout) + `lib/Sidebar.svelte`,
-  `lib/PylonStage.svelte` (centered orb), `lib/Widget.svelte` (calls `Do`). Builds clean
-  (`npm run build`). Settings is a stub — detailed design deferred to step 4 (per user).
-
-### Build & run
-
-Linux needs **webkit2gtk** (the one missing system dep): `sudo pacman -S webkit2gtk-4.1`.
-Since that is the **4.1** variant (Wails defaults to 4.0), build with the `webkit2_41`
-tag. With the daemon running (`pylon start`):
+`App.svelte` holds a three-zone layout: the dock on the left, and one of home,
+settings, or a pinned page filling the rest.
 
 ```
-cd pylon-ui
-wails dev   -tags webkit2_41    # hot-reload dev window
-wails build -tags webkit2_41    # produces build/bin/pylon-ui
+┌────┬──────────────────────────────────────────────┐
+│ P  │   ┌──────────┐                  ┌──────────┐ │
+│    │   │ Takvim   │      ╭──────╮    │ GitHub   │ │
+│ 🐳 │   └──────────┘      │ orb  │    └──────────┘ │
+│    │   ┌──────────┐      ╰──────╯    ┌──────────┐ │
+│    │   │ FreshRSS │       Pylon      │ Sistem   │ │
+│    │   └──────────┘   [ 🎤 Konuş ]   └──────────┘ │
+│ ●  │                                              │
+│ ⚙  │        sol sütun          sağ sütun          │
+└────┴──────────────────────────────────────────────┘
 ```
 
-## Open decisions
+**Dock** (`Sidebar.svelte`) — 72px, expanding to 240px on hover (the workspace
+dims while it is open). Holds the brand button (back to home), any pinned pages,
+a daemon status dot, and settings.
 
-- Settings view — full design at **step 4** (secret entry, service/widget toggles, voice).
-- Widget detail interactions (Phase B+).
-- Settings ↔ daemon: which config is editable live vs needs a restart.
-- Window chrome / frameless + custom titlebar (later, ties into the character look).
+**Home** — `PylonStage.svelte` (the orb) centred, with `VoiceBar.svelte` under
+it and widget instances in a left and a right column. Empty on first launch;
+widgets are added from Settings.
+
+**VoiceBar** — push-to-talk. Calls `Listen()`, which runs the daemon's whole
+voice pipeline (record → transcribe → intent → speak) and answers with
+`» <heard>\n<reply>`; the bar splits that into what it heard and what it said.
+
+**Docker page** (`DockerPage.svelte`) — a full-screen container manager, shown
+when the Docker page is pinned to the dock. List or grid, all/running filter,
+optional auto-refresh; preferences in `localStorage` under
+`pylon.dockerpage.v1`.
+
+**Settings** (`Settings.svelte`) — three tabs, so each screen answers one
+question:
+
+| Tab | Holds |
+| --- | --- |
+| **Görünüm** | Widget instances (add/edit/remove via a dialog) and which pages are pinned to the dock |
+| **Hesaplar** | `Accounts.svelte` (OAuth sign-in) and `ApiKeys.svelte` (vault keys) |
+| **Ses** | `VoiceSettings.svelte` — the push-to-talk shortcut |
+
+The tablist is keyboard-navigable (arrow keys, roving tabindex) and the widget
+editor is a real dialog: it takes focus, traps Tab, closes on Escape, and hands
+focus back on close.
+
+## Widgets
+
+A widget is an **instance**, not a toggle: you can have two GitHub cards showing
+different things. Each carries `{id, type, title, column, mode, params, refresh,
+accent}` and lives in `localStorage` under `pylon.widgets.v2` (`widgets.js`
+migrates a `v1` layout once, and drops any instance whose type has left the
+catalog).
+
+Eight types, twelve modes:
+
+| Type | Modes |
+| --- | --- |
+| `calendar` | today's events |
+| `freshrss` | unread count |
+| `github` | open PRs · open issues |
+| `drive` | recent files · search |
+| `weather` | current conditions |
+| `spotify` | now playing |
+| `sysmon` | machine vitals |
+| `docker` | container list · one container (rich card) |
+
+Every widget reads through one command: `Do(action, params)` → the daemon's
+`do` handler → the service registry, **skipping the LLM**. So a widget shows
+exactly what `pylon do <action>` prints in a terminal.
+
+`DockerWidget.svelte` is the exception to "widgets are read-only": it shows
+state and CPU/memory, and can start, stop and restart the container.
+
+Pinned pages work the same way (`sidebarPages.js`, `pylon.sidebar.v1`), with one
+entry in the catalog so far: Docker.
+
+## Talking to the daemon
+
+`app.go` binds these to the frontend:
+
+| Method | Does |
+| --- | --- |
+| `DaemonRunning()` | is the socket answering |
+| `Status()` | daemon status line |
+| `Do(action, params)` | run a service action, no LLM — the widget data path |
+| `Listen()` | one full push-to-talk turn |
+| `RestartDaemon()` | bounce the daemon so new config/credentials take effect |
+| `Platform()` | which desktop this is (`hyprland`, `sway`, `gnome`, `kde`, `macos`, `windows`, …) |
+| `Hotkey()` / `SetHotkey(combo)` | read and change the push-to-talk shortcut |
+| `SetSecret` / `HasSecret` | write a vault key, ask whether one exists (never read it back) |
+| `GoogleStatus()` / `GoogleLogin()` | account state and the browser OAuth consent |
+
+Timeouts differ by what is behind them: 20 s by default, 70 s for `Listen`
+(someone has to finish talking), 5 minutes for a sign-in that opens a browser.
+
+`daemon.js` is one shared readable store polling `DaemonRunning()` every 1.5 s —
+`null` while probing, then `true`/`false`. Everything subscribes to it rather
+than keeping its own timer, so the whole window flips to "online" together the
+moment a cold-launched daemon answers.
+
+Polling is not the end state; it is what is there. Push updates from the daemon
+were planned and have not been built.
+
+## The shortcut
+
+Wayland gives an application no way to grab a global hotkey for itself, and
+editing the compositor's config means writing a file Pylon does not own and
+cannot cleanly take back. So the daemon registers the binding over the
+compositor's control socket instead — Hyprland and Sway both accept one — and
+re-applies it on every start. Nothing on disk changes.
+
+On desktops with no such socket, `VoiceSettings.svelte` shows the line to add by
+hand instead of pretending it worked.
+
+## Not built
+
+Named because the absence is deliberate, not forgotten:
+
+- **Push updates.** Still polling (see above).
+- **Conversation history.** The voice bar shows one turn and forgets it.
+- **A text box.** Typing to Pylon goes through the CLI (`pylon say`); the GUI
+  went straight to the microphone.
+- **Service toggles.** A service is on when it is configured; there is no switch
+  in Settings, and the screen says so.
+- **Characters.** An early plan had a sidebar of secondary assistants. It was
+  never started, and the dock became a page launcher instead.
