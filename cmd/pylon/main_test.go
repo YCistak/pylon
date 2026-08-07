@@ -36,12 +36,41 @@ func TestConfigPathPrefersWorkingDirectory(t *testing.T) {
 // pylon.yaml. Before the fallback the daemon silently ran on defaults.
 func TestConfigPathFallsBackToUserConfigDir(t *testing.T) {
 	t.Setenv("PYLON_CONFIG", "")
-	home := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", home)
 	t.Chdir(t.TempDir()) // no pylon.yaml here
 
-	want := filepath.Join(home, "pylon", "pylon.yaml")
+	// Where the user config directory lives is the OS's answer, not ours:
+	// $XDG_CONFIG_HOME on Linux, ~/Library/Application Support on macOS,
+	// %AppData% on Windows. Pointing XDG_CONFIG_HOME at a temp dir and asserting
+	// against it passed only on Linux and failed the macOS and Windows runners.
+	// Asking the same function configPath consults keeps the assertion — "the
+	// user config dir, plus pylon/pylon.yaml" — without encoding one platform's
+	// layout. Nothing is written, so no sandboxing is needed.
+	dir, err := os.UserConfigDir()
+	if err != nil {
+		t.Skipf("no user config dir on this machine: %v", err)
+	}
+
+	want := filepath.Join(dir, "pylon", "pylon.yaml")
 	if got := configPath(); got != want {
 		t.Fatalf("configPath() = %q, want %q", got, want)
+	}
+}
+
+// The last resort: an environment stripped of any home directory. The bare
+// filename is returned rather than an empty path, which Load would read as the
+// working directory — and a missing file there is just "use the defaults".
+func TestConfigPathWithoutAUserConfigDir(t *testing.T) {
+	t.Setenv("PYLON_CONFIG", "")
+	t.Setenv("HOME", "")
+	t.Setenv("XDG_CONFIG_HOME", "")
+	t.Setenv("AppData", "")
+	t.Chdir(t.TempDir())
+
+	if _, err := os.UserConfigDir(); err == nil {
+		t.Skip("this OS still reports a user config dir with the environment cleared")
+	}
+
+	if got := configPath(); got != "pylon.yaml" {
+		t.Fatalf("configPath() = %q, want the bare filename", got)
 	}
 }
