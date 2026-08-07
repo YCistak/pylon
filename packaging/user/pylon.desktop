@@ -1,0 +1,18 @@
+[Desktop Entry]
+Type=Application
+Name=Pylon
+GenericName=Sesli Asistan
+Comment=Kişisel yapay zekâ asistanı — konuş, o halletsin
+Categories=Utility;
+Keywords=asistan;ses;yapay zeka;assistant;voice;
+
+# `make install-user` puts both binaries in ~/.local/bin, so this needs no
+# absolute path and no PYLON_BIN: the GUI finds the daemon on $PATH. The AUR
+# package ships its own copy of this file (packaging/aur/pylon.desktop) for a
+# system-wide /usr/bin install — same Exec, different provenance.
+Exec=pylon-ui
+
+Icon=pylon
+Terminal=false
+StartupNotify=true
+StartupWMClass=pylon-ui

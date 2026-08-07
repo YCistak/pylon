@@ -127,7 +127,8 @@ func (c *Client) Check(ctx context.Context, current string) (Release, bool, erro
 	return rel, Newer(gr.TagName, current), nil
 }
 
-// Newer reports whether release version a supersedes b. Both are "vMAJOR.MINOR.PATCH".
+// Newer reports whether release version a supersedes b. Both are
+// "vMAJOR.MINOR.PATCH", optionally with a prerelease suffix (v1.2.3-alpha.1).
 // An unparseable version is never treated as newer: the safe direction for a
 // comparison that decides whether to overwrite a binary is "do nothing".
 func Newer(a, b string) bool {
@@ -136,41 +137,134 @@ func Newer(a, b string) bool {
 	if !aok || !bok {
 		return false
 	}
-	for i := range av {
-		if av[i] != bv[i] {
-			return av[i] > bv[i]
-		}
-	}
-	return false
+	return compare(av, bv) > 0
 }
 
-// parse turns "v1.2.3" into [1 2 3]. Anything else fails rather than guessing.
-func parse(v string) ([3]int, bool) {
-	var out [3]int
+// version is a parsed release version. pre holds the dot-separated prerelease
+// identifiers; empty means a final release.
+type version struct {
+	nums [3]int
+	pre  []string
+}
+
+// compare orders two versions by semver precedence: -1, 0 or 1.
+//
+// The prerelease half used to be discarded, which made every v1.0.0-alpha.N
+// compare equal to v1.0.0 and to each other. That is not a cosmetic
+// inaccuracy: it meant an alpha could never see a later alpha, or the final
+// release, as an upgrade — `pylon update` would report "already current" on a
+// build the project had moved past.
+func compare(a, b version) int {
+	for i := range a.nums {
+		if a.nums[i] != b.nums[i] {
+			return sign(a.nums[i] - b.nums[i])
+		}
+	}
+
+	// A prerelease precedes the release it leads to: 1.0.0-alpha < 1.0.0.
+	switch {
+	case len(a.pre) == 0 && len(b.pre) == 0:
+		return 0
+	case len(a.pre) == 0:
+		return 1
+	case len(b.pre) == 0:
+		return -1
+	}
+
+	for i := 0; i < len(a.pre) && i < len(b.pre); i++ {
+		if c := compareIdent(a.pre[i], b.pre[i]); c != 0 {
+			return c
+		}
+	}
+	// All the shared identifiers matched, so the longer one wins:
+	// 1.0.0-alpha < 1.0.0-alpha.1.
+	return sign(len(a.pre) - len(b.pre))
+}
+
+// compareIdent orders two prerelease identifiers. Numeric ones compare as
+// numbers (so alpha.9 < alpha.10, which a string compare gets backwards) and
+// always rank below alphanumeric ones.
+func compareIdent(a, b string) int {
+	an, aNum := atoi(a)
+	bn, bNum := atoi(b)
+	switch {
+	case aNum && bNum:
+		return sign(an - bn)
+	case aNum:
+		return -1
+	case bNum:
+		return 1
+	case a == b:
+		return 0
+	case a < b:
+		return -1
+	default:
+		return 1
+	}
+}
+
+func sign(n int) int {
+	switch {
+	case n > 0:
+		return 1
+	case n < 0:
+		return -1
+	default:
+		return 0
+	}
+}
+
+// atoi parses a non-negative decimal identifier, reporting whether it was one.
+func atoi(s string) (int, bool) {
+	if s == "" {
+		return 0, false
+	}
+	n := 0
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return 0, false
+		}
+		n = n*10 + int(r-'0')
+	}
+	return n, true
+}
+
+// parse turns "v1.2.3" or "v1.2.3-alpha.1" into a version. Anything else fails
+// rather than guessing.
+func parse(v string) (version, bool) {
+	var out version
 	s, ok := strings.CutPrefix(strings.TrimSpace(v), "v")
 	if !ok {
 		return out, false
 	}
-	// Drop any prerelease/build suffix: v1.2.3-rc1 compares as 1.2.3.
-	if i := strings.IndexAny(s, "-+"); i >= 0 {
+	// Build metadata is ignored by semver precedence, so drop it outright.
+	if i := strings.IndexByte(s, '+'); i >= 0 {
 		s = s[:i]
 	}
+	if i := strings.IndexByte(s, '-'); i >= 0 {
+		pre := s[i+1:]
+		s = s[:i]
+		if pre == "" {
+			return out, false
+		}
+		out.pre = strings.Split(pre, ".")
+		for _, id := range out.pre {
+			if id == "" {
+				return out, false
+			}
+		}
+	}
+
 	parts := strings.Split(s, ".")
 	if len(parts) != 3 {
 		return out, false
 	}
 	for i, p := range parts {
-		n := 0
-		if p == "" {
+		n, ok := atoi(p)
+		if !ok {
 			return out, false
 		}
-		for _, r := range p {
-			if r < '0' || r > '9' {
-				return out, false
-			}
-			n = n*10 + int(r-'0')
-		}
-		out[i] = n
+		out.nums[i] = n
 	}
 	return out, true
 }

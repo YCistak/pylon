@@ -86,15 +86,31 @@ already running, so `pylon-ui` alone is enough for day-to-day use.
 
 ### Build from source
 
-Needs Go 1.26+, and for the GUI [Wails](https://wails.io) v2 plus Node 20:
+Needs Go 1.26+, and for the GUI [Wails](https://wails.io) v2 plus Node 20. On
+Linux the GUI also needs `libwebkit2gtk-4.1-dev` and `libgtk-3-dev`.
 
 ```sh
-go build -o pylon ./cmd/pylon
-
-cd pylon-ui && wails build -tags webkit2_41   # the tag is Linux-only
+make build                      # ./pylon
+make gui                        # pylon-ui/build/bin/pylon-ui
 ```
 
-On Linux the GUI needs `libwebkit2gtk-4.1-dev` and `libgtk-3-dev`.
+`make gui` passes the Wails build tags the GUI needs. Building it with
+`go build -tags webkit2_41` alone compiles fine and then refuses to start —
+`wails build -tags webkit2_41` works too, if you have the Wails CLI.
+
+### Install for your user
+
+```sh
+make install-user ARGS=--dry-run   # show the file operations
+make install-user                  # do them
+```
+
+Both binaries go to `~/.local/bin`, plus an icon and a desktop entry so Pylon
+shows up in your application menu. An existing `pylon.yaml` is never touched
+and an existing desktop entry is backed up first. Nothing needs root, and
+`~/.local/bin` is outside the prefixes `pylon update` treats as
+package-manager territory — so a Pylon installed this way can still update
+itself. For a system-wide install on Arch, see `packaging/aur/`.
 
 ---
 
