@@ -48,8 +48,10 @@ package() {
   install -Dm755 pylon-ui "$pkgdir/usr/bin/pylon-ui"
 
   # The shipped pylon.yaml is an example, not a live config: Pylon looks for one
-  # via $PYLON_CONFIG or ./pylon.yaml, never here. Installing it read-only under
-  # /usr/share documents the schema without pretending to be the active file.
+  # via $PYLON_CONFIG, then ./pylon.yaml, then ~/.config/pylon/pylon.yaml —
+  # never here. Installing it read-only under /usr/share documents the schema
+  # without pretending to be the active file; copy it to ~/.config/pylon/ to
+  # make it live.
   install -Dm644 pylon.yaml "$pkgdir/usr/share/doc/$pkgname/pylon.yaml.example"
 
   install -Dm644 "$srcdir/pylon.desktop" "$pkgdir/usr/share/applications/pylon.desktop"
