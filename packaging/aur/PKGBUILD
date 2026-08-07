@@ -32,11 +32,12 @@ options=('!strip') # binaries ship already stripped (-s -w); re-stripping is was
 source=("pylon-$pkgver.tar.gz::$url/releases/download/$_tag/pylon-$_tag-linux-amd64.tar.gz"
         "pylon.desktop"
         "appicon.png::$url/raw/$_tag/pylon-ui/build/appicon.png")
-# The release tarball's sum is regenerated (updpkgsums) once the $_tag release is
-# actually published — the alpha build doesn't exist yet. The icon is the same
-# file at any tag, so its sum stays valid.
-sha256sums=('SKIP'
-            'SKIP'
+# Real sums, taken from the published $_tag release. Regenerate all three with
+# `updpkgsums` on every version bump — a stale sum fails the build loudly, which
+# is the point of having them, but 'SKIP' would let a substituted tarball
+# through silently.
+sha256sums=('be1882c5b4482d56fe58b8a484b71bb22093c3335335e4bc899a184497e9bad7'
+            '911b621b2cf27f677121e73128cb6f1138ec7efc64d6e649cf47f6232163ae4a'
             '28332a3b130d1970d208e40b7ab2c84f9ead10199f8c058e08e07fe21fe7ea49')
 
 package() {
