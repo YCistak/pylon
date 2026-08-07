@@ -1,6 +1,12 @@
 module pylon-ui
 
-go 1.23.0
+// Kept in step with the root module's go directive. The GUI is a separate
+// module, so nothing forces the two to agree — and they had drifted three minor
+// versions apart. That mattered: CI installs the daemon's Go from ../go.mod and
+// the GUI's from this file, so the two jobs built on different toolchains,
+// while the release workflow builds both with the root's. The GUI that ships
+// was compiled by a toolchain CI never tested it on.
+go 1.26.3
 
 require github.com/wailsapp/wails/v2 v2.12.0
 
