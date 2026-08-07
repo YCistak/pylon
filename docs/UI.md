@@ -128,8 +128,8 @@ entry in the catalog so far: Docker.
 | `RestartDaemon()` | bounce the daemon so new config/credentials take effect |
 | `Platform()` | which desktop this is (`hyprland`, `sway`, `gnome`, `kde`, `macos`, `windows`, …) |
 | `Hotkey()` / `SetHotkey(combo)` | read and change the push-to-talk shortcut |
-| `SetSecret` / `HasSecret` | write a vault key, ask whether one exists (never read it back) |
-| `GoogleStatus()` / `GoogleLogin()` | account state and the browser OAuth consent |
+| `SetSecret` / `HasSecret` / `DeleteSecret` | write a vault key, ask whether one exists (never read it back), remove it |
+| `AuthStatus` / `AuthLogin` / `AuthLogout` | per service (`google`, `spotify`): connection state, the browser consent, signing out |
 
 Timeouts differ by what is behind them: 20 s by default, 70 s for `Listen`
 (someone has to finish talking), 5 minutes for a sign-in that opens a browser.
