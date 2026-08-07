@@ -203,6 +203,10 @@ that keeps the daemon free of CGo, which is what lets it cross-compile at all.
 Socket and PID default to `/tmp` on Unix and `%LocalAppData%\pylon` on Windows;
 `PYLON_SOCKET` / `PYLON_PID` override both sides.
 
+More detail: [`docs/UI.md`](docs/UI.md) for the GUI,
+[`docs/RELEASE.md`](docs/RELEASE.md) for cutting a release,
+[`CHANGELOG.md`](CHANGELOG.md) for what changed.
+
 ---
 
 ## License
