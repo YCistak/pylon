@@ -3,14 +3,23 @@
 `pylon-bin` installs the prebuilt release binaries. Source lives here in the
 main repo; the AUR is a separate git repo you push a copy of the PKGBUILD to.
 
-## Prerequisites (both are hard blockers)
+## Prerequisites — both met since 2026-08-07
 
 1. **The repository must be public.** The AUR clones the source URLs; a private
    repo returns 404 for the release tarball and the raw icon.
 2. **The release must be published, not a draft.** `source=` points at
    `releases/download/vX.Y.Z/...`, which only resolves for a published release.
 
-Until both are true this package cannot build for anyone, including you.
+Both now hold for `v0.1.0-alpha.1`, and the PKGBUILD carries its real sums, so
+`makepkg -si` works. Nothing has been pushed to the AUR — that is a separate
+repository and a deliberate act; the steps are below.
+
+Verify before assuming, on any new version:
+
+```sh
+curl -sLo /dev/null -w '%{http_code}\n' \
+  "https://github.com/YCistak/pylon/releases/download/$_tag/pylon-$_tag-linux-amd64.tar.gz"
+```
 
 ## Publishing a new version
 
