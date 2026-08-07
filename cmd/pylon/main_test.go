@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 // $PYLON_CONFIG is the explicit override and must win over everything else.
@@ -72,5 +73,44 @@ func TestConfigPathWithoutAUserConfigDir(t *testing.T) {
 
 	if got := configPath(); got != "pylon.yaml" {
 		t.Fatalf("configPath() = %q, want the bare filename", got)
+	}
+}
+
+// `pylon briefing` and `pylon briefing --speak` are two different daemon
+// commands, because the generic "do" path never speaks. Sending the wrong one
+// would silently give a briefing you cannot hear (or one you cannot silence).
+func TestBriefingRequestPicksTheCommand(t *testing.T) {
+	req, timeout, err := briefingRequest(nil)
+	if err != nil {
+		t.Fatalf("no args: %v", err)
+	}
+	if req.Cmd != "do" || len(req.Args) != 1 || req.Args[0] != "briefing.today" {
+		t.Fatalf("bare briefing = %+v, want the silent do path", req)
+	}
+	if timeout != 30*time.Second {
+		t.Fatalf("bare briefing timeout = %v", timeout)
+	}
+
+	for _, flag := range []string{"--speak", "-s"} {
+		req, timeout, err := briefingRequest([]string{flag})
+		if err != nil {
+			t.Fatalf("%s: %v", flag, err)
+		}
+		if req.Cmd != "briefing" || len(req.Args) != 1 || req.Args[0] != "speak" {
+			t.Fatalf("%s = %+v, want the speaking path", flag, req)
+		}
+		// Reading a briefing out loud runs well past the default deadline, and
+		// giving up mid-sentence leaves the daemon talking to a closed socket.
+		if timeout <= 30*time.Second {
+			t.Fatalf("%s timeout = %v, want more than the default", flag, timeout)
+		}
+	}
+}
+
+func TestBriefingRequestRejectsGarbage(t *testing.T) {
+	for _, args := range [][]string{{"preview"}, {"--speak", "extra"}, {"-x"}} {
+		if _, _, err := briefingRequest(args); err == nil {
+			t.Errorf("briefingRequest(%v) accepted an unknown argument", args)
+		}
 	}
 }

@@ -130,9 +130,11 @@ briefing:
   time: "08:00"
   timezone: "Europe/Istanbul"
   # How the daily briefing is shown. The command receives the text on stdin;
-  # empty falls back to a desktop notification. scripts/briefing_banner.py draws
-  # a Wayland layer-shell overlay:
+  # empty means no banner at all — there is no desktop-notification fallback, so
+  # the briefing is only printed (and spoken, when tts_cmd is set).
+  # scripts/briefing_banner.py draws a Wayland layer-shell overlay:
   #   banner_cmd: ["python3", "/path/scripts/briefing_banner.py"]
+  # `pylon briefing` composes one on demand; `pylon briefing --speak` reads it out.
 
 # Work sessions. Pylon records how long each tracked app is open and answers
 # "bugün ne kadar çalıştım" from it (`pylon work`, or `pylon work week`). Names

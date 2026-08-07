@@ -94,7 +94,7 @@ func main() {
 	case "do":
 		err = cmdDo(os.Args[2:])
 	case "briefing":
-		err = cmdBriefing()
+		err = cmdBriefing(os.Args[2:])
 	case "work":
 		err = cmdWork(os.Args[2:])
 	case "recall":
@@ -132,6 +132,7 @@ usage:
   pylon status        show daemon status
   pylon say <text>    send a text command through the intent engine
   pylon briefing      compose today's briefing and show it as a desktop banner
+  pylon briefing --speak    the same, read aloud
   pylon work [week]   how long the tracked apps were used today (or this week)
   pylon recall [n]    show the last n remembered turns (default 5)
   pylon listen        push-to-talk: record, transcribe, run, speak the reply
@@ -609,6 +610,42 @@ func registerIntent(d *daemon.Daemon, cfg config.Config, database *db.DB, regist
 		default:
 			return ipc.Response{OK: true, Text: text}
 		}
+	})
+
+	// "briefing speak" composes the briefing and reads it aloud. It exists
+	// because "do" is generic and therefore silent: the briefing service shows
+	// the banner and returns text, and the caller decides whether that text is
+	// spoken. The scheduler does at 08:00; `pylon briefing` did not, so the only
+	// way to hear one on demand was to say "brifing ver" into the microphone.
+	//
+	// Speaking belongs here rather than inside the service for the same reason:
+	// the listen path already speaks whatever a command returns, so a service
+	// that spoke for itself would read every briefing out twice.
+	d.Handle("briefing", func(req ipc.Request) ipc.Response {
+		if len(req.Args) != 1 || req.Args[0] != "speak" {
+			return ipc.Response{OK: false, Error: "usage: briefing speak"}
+		}
+		// Long enough to compose (calendar and news are both networked) and then
+		// to read the whole thing out.
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+		defer cancel()
+
+		text, ok, err := registry.Dispatch(ctx, intent.Command{Action: briefing.ActionToday})
+		switch {
+		case err != nil:
+			return ipc.Response{OK: false, Error: err.Error()}
+		case !ok:
+			return ipc.Response{OK: false, Error: "brifing servisi kayıtlı değil"}
+		}
+
+		// No TTS configured is not a failure: you still get the banner and the
+		// text, which is exactly what plain `pylon briefing` gives.
+		if speaker := briefingSpeaker(cfg); speaker != nil {
+			if err := speaker.Say(ctx, text); err != nil {
+				log.Warn("briefing: speak failed", "err", err)
+			}
+		}
+		return ipc.Response{OK: true, Text: text}
 	})
 
 	registerRecall(d, database)
@@ -1116,8 +1153,16 @@ func cmdWork(args []string) error {
 // cmdBriefing runs the briefing action, which shows the desktop banner, and
 // prints the text. Bind this to a hotkey for an on-demand briefing; the
 // scheduler fires the same action daily, and saying "brifing ver" does too.
-func cmdBriefing() error {
-	resp, err := daemon.Send(socketPath(), ipc.Request{Cmd: "do", Args: []string{string(briefing.ActionToday)}})
+//
+// --speak reads it aloud as well. Speaking is opt-in rather than the default
+// because a briefing bound to a hotkey is often wanted quietly — and once
+// spoken there is no way to take it back.
+func cmdBriefing(args []string) error {
+	req, timeout, err := briefingRequest(args)
+	if err != nil {
+		return err
+	}
+	resp, err := daemon.SendTimeout(socketPath(), req, timeout)
 	if err != nil {
 		return fmt.Errorf("daemon not reachable: %w", err)
 	}
@@ -1126,6 +1171,22 @@ func cmdBriefing() error {
 	}
 	fmt.Println(resp.Text)
 	return nil
+}
+
+// briefingRequest maps the command line onto a request and the deadline it
+// needs. Split out from cmdBriefing so the argument handling is testable
+// without a daemon to talk to.
+func briefingRequest(args []string) (ipc.Request, time.Duration, error) {
+	switch {
+	case len(args) == 0:
+		return ipc.Request{Cmd: "do", Args: []string{string(briefing.ActionToday)}}, 30 * time.Second, nil
+	case len(args) == 1 && (args[0] == "--speak" || args[0] == "-s"):
+		// Reading it out takes as long as the briefing is, which is well past
+		// the default deadline.
+		return ipc.Request{Cmd: "briefing", Args: []string{"speak"}}, 3 * time.Minute, nil
+	default:
+		return ipc.Request{}, 0, errors.New("usage: pylon briefing [--speak]")
+	}
 }
 
 // cmdListen runs one push-to-talk cycle: record from the mic, transcribe it,
