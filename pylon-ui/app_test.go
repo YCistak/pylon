@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"net"
+	"os"
 	"path/filepath"
 	"testing"
 )
@@ -13,9 +14,20 @@ import (
 func fakeDaemon(t *testing.T, resp response) {
 	t.Helper()
 
-	// macOS caps Unix socket paths near 104 bytes and t.TempDir() is long, so
-	// keep the filename short.
-	sock := filepath.Join(t.TempDir(), "s")
+	// A Unix socket path is capped near 104 bytes on macOS, and it is the
+	// directory that blows the budget, not the filename: t.TempDir() names the
+	// directory after the test, so a long test name inside a long $TMPDIR
+	// (/var/folders/…/T/ on macOS) overflows and Listen fails with "bind:
+	// invalid argument" — which is what the macOS runner did while Linux and
+	// Windows passed. A plain temp directory keeps the whole path short
+	// regardless of what this test is called.
+	dir, err := os.MkdirTemp("", "p")
+	if err != nil {
+		t.Fatalf("temp dir: %v", err)
+	}
+	t.Cleanup(func() { os.RemoveAll(dir) })
+
+	sock := filepath.Join(dir, "s")
 	ln, err := net.Listen("unix", sock)
 	if err != nil {
 		t.Fatalf("listen: %v", err)
