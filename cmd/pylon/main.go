@@ -44,6 +44,7 @@ import (
 	"github.com/YCistak/pylon/internal/services/sysmon"
 	"github.com/YCistak/pylon/internal/services/system"
 	"github.com/YCistak/pylon/internal/services/weather"
+	"github.com/YCistak/pylon/internal/services/work"
 	"github.com/YCistak/pylon/internal/voice"
 	"github.com/YCistak/pylon/internal/watcher"
 )
@@ -94,6 +95,8 @@ func main() {
 		err = cmdDo(os.Args[2:])
 	case "briefing":
 		err = cmdBriefing()
+	case "work":
+		err = cmdWork(os.Args[2:])
 	case "recall":
 		err = cmdRecall(os.Args[2:])
 	case "listen":
@@ -129,6 +132,7 @@ usage:
   pylon status        show daemon status
   pylon say <text>    send a text command through the intent engine
   pylon briefing      compose today's briefing and show it as a desktop banner
+  pylon work [week]   how long the tracked apps were used today (or this week)
   pylon recall [n]    show the last n remembered turns (default 5)
   pylon listen        push-to-talk: record, transcribe, run, speak the reply
   pylon auth <google|spotify>          one-time OAuth consent in the browser
@@ -166,10 +170,14 @@ func cmdStart() error {
 
 	// The service registry is shared: the intent engine dispatches to it, and the
 	// scheduler's daily briefing composes its sections through it.
-	registry := buildServiceRegistry(cfg, log)
+	registry := buildServiceRegistry(cfg, database, log)
 	intent.SetActions(registry.Specs()...)
 
-	registerWatcher(d, cfg, database, log)
+	// Built before the watcher so the watcher can feed it: the tracker turns
+	// process events into work sessions, and is nil when nothing is tracked.
+	tracker := registerSessions(d, cfg, database, log)
+
+	registerWatcher(d, cfg, database, tracker, log)
 	registerScheduler(d, cfg, registry, log)
 	registerIntent(d, cfg, database, registry, log)
 	registerSecrets(d)
@@ -608,7 +616,7 @@ func registerIntent(d *daemon.Daemon, cfg config.Config, database *db.DB, regist
 
 // buildServiceRegistry registers the external services that are configured and
 // authorized. Each service contributes actions to the LLM vocabulary.
-func buildServiceRegistry(cfg config.Config, log *slog.Logger) *services.Registry {
+func buildServiceRegistry(cfg config.Config, database *db.DB, log *slog.Logger) *services.Registry {
 	var svcs []services.Service
 
 	// The briefing reads these two directly (typed), so capture the concrete
@@ -668,6 +676,20 @@ func buildServiceRegistry(cfg config.Config, log *slog.Logger) *services.Registr
 	// System control (lock/volume/media/close) needs no configuration — always
 	// available. It owns the media/lock actions the local router emits.
 	svcs = append(svcs, system.New())
+
+	// Work sessions read what the tracker recorded. Registered whenever there is
+	// a database: with no tracked apps the answer is simply "nothing recorded",
+	// which is more useful than the question not being understood at all. The
+	// day boundary follows the briefing's timezone — one place to say where the
+	// user lives.
+	if database != nil {
+		svcs = append(svcs, work.NewService(work.ServiceOptions{
+			Store:     database,
+			GoalHours: cfg.Work.DailyGoalHours,
+			Timezone:  cfg.Briefing.Timezone,
+		}))
+		log.Info("services: work sessions enabled", "tracked", cfg.Work.TrackedApps)
+	}
 
 	// The briefing reads the calendar/news sources directly and phrases its own
 	// clauses; running its action also shows the desktop banner, so every trigger
@@ -840,19 +862,30 @@ func executeCommand(cmd intent.Command, database *db.DB, registry *services.Regi
 	}
 }
 
-// registerWatcher wires a process watcher into the daemon: when a watched
-// process with tasks_on_exit set exits, its pending tasks are pulled from the
-// queue and (for now) logged — TTS read-aloud lands with the voice module.
-func registerWatcher(d *daemon.Daemon, cfg config.Config, database *db.DB, log *slog.Logger) {
-	var names []string
+// registerWatcher wires the daemon's one process watcher. Two features depend
+// on process lifecycle — task reminders (`watch_processes`) and work-session
+// tracking (`work.tracked_apps`) — and the two lists usually overlap, so they
+// share a single poller rather than each walking /proc every two seconds.
+func registerWatcher(d *daemon.Daemon, cfg config.Config, database *db.DB, tracker *work.Tracker, log *slog.Logger) {
+	names := map[string]struct{}{}
 	onExit := make(map[string]bool)
 	for _, p := range cfg.WatchProcesses {
-		names = append(names, p.Name)
+		names[p.Name] = struct{}{}
 		onExit[p.Name] = p.TasksOnExit
+	}
+	if tracker != nil {
+		for _, n := range tracker.Names() {
+			names[n] = struct{}{}
+		}
 	}
 	if len(names) == 0 {
 		return
 	}
+	watched := make([]string, 0, len(names))
+	for n := range names {
+		watched = append(watched, n)
+	}
+	sort.Strings(watched) // deterministic log line
 
 	// Reminders are spoken via the same TTS the assistant uses (edge-tts). Built
 	// once; nil when TTS isn't configured, in which case we just log.
@@ -861,36 +894,76 @@ func registerWatcher(d *daemon.Daemon, cfg config.Config, database *db.DB, log *
 		speaker = voice.NewSpeaker(cfg.Voice.TTSCmd, cfg.Voice.PlayCmd)
 	}
 
+	remind := func(e watcher.Event) {
+		if e.Kind != watcher.Exited || !onExit[e.Name] {
+			return
+		}
+		tasks, err := database.PendingForProcess(e.Name)
+		if err != nil {
+			log.Warn("watcher: fetch tasks failed", "process", e.Name, "err", err)
+			return
+		}
+		for _, t := range tasks {
+			log.Info("reminder", "process", e.Name, "task", t.Content)
+			if speaker != nil {
+				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+				if err := speaker.Say(ctx, "Hatırlatma. "+t.Content); err != nil {
+					log.Warn("reminder: speak failed", "err", err)
+				}
+				cancel()
+			}
+			// Mark done so the same reminder doesn't fire on the next exit.
+			if err := database.CompleteTask(t.ID); err != nil {
+				log.Warn("reminder: complete failed", "id", t.ID, "err", err)
+			}
+		}
+	}
+
 	w := watcher.New(watcher.Options{
-		Names:  names,
+		Names:  watched,
 		Logger: log,
 		OnEvent: func(e watcher.Event) {
-			if e.Kind != watcher.Exited || !onExit[e.Name] {
-				return
+			remind(e)
+			if tracker != nil {
+				tracker.Observe(e.Name, e.Kind == watcher.Started, e.At)
 			}
-			tasks, err := database.PendingForProcess(e.Name)
-			if err != nil {
-				log.Warn("watcher: fetch tasks failed", "process", e.Name, "err", err)
-				return
-			}
-			for _, t := range tasks {
-				log.Info("reminder", "process", e.Name, "task", t.Content)
-				if speaker != nil {
-					ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-					if err := speaker.Say(ctx, "Hatırlatma. "+t.Content); err != nil {
-						log.Warn("reminder: speak failed", "err", err)
-					}
-					cancel()
-				}
-				// Mark done so the same reminder doesn't fire on the next exit.
-				if err := database.CompleteTask(t.ID); err != nil {
-					log.Warn("reminder: complete failed", "id", t.ID, "err", err)
-				}
+		},
+		OnBaseline: func(running []string) {
+			if tracker != nil {
+				tracker.Seed(running)
 			}
 		},
 	})
 
 	d.Register("watcher", w.Run)
+}
+
+// registerSessions wires work-session tracking: which of your apps were open,
+// and for how long. It returns the tracker so the watcher can feed it, and nil
+// when `work.tracked_apps` is empty — nothing is recorded unless asked for.
+func registerSessions(d *daemon.Daemon, cfg config.Config, database *db.DB, log *slog.Logger) *work.Tracker {
+	tracker := work.NewTracker(work.TrackerOptions{
+		Store:  database,
+		Apps:   cfg.Work.TrackedApps,
+		Logger: log,
+	})
+	if tracker == nil {
+		return nil
+	}
+
+	// Recover before anything opens new rows: a daemon that was killed (or a
+	// machine that lost power) left sessions open, and they are closed at the
+	// last moment the app was actually seen. Doing this here rather than inside
+	// the tracker keeps it strictly ordered against the watcher's baseline,
+	// which would otherwise race it and have its fresh session closed as stale.
+	if n, err := database.CloseOpenSessions(); err != nil {
+		log.Warn("sessions: recovery failed", "err", err)
+	} else if n > 0 {
+		log.Info("sessions: closed sessions left open by a previous run", "count", n)
+	}
+
+	d.Register("sessions", tracker.Run)
+	return tracker
 }
 
 // registerScheduler wires Pylon's clock-driven background jobs. For now these
@@ -1005,6 +1078,31 @@ func cmdDo(args []string) error {
 		return errors.New("usage: pylon do <action> [k=v ...]")
 	}
 	resp, err := daemon.Send(socketPath(), ipc.Request{Cmd: "do", Args: args})
+	if err != nil {
+		return fmt.Errorf("daemon not reachable: %w", err)
+	}
+	if !resp.OK {
+		return errors.New(resp.Error)
+	}
+	fmt.Println(resp.Text)
+	return nil
+}
+
+// cmdWork reports where today's (or the week's) time went. It goes through the
+// daemon rather than reading the database directly: the daemon holds the open
+// sessions, so asking it is the only way to count the app you are in right now.
+func cmdWork(args []string) error {
+	action := work.ActionToday
+	if len(args) > 0 {
+		switch args[0] {
+		case "today", "bugun", "bugün":
+		case "week", "hafta", "haftalik", "haftalık":
+			action = work.ActionWeek
+		default:
+			return fmt.Errorf("usage: pylon work [today|week] (bilinmeyen: %q)", args[0])
+		}
+	}
+	resp, err := daemon.Send(socketPath(), ipc.Request{Cmd: "do", Args: []string{string(action)}})
 	if err != nil {
 		return fmt.Errorf("daemon not reachable: %w", err)
 	}
