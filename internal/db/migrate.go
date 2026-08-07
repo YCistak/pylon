@@ -44,6 +44,14 @@ var migrations = []string{
 		duration INTEGER
 	);
 	CREATE INDEX idx_sessions_app_start ON sessions(app, start);`,
+
+	// 5: session heartbeat. A session is closed when the app exits, but a daemon
+	// that is killed — or a machine that loses power — never sees that exit, and
+	// the row would stay open forever. `seen` is refreshed while the app is
+	// running, so the next start can close the orphan at the last moment the app
+	// was actually observed instead of guessing (crediting nothing, or crediting
+	// every hour the machine was off).
+	`ALTER TABLE sessions ADD COLUMN seen DATETIME;`,
 }
 
 // migrate applies any migrations not yet recorded in schema_version.

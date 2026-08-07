@@ -37,12 +37,17 @@ and moves on when one hits its quota.
 | **calendar / drive** | today's events, recent files (Google) |
 | **spotify** | playback control, now playing |
 | **system** | lock the screen, volume, media keys, close an app |
+| **work** | how long today's tracked apps were open, against a daily goal |
 
 Services register only when configured, so a missing credential removes the
 feature rather than breaking the daemon.
 
 Beyond commands, Pylon watches processes: it knows when you closed your editor
-or quit a game, and can hold reminders until then.
+or quit a game, and can hold reminders until then. The same watcher feeds work
+sessions — list the apps that count under `work.tracked_apps` and ask
+`pylon work` (or `pylon work week`) where the time went. An open session is
+marked alive once a minute, so a daemon that is killed loses at most that
+minute rather than the whole session.
 
 ---
 
