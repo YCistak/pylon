@@ -182,14 +182,53 @@ func Authorize(ctx context.Context, c Config) error {
 	return saveToken(tok)
 }
 
-// httpClient returns an OAuth client using the saved token (auto-refresh).
+// persistingSource writes a refreshed token back to the vault. oauth2 refreshes
+// in memory only, so the fresh token would otherwise die with the process. That
+// matters more here than for Google: Spotify access tokens last an hour, so a
+// daemon that has been up a while is always running on a refreshed token that
+// was never saved.
+type persistingSource struct {
+	src  oauth2.TokenSource
+	save func(*oauth2.Token) error
+
+	mu   sync.Mutex
+	last string // access token last written, so a cached token costs no write
+}
+
+func (p *persistingSource) Token() (*oauth2.Token, error) {
+	tok, err := p.src.Token()
+	if err != nil {
+		return nil, err
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if tok.AccessToken != p.last {
+		p.last = tok.AccessToken
+		// Best effort: a vault write failure must not fail the playback command
+		// that triggered the refresh.
+		_ = p.save(tok)
+	}
+	return tok, nil
+}
+
+// httpClient returns an OAuth client using the saved token (auto-refresh,
+// persisted).
 func httpClient(ctx context.Context, c Config) (*http.Client, error) {
 	tok, err := loadToken()
 	if err != nil {
 		return nil, fmt.Errorf("spotify: kayıtlı token yok — önce `pylon auth spotify` çalıştır (%v)", err)
 	}
-	return oauthConfig(c).Client(ctx, tok), nil
+	return oauth2.NewClient(ctx, &persistingSource{
+		src:  oauthConfig(c).TokenSource(ctx, tok),
+		save: saveToken,
+		last: tok.AccessToken,
+	}), nil
 }
+
+// Logout forgets the user's token, so Configured reports false and the next
+// connect asks for consent again. Signing out when nothing is stored is not an
+// error.
+func Logout() error { return secrets.Delete(tokenSecretName) }
 
 // --- token/browser helpers (kept local so the package is self-contained) ---
 

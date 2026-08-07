@@ -182,22 +182,36 @@ func (a *App) HasSecret(name string) bool {
 	return err == nil && resp.OK && resp.Text == "true"
 }
 
+// DeleteSecret removes a stored credential. Without it a key saved by mistake —
+// or one that has to be revoked — could only be overwritten, never taken back,
+// unless the user found `pylon secret rm` on the command line.
+func (a *App) DeleteSecret(name string) error {
+	resp, err := send(request{Cmd: "secret", Args: []string{"rm", name}})
+	if err != nil {
+		return err
+	}
+	if !resp.OK {
+		return fmt.Errorf("%s", resp.Error)
+	}
+	return nil
+}
+
 // RestartDaemon bounces the daemon so a newly saved key/config is picked up.
 // It only restarts a daemon the GUI started; a hand-started one is left alone.
 func (a *App) RestartDaemon() {
 	a.daemon.restart()
 }
 
-// GoogleStatus reports the Google connection: "connected" (signed in),
-// "ready" (can sign in), "unavailable" (no OAuth client in this build), or
-// "offline" (the daemon did not answer).
+// AuthStatus reports a service's connection ("google", "spotify"): "connected"
+// (signed in), "ready" (can sign in), "unavailable" (no OAuth client in this
+// build), or "offline" (the daemon did not answer).
 //
 // "offline" is separate on purpose. Folding an unreachable daemon into
 // "unavailable" made a cold launch — when the GUI has spawned the daemon but it
-// is still coming up — claim Google sign-in is missing from the build, which is
-// both wrong and sounds permanent. The card re-checks once the daemon answers.
-func (a *App) GoogleStatus() string {
-	resp, err := send(request{Cmd: "auth", Args: []string{"google", "status"}})
+// is still coming up — claim sign-in is missing from the build, which is both
+// wrong and sounds permanent. The card re-checks once the daemon answers.
+func (a *App) AuthStatus(service string) string {
+	resp, err := send(request{Cmd: "auth", Args: []string{service, "status"}})
 	if err != nil {
 		return "offline"
 	}
@@ -207,10 +221,23 @@ func (a *App) GoogleStatus() string {
 	return resp.Text
 }
 
-// GoogleLogin runs the browser OAuth consent for Google (Calendar, Drive). It
-// blocks until the user finishes in the browser, so it uses a long deadline.
-func (a *App) GoogleLogin() error {
-	resp, err := sendTimeout(request{Cmd: "auth", Args: []string{"google", "login"}}, 5*time.Minute)
+// AuthLogin runs the browser OAuth consent for a service. It blocks until the
+// user finishes in the browser, so it uses a long deadline.
+func (a *App) AuthLogin(service string) error {
+	resp, err := sendTimeout(request{Cmd: "auth", Args: []string{service, "login"}}, 5*time.Minute)
+	if err != nil {
+		return err
+	}
+	if !resp.OK {
+		return fmt.Errorf("%s", resp.Error)
+	}
+	return nil
+}
+
+// AuthLogout forgets a service's stored token. The services it enabled are only
+// dropped when the daemon reloads its registry, so the caller bounces it.
+func (a *App) AuthLogout(service string) error {
+	resp, err := send(request{Cmd: "auth", Args: []string{service, "logout"}})
 	if err != nil {
 		return err
 	}

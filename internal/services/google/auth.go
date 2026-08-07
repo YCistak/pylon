@@ -129,8 +129,38 @@ func saveToken(t *oauth2.Token) error {
 	return secrets.Default.Set(tokenSecretName, string(data))
 }
 
-// httpClient returns an authorized client using the saved token (auto-refresh).
-// Errors with a hint when no token exists.
+// persistingSource writes a refreshed token back to the vault. oauth2 refreshes
+// the access token in memory only, so without this the fresh token dies with the
+// process: every daemon restart starts from an expired one and pays a refresh
+// round-trip before the first calendar call. Worse, when the provider rotates
+// the refresh token the stored copy goes stale and the user is silently signed
+// out until they run `pylon auth google` again.
+type persistingSource struct {
+	src  oauth2.TokenSource
+	save func(*oauth2.Token) error
+
+	mu   sync.Mutex
+	last string // access token last written, so a cached token costs no write
+}
+
+func (p *persistingSource) Token() (*oauth2.Token, error) {
+	tok, err := p.src.Token()
+	if err != nil {
+		return nil, err
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if tok.AccessToken != p.last {
+		p.last = tok.AccessToken
+		// Best effort: a vault write failure must not fail the API call that
+		// triggered the refresh — the token is valid for this process either way.
+		_ = p.save(tok)
+	}
+	return tok, nil
+}
+
+// httpClient returns an authorized client using the saved token (auto-refresh,
+// persisted). Errors with a hint when no token exists.
 func httpClient(ctx context.Context, c Config) (*http.Client, error) {
 	cfg, err := oauthConfig(c)
 	if err != nil {
@@ -140,7 +170,11 @@ func httpClient(ctx context.Context, c Config) (*http.Client, error) {
 	if err != nil {
 		return nil, fmt.Errorf("google: no saved token — run `pylon auth google` first (%v)", err)
 	}
-	return cfg.Client(ctx, tok), nil
+	return oauth2.NewClient(ctx, &persistingSource{
+		src:  cfg.TokenSource(ctx, tok),
+		save: saveToken,
+		last: tok.AccessToken,
+	}), nil
 }
 
 // Authorize runs the one-time OAuth consent flow via a loopback redirect and
@@ -216,6 +250,12 @@ func Authorize(ctx context.Context, c Config) error {
 	}
 	return nil
 }
+
+// Logout forgets the user's token. Configured then reports false, the calendar
+// and drive services drop out of the registry on the next daemon start, and the
+// next sign-in asks for consent again. Signing out when nothing is stored is
+// not an error — the caller asked for an end state, not a transition.
+func Logout() error { return secrets.Delete(tokenSecretName) }
 
 func openBrowser(url string) {
 	var cmd string
