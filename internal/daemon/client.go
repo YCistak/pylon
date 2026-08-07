@@ -10,9 +10,21 @@ import (
 	"github.com/YCistak/pylon/internal/ipc"
 )
 
+// defaultTimeout is generous because a "say" may trigger an LLM round-trip on
+// the daemon side, which can take many seconds.
+const defaultTimeout = 30 * time.Second
+
 // Send dials the daemon socket, sends one request, and returns its response.
 // It is used by the CLI and by the daemon's own liveness probe.
 func Send(socketPath string, req ipc.Request) (ipc.Response, error) {
+	return SendTimeout(socketPath, req, defaultTimeout)
+}
+
+// SendTimeout is Send with an explicit deadline, for the few commands that ask
+// the daemon to do something open-ended — reading a briefing aloud takes as
+// long as the briefing is, and giving up mid-sentence would leave the daemon
+// talking to an empty socket.
+func SendTimeout(socketPath string, req ipc.Request, timeout time.Duration) (ipc.Response, error) {
 	conn, err := net.DialTimeout("unix", socketPath, 2*time.Second)
 	if err != nil {
 		return ipc.Response{}, fmt.Errorf("connect to daemon: %w", err)
@@ -23,9 +35,7 @@ func Send(socketPath string, req ipc.Request) (ipc.Response, error) {
 	if err != nil {
 		return ipc.Response{}, err
 	}
-	// Generous deadline: a "say" may trigger a Gemini round-trip on the daemon
-	// side, which can take many seconds.
-	_ = conn.SetDeadline(time.Now().Add(30 * time.Second))
+	_ = conn.SetDeadline(time.Now().Add(timeout))
 	if _, err := conn.Write(append(b, '\n')); err != nil {
 		return ipc.Response{}, fmt.Errorf("send request: %w", err)
 	}
