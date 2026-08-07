@@ -34,9 +34,19 @@
   let draft = null   // widget instance being created/edited in the modal
   let isNew = false
 
+  // A modal covers the page but does nothing to the keyboard on its own. Without
+  // the two below, focus stayed on whatever opened the dialog and Tab walked a
+  // page the user could no longer see. modalEl is focused when it appears (it
+  // carries tabindex="-1" for exactly that), and returnFocus hands the caret
+  // back on close so a keyboard user is not dumped at the top of the document.
+  let modalEl = null
+  let returnFocus = null
+  $: if (modalEl) modalEl.focus()
+
   function openCreate(type) {
     const entry = catalogEntry(type)
     const mode = entry.modes[0]
+    returnFocus = document.activeElement
     draft = {
       id: null, type, title: entry.title, column: 'left',
       mode: mode.id, params: {}, refresh: 0, accent: entry.accent,
@@ -46,6 +56,7 @@
   }
 
   function openEdit(instance) {
+    returnFocus = document.activeElement
     draft = { ...instance, params: { ...instance.params } }
     isNew = false
   }
@@ -54,7 +65,34 @@
   // so closing the modal leaves you looking at the widget it belongs to.
   $: if (editing) { activeTab = 'gorunum'; openEdit(editing); editing = null }
 
-  function closeModal() { draft = null }
+  function closeModal() {
+    draft = null
+    modalEl = null
+    const back = returnFocus
+    returnFocus = null
+    // The pen icon can be gone by now (deleting the widget removes it), so this
+    // is best effort: a missing trigger just means the browser's default.
+    if (back && back.isConnected) back.focus()
+  }
+
+  // Tab must not leave a modal dialog — behind it is a page the user cannot see
+  // and cannot act on. Cycling within the dialog is what a dialog is expected to
+  // do; Escape (onKeydown) is still the way out.
+  function onModalKeydown(e) {
+    if (e.key !== 'Tab' || !modalEl) return
+    const stops = modalEl.querySelectorAll('button:not([disabled]), input:not([disabled])')
+    if (stops.length === 0) return
+
+    const first = stops[0]
+    const last = stops[stops.length - 1]
+    if (e.shiftKey && document.activeElement === first) {
+      last.focus()
+      e.preventDefault()
+    } else if (!e.shiftKey && document.activeElement === last) {
+      first.focus()
+      e.preventDefault()
+    }
+  }
 
   function setMode(modeId) {
     draft = { ...draft, mode: modeId, params: {} }
@@ -102,8 +140,10 @@
       <button
         class="tab"
         class:active={activeTab === t.id}
+        id="tab-{t.id}"
         role="tab"
         aria-selected={activeTab === t.id}
+        aria-controls={activeTab === t.id ? 'settings-panel' : undefined}
         tabindex={activeTab === t.id ? 0 : -1}
         on:click={() => (activeTab = t.id)}
       >{t.label}</button>
@@ -114,8 +154,12 @@
   <!-- One flex column so every card is spaced the same, whether it lives in
        this file or comes from a child component. A `.card + .card` rule cannot
        do that: Svelte scopes it to this component's own elements, so Accounts,
-       ApiKeys and VoiceSettings used to sit flush against each other. -->
-  <div class="panel">
+       ApiKeys and VoiceSettings used to sit flush against each other.
+
+       There is one panel element, not one per tab — only the selected tab's
+       aria-controls points at it, and aria-labelledby names whichever tab is
+       currently showing, so the pairing stays valid as the content swaps. -->
+  <div class="panel" id="settings-panel" role="tabpanel" aria-labelledby="tab-{activeTab}">
   {#if activeTab === 'gorunum'}
   <section class="card">
     <div class="card-head">
@@ -207,11 +251,29 @@
 </div>
 
 {#if draft}
-  <div class="backdrop" on:click={closeModal}>
-    <div class="modal" on:click|stopPropagation>
+  <div class="backdrop">
+    <!-- The dim area behind the dialog is a click target, so it is a button
+         rather than a div with on:click — a plain div has no keyboard
+         equivalent, which is what the a11y warning was about. It is a mouse
+         affordance only: aria-hidden and out of the tab order, because Escape
+         and the × button are the keyboard ways out and a screen reader has no
+         use for a third, unlabelled one. Being a sibling of .modal rather than
+         its parent also means the dialog no longer needs to stop propagation
+         to avoid closing itself. -->
+    <button class="scrim" on:click={closeModal} tabindex="-1" aria-hidden="true"></button>
+
+    <div
+      class="modal"
+      bind:this={modalEl}
+      on:keydown={onModalKeydown}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="widget-modal-title"
+      tabindex="-1"
+    >
       <header class="modal-head">
         <span class="tile" style="--wa: {draftEntry.accent}">{@html draftEntry.icon}</span>
-        <h3>{isNew ? `${draftEntry.title} ekle` : `${draftEntry.title} düzenle`}</h3>
+        <h3 id="widget-modal-title">{isNew ? `${draftEntry.title} ekle` : `${draftEntry.title} düzenle`}</h3>
         <button class="x" on:click={closeModal} aria-label="kapat">×</button>
       </header>
 
@@ -327,6 +389,9 @@
   .tab.active { color: var(--text-0); }
   .tab.active::after { transform: scaleX(1); }
   .tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  /* The dialog takes focus when it opens; without this it would draw the same
+     ring a clicked control does, which reads as "you pressed this". */
+  .modal:focus-visible { outline: none; }
 
   .panel { display: flex; flex-direction: column; gap: 18px; }
   .section-hint { color: var(--text-3); font-size: 12.5px; margin: 0 4px 6px; line-height: 1.5; }
@@ -455,7 +520,15 @@
     animation: fadein 160ms var(--ease);
   }
   @keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
+  /* Fills the backdrop and sits behind the dialog, so a click anywhere outside
+     the dialog lands on it. Transparent: .backdrop already draws the dim. */
+  .scrim {
+    position: absolute; inset: 0;
+    border: none; padding: 0; margin: 0;
+    background: transparent; cursor: default;
+  }
   .modal {
+    position: relative; /* above .scrim, which is absolutely positioned behind it */
     width: 400px; max-width: calc(100vw - 40px);
     max-height: calc(100vh - 60px); overflow: auto;
     background: var(--panel); border: 1px solid var(--border-2);
