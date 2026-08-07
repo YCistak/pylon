@@ -45,45 +45,41 @@ the release looks fine on the web page.
 
 ## Before you tag
 
-Four things are true right now and each one blocks part of the release. None of
-them are code problems; they are decisions.
+Two of the four things that used to block a release are resolved. The remaining
+two are not code problems; they are decisions.
 
-### 1. `v0.1.0-alpha.1` already exists, pointing at the wrong commit
+### ~~1. A stale tag and a broken draft~~ — cleared 2026-08-07
 
-```sh
-git tag -l                      # v0.1.0-alpha.1
-git rev-parse v0.1.0-alpha.1    # f25786c — weeks behind master
-gh release list                 # v0.1.0-alpha.1  Draft
-```
+`v0.1.0-alpha.1` used to point weeks behind master, and its draft carried assets
+named `pylon-v0.1.0-*` — produced by a different tag push, so self-update could
+never have used them. Nothing had been published from it, so the draft and the
+tag were deleted and the name reused for the first real release.
 
-That draft was produced by a `v0.1.0` tag push and later re-pointed, so its
-assets are named `pylon-v0.1.0-*` while the tag says `v0.1.0-alpha.1`. Per the
-list above, self-update cannot use it.
-
-Moving a tag that has already been pushed is a rewrite: anyone who fetched it
-keeps the old one until they prune. That is acceptable here only because
-nothing has been published from it. To reuse the name:
+Kept here as the recipe, should it happen again:
 
 ```sh
-gh release delete v0.1.0-alpha.1 --yes    # the draft and its assets
-git push origin :refs/tags/v0.1.0-alpha.1 # the remote tag
-git tag -d v0.1.0-alpha.1                 # the local tag
+gh release delete <tag> --yes --cleanup-tag   # draft, assets and the tag
 ```
 
-Otherwise pick the next unused version and skip this step entirely — cheaper,
-and it leaves no history to explain.
+Only safe while nothing has been published from that tag. Once people have
+downloaded it, cut the next version instead — moving a published tag breaks
+every checkout that already has it.
 
-### 2. The repository is private
+### ~~2. The repository is private~~ — public since 2026-08-07
 
-`api.github.com/.../releases/latest` returns 404 to an anonymous client, and so
-does every `browser_download_url`. That means:
+Before making a repository public, check the whole history, not the working
+tree: a later "scrub personal data" commit does not remove anything from the
+commits before it.
 
-- `pylon update` cannot work for anyone, including you on another machine.
-- The AUR package cannot build at all (see `packaging/aur/README.md`, which
-  names this as a hard blocker).
+```sh
+git log --all --format='%ae' | sort -u                 # emails in commit metadata
+git grep -I -l -E '<pattern>' $(git rev-list --all)    # content, every commit
+```
 
-A private release is still useful — you can download it yourself — but do not
-announce self-update or the AUR package until the repository is public.
+Worth searching for: your email, absolute home paths, `build.env`,
+`*.local.yaml`, provider key prefixes (`AIzaSy`, `ghp_`, `github_pat_`),
+`BEGIN.*PRIVATE KEY`. Test fixtures match some of these — read the hits rather
+than trusting the count.
 
 ### 3. `releases/latest` ignores prereleases
 
