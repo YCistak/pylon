@@ -114,3 +114,31 @@ func TestBriefingRequestRejectsGarbage(t *testing.T) {
 		}
 	}
 }
+
+// The catch-up exists because the scheduler only looks forward; these are the
+// four cases that decide whether a start-up delivers a briefing.
+func TestBriefingMissed(t *testing.T) {
+	day := func(hour, min int) time.Time {
+		return time.Date(2026, 8, 8, hour, min, 0, 0, time.Local)
+	}
+	const today = "2026-08-08"
+
+	cases := []struct {
+		name    string
+		now     time.Time
+		lastRun string
+		want    bool
+	}{
+		{"before the hour", day(7, 0), "", false},
+		{"after the hour, never run", day(9, 0), "", true},
+		{"after the hour, ran yesterday", day(9, 0), "2026-08-07", true},
+		{"after the hour, already ran today", day(9, 0), today, false},
+		// Exactly on the minute counts as due: the scheduler would have fired.
+		{"on the minute", day(8, 0), "", true},
+	}
+	for _, c := range cases {
+		if got := briefingMissed(c.now, 8, 0, c.lastRun); got != c.want {
+			t.Errorf("%s: briefingMissed = %v, want %v", c.name, got, c.want)
+		}
+	}
+}
