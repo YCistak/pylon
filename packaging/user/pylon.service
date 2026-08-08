@@ -1,0 +1,22 @@
+[Unit]
+Description=Pylon — personal AI assistant daemon
+Documentation=https://github.com/YCistak/pylon
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/pylon start
+Restart=on-failure
+RestartSec=5s
+
+# The daemon binds a global hotkey and draws notifications, so it needs the
+# session's compositor. Those variables reach a user unit only if the
+# compositor exported them (Hyprland does, via dbus-update-activation-environment
+# or systemctl --user import-environment); starting the unit *from* the
+# compositor is the reliable way — see packaging/user/README.md.
+
+[Install]
+# Left here for setups where graphical-session.target is actually reached.
+# On a bare Hyprland session it usually is not, and the compositor starts this
+# unit directly instead; `systemctl --user enable` is then a no-op, not a fix.
+WantedBy=graphical-session.target

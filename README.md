@@ -108,14 +108,23 @@ make gui                        # pylon-ui/build/bin/pylon-ui
 ```sh
 make install-user ARGS=--dry-run   # show the file operations
 make install-user                  # do them
+make install-user ARGS=--link      # symlink the binaries instead of copying
 ```
 
-Both binaries go to `~/.local/bin`, plus an icon and a desktop entry so Pylon
-shows up in your application menu. An existing `pylon.yaml` is never touched
-and an existing desktop entry is backed up first. Nothing needs root, and
-`~/.local/bin` is outside the prefixes `pylon update` treats as
+Both binaries go to `~/.local/bin`, plus an icon, a desktop entry so Pylon shows
+up in your application menu, and a systemd user unit. An existing `pylon.yaml`
+is never touched and an existing desktop entry is backed up first. Nothing needs
+root, and `~/.local/bin` is outside the prefixes `pylon update` treats as
 package-manager territory — so a Pylon installed this way can still update
 itself. For a system-wide install on Arch, see `packaging/aur/`.
+
+`--link` points `~/.local/bin` at the checkout, so on a machine you develop on
+`make build` is the whole update step.
+
+Starting the daemon at login is one line in your compositor config —
+`packaging/user/README.md` explains why the unit is installed but not enabled,
+and why an API key exported in your shell will not reach a daemon started by
+systemd.
 
 ---
 
