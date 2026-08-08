@@ -18,6 +18,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"golang.org/x/term"
@@ -179,7 +180,7 @@ func cmdStart() error {
 	tracker := registerSessions(d, cfg, database, log)
 
 	registerWatcher(d, cfg, database, tracker, log)
-	registerScheduler(d, cfg, registry, log)
+	registerScheduler(d, cfg, database, registry, log)
 	registerIntent(d, cfg, database, registry, log)
 	registerSecrets(d)
 	registerAuth(d, cfg)
@@ -347,13 +348,44 @@ func registerHotkey(d *daemon.Daemon, cfg config.Config, database *db.DB, log *s
 	}
 	command := self + " listen"
 
+	// bound is what the compositor currently holds for us, so shutdown can hand
+	// exactly that back — it is not always what config or the database says,
+	// because "hotkey set" moves it while the daemon runs.
+	var mu sync.Mutex
+	var bound *hotkey.Combo
+
 	apply := func(combo hotkey.Combo) error {
 		if mgr == nil {
 			return nil // nothing to apply; the GUI explains the manual route
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		return mgr.Bind(ctx, combo, command)
+		if err := mgr.Bind(ctx, combo, command); err != nil {
+			return err
+		}
+		mu.Lock()
+		bound = &combo
+		mu.Unlock()
+		return nil
+	}
+
+	// unbind gives the shortcut back. Deliberately uses its own context: it runs
+	// during shutdown, when the daemon's context is already cancelled.
+	unbind := func() {
+		mu.Lock()
+		combo := bound
+		bound = nil
+		mu.Unlock()
+		if mgr == nil || combo == nil {
+			return
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := mgr.Unbind(ctx, *combo); err != nil {
+			log.Warn("hotkey: bağlantı kaldırılamadı", "hotkey", combo.String(), "err", err)
+			return
+		}
+		log.Info("hotkey: bağlantı kaldırıldı", "hotkey", combo.String())
 	}
 
 	// stored falls back to the config's hotkey, which is what a fresh install
@@ -367,20 +399,29 @@ func registerHotkey(d *daemon.Daemon, cfg config.Config, database *db.DB, log *s
 		return cfg.Voice.Hotkey
 	}
 
-	// Register whatever is remembered as soon as the daemon is up, so the
-	// shortcut survives a reboot without the user doing anything.
-	switch combo, err := hotkey.Parse(stored()); {
-	case err != nil:
-		log.Warn("hotkey: kayıtlı kısayol okunamadı", "value", stored(), "err", err)
-	case mgr == nil:
-		log.Info("hotkey: bu masaüstünde çalışma-anı bağlama yok", "hotkey", combo.String())
-	default:
-		if err := apply(combo); err != nil {
-			log.Warn("hotkey: bağlanamadı", "hotkey", combo.String(), "wm", wm, "err", err)
-		} else {
-			log.Info("hotkey: bağlandı", "hotkey", combo.String(), "wm", wm, "cmd", command)
+	// Bound as a service, not once at startup, so that the binding has a
+	// lifetime: it exists exactly as long as the daemon does. A binding left
+	// behind after the daemon exits still launches `pylon listen`, which records
+	// audio and then fails with "daemon not reachable" — inside a process the
+	// compositor started, where nobody ever sees the error. A shortcut that does
+	// nothing is easier to diagnose than one that lies.
+	d.Register("hotkey", func(ctx context.Context) error {
+		switch combo, err := hotkey.Parse(stored()); {
+		case err != nil:
+			log.Warn("hotkey: kayıtlı kısayol okunamadı", "value", stored(), "err", err)
+		case mgr == nil:
+			log.Info("hotkey: bu masaüstünde çalışma-anı bağlama yok", "hotkey", combo.String())
+		default:
+			if err := apply(combo); err != nil {
+				log.Warn("hotkey: bağlanamadı", "hotkey", combo.String(), "wm", wm, "err", err)
+			} else {
+				log.Info("hotkey: bağlandı", "hotkey", combo.String(), "wm", wm, "cmd", command)
+			}
 		}
-	}
+		<-ctx.Done()
+		unbind()
+		return ctx.Err()
+	})
 
 	d.Handle("hotkey", func(req ipc.Request) ipc.Response {
 		if len(req.Args) == 0 {
@@ -407,11 +448,13 @@ func registerHotkey(d *daemon.Daemon, cfg config.Config, database *db.DB, log *s
 				return ipc.Response{OK: false, Error: err.Error()}
 			}
 			// Drop the previous binding first, or the old shortcut keeps working
-			// alongside the new one.
-			if old, err := hotkey.Parse(stored()); err == nil && mgr != nil && old.String() != combo.String() {
-				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-				_ = mgr.Unbind(ctx, old)
-				cancel()
+			// alongside the new one. What to drop is what we actually bound, not
+			// what is stored — those differ if an earlier bind failed.
+			mu.Lock()
+			old := bound
+			mu.Unlock()
+			if old != nil && old.String() != combo.String() {
+				unbind()
 			}
 			if err := apply(combo); err != nil {
 				return ipc.Response{OK: false, Error: err.Error()}
@@ -1007,7 +1050,7 @@ func registerSessions(d *daemon.Daemon, cfg config.Config, database *db.DB, log 
 // are GitHub's 15-minute PR poll and the daily commit-reminder (Phase 2.2);
 // Phase 3's briefing/report will register here too. Jobs notify through the
 // same TTS path the watcher uses (logging when TTS is off).
-func registerScheduler(d *daemon.Daemon, cfg config.Config, registry *services.Registry, log *slog.Logger) {
+func registerScheduler(d *daemon.Daemon, cfg config.Config, database *db.DB, registry *services.Registry, log *slog.Logger) {
 	sched := scheduler.New(scheduler.Options{Logger: log})
 
 	var speaker voice.Speaker
@@ -1056,22 +1099,86 @@ func registerScheduler(d *daemon.Daemon, cfg config.Config, registry *services.R
 	// malformed.
 	if h, m, ok := parseHM(cfg.Briefing.Time); ok {
 		speaker := briefingSpeaker(cfg)
-		sched.DailyAt("briefing", h, m, func(ctx context.Context) {
+		deliver := func(ctx context.Context) {
 			text, ok, err := registry.Dispatch(ctx, intent.Command{Action: briefing.ActionToday})
 			if err != nil || !ok {
 				log.Warn("scheduler: briefing failed", "err", err)
 				return
+			}
+			// Recorded only after it was actually composed: a failed briefing
+			// must stay eligible for the catch-up below.
+			if database != nil {
+				if err := database.SetContext(briefingLastRunKey, time.Now().Format(dayKey)); err != nil {
+					log.Warn("scheduler: briefing last-run not saved", "err", err)
+				}
 			}
 			if speaker != nil && strings.TrimSpace(text) != "" {
 				if err := speaker.Say(ctx, text); err != nil {
 					log.Warn("scheduler: briefing speak failed", "err", err)
 				}
 			}
-		})
+		}
+		sched.DailyAt("briefing", h, m, deliver)
 		log.Info("scheduler: daily briefing enabled", "at", cfg.Briefing.Time)
+		if database != nil {
+			registerBriefingCatchup(d, database, h, m, deliver, log)
+		}
 	}
 
 	d.Register("scheduler", sched.Run)
+}
+
+// briefingLastRunKey remembers, as a local YYYY-MM-DD, the day a briefing was
+// last delivered.
+const briefingLastRunKey = "briefing.last_run"
+
+// dayKey is the date format both the stored key and the comparison use.
+const dayKey = "2006-01-02"
+
+// briefingCatchupDelay lets the session finish coming up before a missed
+// briefing is composed. It reads calendar and news over the network, and at
+// login the daemon is usually running before the network is.
+const briefingCatchupDelay = 20 * time.Second
+
+// registerBriefingCatchup delivers today's briefing once if it was missed.
+//
+// The scheduler only ever looks forward: seed() gives each daily job its *next*
+// fire time, so a daemon that starts at 09:00 with the briefing set to 08:00
+// schedules it for tomorrow and today's is simply lost. For someone who turns
+// the machine on in the morning that means the briefing rarely ever runs.
+//
+// The stored day is what keeps this to once: restarting the daemon four times
+// after a delivered briefing delivers nothing more.
+func registerBriefingCatchup(d *daemon.Daemon, database *db.DB, hour, min int, deliver func(context.Context), log *slog.Logger) {
+	d.Register("briefing-catchup", func(ctx context.Context) error {
+		last, _, err := database.GetContext(briefingLastRunKey)
+		if err != nil {
+			log.Warn("scheduler: briefing last-run unreadable", "err", err)
+			return nil
+		}
+		if !briefingMissed(time.Now(), hour, min, last) {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(briefingCatchupDelay):
+		}
+		log.Info("scheduler: today's briefing was missed, catching up", "last_run", last)
+		deliver(ctx)
+		return nil
+	})
+}
+
+// briefingMissed reports whether a briefing due at hour:min today has come due
+// and has not been delivered. lastRun is the stored day, empty if never.
+// Local time throughout, because that is the clock the scheduler fires on.
+func briefingMissed(now time.Time, hour, min int, lastRun string) bool {
+	due := time.Date(now.Year(), now.Month(), now.Day(), hour, min, 0, 0, now.Location())
+	if now.Before(due) {
+		return false
+	}
+	return lastRun != now.Format(dayKey)
 }
 
 // parseHM parses an "HH:MM" 24-hour time. ok is false for empty or malformed input.

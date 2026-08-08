@@ -7,6 +7,37 @@ semver precedence — including prerelease ordering.
 
 Cutting a release: [docs/RELEASE.md](docs/RELEASE.md).
 
+## [Unreleased]
+
+### Added
+
+- **A systemd user unit** (`packaging/user/pylon.service`), installed by
+  `make install-user`. Installed but not enabled: `WantedBy=graphical-session
+  .target` starts nothing on the bare Wayland sessions Pylon is developed on,
+  where that target is never reached, so the compositor starts the unit instead
+  — which also guarantees `WAYLAND_DISPLAY` is exported before the daemon tries
+  to bind a hotkey. [packaging/user/README.md](packaging/user/README.md) has the
+  autostart lines.
+- **`make install-user ARGS=--link`** symlinks the binaries out of the checkout
+  instead of copying them, so `make build` alone updates what the menu entry and
+  the service launch. When the checkout is on a different mount than `$HOME` it
+  also writes a `RequiresMountsFor` drop-in, because otherwise the unit can
+  start before that disk is mounted and fail for no visible reason.
+
+### Fixed
+
+- **A missed briefing is now delivered once, instead of never.** The scheduler
+  only looks forward: starting the daemon at 09:00 with the briefing set to
+  08:00 scheduled it for *tomorrow* and dropped today's entirely. For anyone who
+  turns the machine on in the morning that meant the briefing almost never ran.
+  The day of the last delivery is persisted, so the catch-up fires once and a
+  restart does not repeat it.
+- **The push-to-talk shortcut is released when the daemon stops.** It was bound
+  at startup and never unbound, so after a stop the key still launched
+  `pylon listen`, which recorded audio and then failed to reach the daemon —
+  inside a process the compositor started, where the error went nowhere. The
+  binding now lives exactly as long as the daemon does.
+
 ## [0.1.0-alpha.1] — 2026-08-07
 
 The first published release. An earlier tag of this name existed but was never
