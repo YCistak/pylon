@@ -93,22 +93,6 @@ func (o *openaiProvider) Parse(ctx context.Context, transcript, styleCard string
 	return decodeCommandJSON([]byte(env.Choices[0].Message.Content))
 }
 
-// decodeCommandJSON parses a {action,process,content,reply} JSON object (as
-// emitted by OpenAI/Anthropic structured output) into a Command.
-func decodeCommandJSON(raw []byte) (Command, error) {
-	var p struct {
-		Action   string `json:"action"`
-		Process  string `json:"process"`
-		Content  string `json:"content"`
-		Reply    string `json:"reply"`
-		Datetime string `json:"datetime"`
-	}
-	if err := json.Unmarshal(raw, &p); err != nil {
-		return Command{}, fmt.Errorf("decode command %q: %w", string(raw), err)
-	}
-	return decodeCommandFields(p.Action, p.Process, p.Content, p.Reply, p.Datetime), nil
-}
-
 func openaiErrorMessage(body []byte) string {
 	var e struct {
 		Error struct {

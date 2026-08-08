@@ -112,18 +112,11 @@ func parseGeminiResponse(body []byte) (Command, error) {
 		return Command{}, fmt.Errorf("gemini returned no candidates")
 	}
 
-	var parsed struct {
-		Action   string `json:"action"`
-		Process  string `json:"process"`
-		Content  string `json:"content"`
-		Reply    string `json:"reply"`
-		Datetime string `json:"datetime"`
+	cmd, err := decodeCommandJSON([]byte(gr.Candidates[0].Content.Parts[0].Text))
+	if err != nil {
+		return Command{}, fmt.Errorf("gemini: %w", err)
 	}
-	raw := gr.Candidates[0].Content.Parts[0].Text
-	if err := json.Unmarshal([]byte(raw), &parsed); err != nil {
-		return Command{}, fmt.Errorf("decode gemini command %q: %w", raw, err)
-	}
-	return decodeCommandFields(parsed.Action, parsed.Process, parsed.Content, parsed.Reply, parsed.Datetime), nil
+	return cmd, nil
 }
 
 func ptr[T any](v T) *T { return &v }

@@ -26,6 +26,16 @@ Cutting a release: [docs/RELEASE.md](docs/RELEASE.md).
 
 ### Fixed
 
+- **Service action arguments now reach the service.** The LLM schema hard-coded
+  four argument fields — `process`, `content`, `reply`, `datetime` — so an
+  action declaring anything else had nowhere to put its value. The model chose
+  the right action and the service was handed an empty string: "12 çarpı 7 kaç
+  eder" reached `calc.eval` with no expression, "dolar kaç lira" reached
+  `exchange.currency` and asked back which currency. It affected every argument
+  a service contributes: `expr`, `container`, `lines`, `base`, `quote`, `coin`,
+  `vs`, `query`, `app`. The schema and the prompt are now built from the live
+  action catalog, for all three providers, so registering a service is enough.
+
 - **A missed briefing is now delivered once, instead of never.** The scheduler
   only looks forward: starting the daemon at 09:00 with the briefing set to
   08:00 scheduled it for *tomorrow* and dropped today's entirely. For anyone who
