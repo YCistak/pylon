@@ -46,24 +46,24 @@ type schema struct {
 }
 
 // commandSchema constrains Gemini to return a single structured command.
+//
+// The argument properties come from the live catalog rather than a fixed list.
+// An action whose argument has no field in the schema can still be chosen, and
+// then arrives with that argument empty — which reads as the model having
+// misunderstood a question it in fact understood perfectly.
 func commandSchema() *schema {
-	return &schema{
-		Type: "OBJECT",
-		// All fields are required: Gemini reliably omits nullable/optional fields
-		// in structured output, so the model emits "" for fields that don't apply
-		// to the chosen action instead of dropping them.
-		Required: []string{"action", "process", "content", "reply", "datetime"},
-		Properties: map[string]*schema{
-			"action": {Type: "STRING", Enum: allActions()},
-			// process/content populate task.remind_on_exit; reply carries a
-			// conversational answer for "chat"; datetime carries an ISO-8601 time
-			// for time-based actions (e.g. calendar). Unused fields are "".
-			"process":  {Type: "STRING"},
-			"content":  {Type: "STRING"},
-			"reply":    {Type: "STRING"},
-			"datetime": {Type: "STRING"},
-		},
+	fields := argFields()
+	// All fields are required: Gemini reliably omits nullable/optional fields in
+	// structured output, so the model emits "" for the fields that don't apply
+	// to the chosen action instead of dropping them.
+	required := make([]string, 0, len(fields)+1)
+	required = append(required, "action")
+	props := map[string]*schema{"action": {Type: "STRING", Enum: allActions()}}
+	for _, f := range fields {
+		props[f] = &schema{Type: "STRING"}
+		required = append(required, f)
 	}
+	return &schema{Type: "OBJECT", Required: required, Properties: props}
 }
 
 // allActions is the closed vocabulary the LLM may choose from, built from the
@@ -85,8 +85,18 @@ func systemPrompt(styleCard string) string {
 	b.WriteString(`You are Pylon, a personal voice assistant. Interpret the user's message and respond ONLY with JSON matching the provided schema.
 
 Rules:
-- Choose exactly one "action" from the allowed set.
-- Always include all of "process", "content", "reply", "datetime". For fields that do not apply to the chosen action, use an empty string "".`)
+- Choose exactly one "action" from the allowed set.`)
+
+	// The field list is the schema's, so a service's argument is named here the
+	// moment it exists — the per-action rules below refer to these by name.
+	b.WriteString("\n- Always include all of ")
+	for i, f := range argFields() {
+		if i > 0 {
+			b.WriteString(", ")
+		}
+		b.WriteString(`"` + f + `"`)
+	}
+	b.WriteString(`. For fields that do not apply to the chosen action, use an empty string "".`)
 
 	// Per-action rules from the catalog (built-ins + services).
 	for _, s := range catalog() {

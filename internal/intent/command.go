@@ -6,6 +6,8 @@
 // Pylon cheap to run.
 package intent
 
+import "sort"
+
 // Action identifies what the user wants done. Values are namespaced so the
 // Gemini fallback can return the same vocabulary.
 type Action string
@@ -83,3 +85,41 @@ func SetActions(extra ...ActionSpec) {
 }
 
 func catalog() []ActionSpec { return actionCatalog }
+
+// coreArgs are in the schema whatever the catalog holds: the built-in actions
+// populate process/content/reply, and "datetime" carries a resolved absolute
+// time for any action that needs one — the prompt asks for it as a general rule
+// rather than per action, so no ActionSpec declares it.
+var coreArgs = []string{"process", "content", "reply", "datetime"}
+
+// argFields is every argument name the model may return, sorted.
+//
+// The schema used to hard-code the core four. Any action declaring a different
+// argument — calc.eval's "expr", docker's "container", exchange's "base"/"quote"
+// — was therefore chosen correctly and then handed nothing: the model had no
+// field to put the value in, so the service received an empty string and
+// answered "hangi para birimini soruyorsun?" to a perfectly clear question.
+// Deriving the fields from the catalog is what keeps that from happening again
+// every time a service is added.
+func argFields() []string {
+	seen := make(map[string]bool, len(coreArgs))
+	out := make([]string, 0, len(coreArgs))
+	add := func(name string) {
+		// "action" is the command itself, not one of its arguments.
+		if name == "" || name == "action" || seen[name] {
+			return
+		}
+		seen[name] = true
+		out = append(out, name)
+	}
+	for _, a := range coreArgs {
+		add(a)
+	}
+	for _, s := range catalog() {
+		for _, a := range s.Args {
+			add(a)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
