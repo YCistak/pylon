@@ -272,7 +272,7 @@ func registerAuth(d *daemon.Daemon, cfg config.Config) {
 		}
 		p, ok := providers[req.Args[0]]
 		if !ok {
-			return ipc.Response{OK: false, Error: "bilinmeyen servis: " + req.Args[0] + " — " + usage}
+			return ipc.Response{OK: false, Error: "unknown service: " + req.Args[0] + " — " + usage}
 		}
 		switch req.Args[1] {
 		case "status":
@@ -611,6 +611,13 @@ func registerIntent(d *daemon.Daemon, cfg config.Config, database *db.DB, regist
 		return resp
 	}
 
+	// "lang" tells a client which language the daemon is speaking, so the GUI
+	// labels itself the same way rather than keeping its own setting that could
+	// disagree with the replies appearing next to it.
+	d.Handle("lang", func(ipc.Request) ipc.Response {
+		return ipc.Response{OK: true, Text: i18n.Language()}
+	})
+
 	d.Handle("say", func(req ipc.Request) ipc.Response {
 		return runIntent(strings.Join(req.Args, " "))
 	})
@@ -670,7 +677,7 @@ func registerIntent(d *daemon.Daemon, cfg config.Config, database *db.DB, regist
 		case err != nil:
 			return ipc.Response{OK: false, Error: err.Error()}
 		case !ok:
-			return ipc.Response{OK: false, Error: "bilinmeyen/servissiz aksiyon: " + req.Args[0]}
+			return ipc.Response{OK: false, Error: "unknown or unregistered action: " + req.Args[0]}
 		default:
 			return ipc.Response{OK: true, Text: text}
 		}
@@ -1276,7 +1283,7 @@ func cmdWork(args []string) error {
 		case "week", "hafta", "haftalik", "haftalık":
 			action = work.ActionWeek
 		default:
-			return fmt.Errorf("usage: pylon work [today|week] (bilinmeyen: %q)", args[0])
+			return fmt.Errorf("usage: pylon work [today|week] (unknown: %q)", args[0])
 		}
 	}
 	resp, err := daemon.Send(socketPath(), ipc.Request{Cmd: "do", Args: []string{string(action)}})
@@ -1400,7 +1407,7 @@ func cmdAuth(args []string) error {
 	if len(args) > 1 && args[1] == "logout" {
 		logout := map[string]func() error{"google": google.Logout, "spotify": spotify.Logout}[args[0]]
 		if logout == nil {
-			return fmt.Errorf("usage: pylon auth <google|spotify> logout (bilinmeyen: %q)", args[0])
+			return fmt.Errorf("usage: pylon auth <google|spotify> logout (unknown: %q)", args[0])
 		}
 		if err := logout(); err != nil {
 			return err
@@ -1440,7 +1447,7 @@ func cmdAuth(args []string) error {
 		return nil
 
 	default:
-		return fmt.Errorf("usage: pylon auth <google|spotify> (bilinmeyen: %q)", args[0])
+		return fmt.Errorf("usage: pylon auth <google|spotify> (unknown: %q)", args[0])
 	}
 }
 
@@ -1475,7 +1482,7 @@ func cmdSecret(args []string) error {
 		fmt.Printf("✔ %q silindi.\n", name)
 		return nil
 	default:
-		return fmt.Errorf("usage: pylon secret <set|rm> <name> (bilinmeyen: %q)", action)
+		return fmt.Errorf("usage: pylon secret <set|rm> <name> (unknown: %q)", action)
 	}
 }
 

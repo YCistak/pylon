@@ -54,7 +54,7 @@ func (c *Calc) Execute(_ context.Context, action intent.Action, args map[string]
 		}
 		return fmt.Sprintf("%s eder.", formatTR(v)), nil
 	default:
-		return "", fmt.Errorf("calc: bilinmeyen aksiyon %q", action)
+		return "", fmt.Errorf("calc: unknown action %q", action)
 	}
 }
 

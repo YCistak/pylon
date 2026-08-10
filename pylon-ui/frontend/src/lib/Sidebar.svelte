@@ -1,4 +1,5 @@
 <script>
+  import { t } from './i18n.js'
   // The sidebar dock: P brand + user-pinned pages + settings share one strip,
   // one hover trigger, one 72→240px expand animation.
   import { sidebarPages, pageCatalogEntry } from './sidebarPages.js'
@@ -16,7 +17,7 @@
   // Shared daemon probe (see daemon.js). null = still connecting on cold launch.
   $: running = $daemonOnline === true
   $: dotState = running ? 'on' : ($daemonOnline === null ? 'connecting' : 'off')
-  $: statusText = running ? 'çevrimiçi' : ($daemonOnline === null ? 'bağlanıyor…' : 'çevrimdışı')
+  $: statusText = running ? $t('ui.status.online') : ($daemonOnline === null ? $t('ui.status.connecting') : $t('ui.status.offline'))
 </script>
 
 <aside
@@ -60,7 +61,7 @@
   <div class="bottom">
     <div class="row">
       <div class="icon-col">
-        <span class="dot {dotState}" title={running ? 'Pylon çalışıyor' : ($daemonOnline === null ? 'Pylon başlatılıyor' : 'Pylon çalışmıyor')}></span>
+        <span class="dot {dotState}" title={running ? $t('ui.daemon.running') : ($daemonOnline === null ? $t('ui.daemon.starting') : $t('ui.daemon.stopped'))}></span>
       </div>
       <div class="info">
         <span class="status">{statusText}</span>

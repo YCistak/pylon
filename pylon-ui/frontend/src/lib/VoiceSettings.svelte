@@ -1,4 +1,5 @@
 <script>
+  import { t } from './i18n.js'
   // Voice settings: pick the push-to-talk shortcut. A desktop app cannot grab a
   // global hotkey for itself, so the binding lives in the window manager — but
   // on Hyprland and Sway the daemon can register it over the compositor's
@@ -93,7 +94,7 @@
     switch (p) {
       case 'hyprland':
         return { snippet: `bind = ${mods.join(' ')}, ${key}, exec, pylon listen`,
-                 note: 'Bu satırı hyprland.conf dosyana ekle.' }
+                 note: $t('ui.voice.note_hyprland') }
       case 'sway': {
         const map = { SUPER: 'Mod4', CTRL: 'Ctrl', ALT: 'Mod1', SHIFT: 'Shift' }
         const combo = [...mods.map((x) => map[x]), kl].join('+')
@@ -102,26 +103,26 @@
       }
       case 'gnome':
         return { snippet: 'pylon listen',
-                 note: `Ayarlar → Klavye → Özel Kısayollar: komut “pylon listen”, kısayol ${pretty}.` }
+                 note: $t('ui.voice.note_gnome', pretty) }
       case 'kde':
         return { snippet: 'pylon listen',
-                 note: `Sistem Ayarları → Kısayollar → Özel: komut “pylon listen”, kısayol ${pretty}.` }
+                 note: $t('ui.voice.note_kde', pretty) }
       case 'macos': {
         const map = { SUPER: 'cmd', CTRL: 'ctrl', ALT: 'alt', SHIFT: 'shift' }
         const m = mods.map((x) => map[x])
         const lhs = m.length ? `${m.join(' + ')} - ${kl}` : kl
         return { snippet: `${lhs} : pylon listen`,
-                 note: 'skhd ile (brew install skhd): ~/.config/skhd/skhdrc dosyasına ekle.' }
+                 note: $t('ui.voice.note_macos') }
       }
       case 'windows': {
         const map = { SUPER: '#', CTRL: '^', ALT: '!', SHIFT: '+' }
         const sym = mods.map((x) => map[x]).join('')
         return { snippet: `${sym}${kl}::Run "pylon listen"`,
-                 note: 'AutoHotkey v2 script (.ahk) olarak kaydet ve başlat.' }
+                 note: $t('ui.voice.note_windows') }
       }
       default:
         return { snippet: 'pylon listen',
-                 note: `Masaüstünün klavye kısayolları ayarında bu komutu ${pretty} tuşuna bağla.` }
+                 note: $t('ui.voice.note_generic', pretty) }
     }
   }
 
@@ -140,16 +141,16 @@
 
 <section class="card">
   <div class="card-head">
-    <div class="card-title"><h3>Ses & Konuşma</h3></div>
+    <div class="card-title"><h3>{$t('ui.voice.title')}</h3></div>
   </div>
   <p class="hint">
-    Pylon ile konuşmak için bir kısayol ata. Tuşa basınca Pylon dinlemeye başlar.
+    {$t('ui.voice.intro')}
   </p>
 
   <div class="row">
-    <span class="lbl">Kısayol</span>
+    <span class="lbl">{$t('ui.voice.shortcut')}</span>
     <button class="combo" class:capturing on:click={() => (capturing = !capturing)}>
-      {#if capturing}tuşa bas…{:else}{pretty}{/if}
+      {#if capturing}{$t('ui.voice.press_key')}{:else}{pretty}{/if}
     </button>
   </div>
 
@@ -157,14 +158,13 @@
     <p class="note err">{error}</p>
   {:else if wm}
     <p class="note ok">
-      {wm} üzerinde etkin — değiştirince hemen geçerli olur ve config dosyana
-      dokunulmaz. Seçtiğin kısayol başka bir şeye bağlıysa Pylon onu devralır.
+      {$t('ui.voice.live_note', wm)}
     </p>
   {:else}
     <!-- No runtime binding API on this desktop, so the user has to add it. -->
     <div class="bind">
       <code>{bind.snippet}</code>
-      <button class="copy" on:click={copy}>{copied ? 'Kopyalandı ✓' : 'Kopyala'}</button>
+      <button class="copy" on:click={copy}>{copied ? $t('ui.copied') : $t('ui.copy')}</button>
     </div>
     <p class="note">{bind.note}</p>
   {/if}

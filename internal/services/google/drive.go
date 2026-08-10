@@ -72,7 +72,7 @@ func (d *Drive) Execute(ctx context.Context, action intent.Action, args map[stri
 	case ActionRecentFiles:
 		return d.recent(ctx)
 	default:
-		return "", fmt.Errorf("drive: bilinmeyen aksiyon %q", action)
+		return "", fmt.Errorf("drive: unknown action %q", action)
 	}
 }
 

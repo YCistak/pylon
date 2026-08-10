@@ -1,10 +1,11 @@
 <script>
+  import { t } from './i18n.js'
   import { daemonOnline } from './daemon.js'
 
   // Show the user a simple state, not the daemon's raw "running (pid …)" line.
   // null = the GUI is still bringing the daemon up on a fresh launch.
   $: online = $daemonOnline === true
-  $: status = online ? 'çalışıyor' : ($daemonOnline === null ? 'bağlanıyor…' : 'çalışmıyor')
+  $: status = online ? $t('ui.status.running') : ($daemonOnline === null ? $t('ui.status.connecting') : $t('ui.status.not_running'))
 </script>
 
 <div class="stage" class:online>

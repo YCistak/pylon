@@ -186,7 +186,7 @@ func (d *Docker) Execute(ctx context.Context, action intent.Action, args map[str
 	case ActionList:
 		return d.listJSON(ctx, api)
 	default:
-		return "", fmt.Errorf("docker: bilinmeyen aksiyon %q", action)
+		return "", fmt.Errorf("docker: unknown action %q", action)
 	}
 }
 

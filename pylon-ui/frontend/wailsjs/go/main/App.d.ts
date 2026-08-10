@@ -19,6 +19,8 @@ export function HasSecret(arg1:string):Promise<boolean>;
 
 export function Hotkey():Promise<string>;
 
+export function Language():Promise<string>;
+
 export function Listen():Promise<string>;
 
 export function Platform():Promise<string>;

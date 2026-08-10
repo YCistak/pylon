@@ -1,4 +1,5 @@
 <script>
+  import { t } from './i18n.js'
   import { CATALOG, catalogEntry, modeOf, REFRESH_OPTIONS, widgets } from './widgets.js'
   import { PAGE_CATALOG, pageCatalogEntry, sidebarPages } from './sidebarPages.js'
   import Widget from './Widget.svelte'
@@ -13,17 +14,17 @@
   // screen to a single question — what's on the home, which accounts, how voice
   // behaves — instead of making you scroll past all three to reach one.
   const TABS = [
-    { id: 'gorunum', label: 'Görünüm', hint: 'Ana sayfada ve sol çubukta neyin duracağını seç.' },
-    { id: 'hesaplar', label: 'Hesaplar', hint: 'Servis bağlantıları ve kayıtlı anahtarlar.' },
-    { id: 'ses', label: 'Ses', hint: 'Konuşma tanıma ve bas-konuş kısayolu.' },
+    { id: 'gorunum', label: 'ui.settings.appearance', hint: 'ui.settings.appearance_hint' },
+    { id: 'hesaplar', label: 'ui.settings.accounts', hint: 'ui.settings.accounts_hint' },
+    { id: 'ses', label: 'ui.settings.voice', hint: 'ui.settings.voice_hint' },
   ]
   let activeTab = TABS[0].id
-  $: activeHint = TABS.find((t) => t.id === activeTab)?.hint ?? ''
+  $: activeHint = TABS.find((tab) => tab.id === activeTab)?.hint ?? ''
 
   // Left/right arrows move between tabs, which is what a tablist is expected to
   // do once the buttons carry tab roles.
   function onTabKeydown(e) {
-    const i = TABS.findIndex((t) => t.id === activeTab)
+    const i = TABS.findIndex((t) => tab.id === activeTab)
     if (e.key === 'ArrowRight') activeTab = TABS[(i + 1) % TABS.length].id
     else if (e.key === 'ArrowLeft') activeTab = TABS[(i - 1 + TABS.length) % TABS.length].id
     else return
@@ -48,7 +49,9 @@
     const mode = entry.modes[0]
     returnFocus = document.activeElement
     draft = {
-      id: null, type, title: entry.title, column: 'left',
+      // The instance keeps a plain title, not a key: it is editable text from
+      // here on, and the user may rename it to anything.
+      id: null, type, title: $t(entry.title), column: 'left',
       mode: mode.id, params: {}, refresh: 0, accent: entry.accent,
     }
     isNew = true
@@ -136,17 +139,17 @@
   <!-- tabindex="-1": the tablist itself is never a tab stop — focus lands on the
        selected tab, which carries the roving tabindex below. -->
   <div class="tabs" role="tablist" tabindex="-1" on:keydown={onTabKeydown}>
-    {#each TABS as t (t.id)}
+    {#each TABS as tab (tab.id)}
       <button
         class="tab"
-        class:active={activeTab === t.id}
-        id="tab-{t.id}"
+        class:active={activeTab === tab.id}
+        id="tab-{tab.id}"
         role="tab"
-        aria-selected={activeTab === t.id}
-        aria-controls={activeTab === t.id ? 'settings-panel' : undefined}
-        tabindex={activeTab === t.id ? 0 : -1}
-        on:click={() => (activeTab = t.id)}
-      >{t.label}</button>
+        aria-selected={activeTab === tab.id}
+        aria-controls={activeTab === tab.id ? 'settings-panel' : undefined}
+        tabindex={activeTab === tab.id ? 0 : -1}
+        on:click={() => (activeTab = tab.id)}
+      >{$t(tab.label)}</button>
     {/each}
   </div>
   <p class="sub">{activeHint}</p>
@@ -177,7 +180,7 @@
             {#each CATALOG as c}
               <button class="picker-item" on:click={() => openCreate(c.type)}>
                 <span class="tile" style="--wa: {c.accent}">{@html c.icon}</span>
-                <span class="picker-name">{c.title}</span>
+                <span class="picker-name">{$t(c.title)}</span>
                 <span class="chevron">›</span>
               </button>
             {/each}
@@ -188,8 +191,8 @@
 
     {#if $widgets.length === 0}
       <div class="empty">
-        <p>Henüz widget eklemedin.</p>
-        <span>Yukarıdaki <strong>+ Widget Ekle</strong> ile başla.</span>
+        <p>{$t('ui.settings.no_widgets')}</p>
+        <span>{$t('ui.settings.no_widgets_hint')}</span>
       </div>
     {:else}
       <ul class="list">
@@ -200,12 +203,12 @@
             <div class="info">
               <span class="name">{w.title}</span>
               <span class="meta">
-                <span class="chip">{w.column === 'left' ? 'Sol' : 'Sağ'}</span>
-                <span class="mode">{modeOf(w.type, w.mode)?.label}</span>
+                <span class="chip">{w.column === 'left' ? $t('ui.left') : $t('ui.right')}</span>
+                <span class="mode">{$t(modeOf(w.type, w.mode)?.label ?? '')}</span>
                 {#if w.refresh > 0}<span class="chip refresh">⟳ {w.refresh} dk</span>{/if}
               </span>
             </div>
-            <button class="pen" on:click={() => openEdit(w)} title="düzenle" aria-label="düzenle">✎</button>
+            <button class="pen" on:click={() => openEdit(w)} title={$t('ui.edit')} aria-label={$t('ui.edit')}>✎</button>
             <button class="del" on:click={() => widgets.remove(w.id)} title="sil" aria-label="sil">✕</button>
           </li>
         {/each}
@@ -216,24 +219,24 @@
   <section class="card">
     <div class="card-head">
       <div class="card-title">
-        <h3>Çubuk (Sidebar)</h3>
+        <h3>{$t('ui.settings.sidebar')}</h3>
         <span class="count">{$sidebarPages.length}</span>
       </div>
     </div>
-    <p class="section-hint">Tam sayfa yönetim ekranlarını sol çubuğa sabitle. Çok konteynerin varsa Docker'ı buradan ekle.</p>
+    <p class="section-hint">{$t('ui.settings.sidebar_hint')}</p>
     <ul class="list">
       {#each PAGE_CATALOG as pc (pc.type)}
         {@const pinned = $sidebarPages.find((p) => p.type === pc.type)}
         <li>
           <span class="tile" style="--wa: {pc.accent}">{@html pc.icon}</span>
           <div class="info">
-            <span class="name">{pc.title}</span>
-            <span class="meta"><span class="mode">Tam sayfa yönetici</span></span>
+            <span class="name">{$t(pc.title)}</span>
+            <span class="meta"><span class="mode">{$t('ui.settings.full_page')}</span></span>
           </div>
           {#if pinned}
-            <button class="pill on" on:click={() => sidebarPages.remove(pinned.id)}>Çubukta ✓</button>
+            <button class="pill on" on:click={() => sidebarPages.remove(pinned.id)}>{$t('ui.settings.pinned')}</button>
           {:else}
-            <button class="pill" on:click={() => sidebarPages.add(pc.type)}>Çubuğa ekle</button>
+            <button class="pill" on:click={() => sidebarPages.add(pc.type)}>{$t('ui.settings.pin')}</button>
           {/if}
         </li>
       {/each}
@@ -247,7 +250,7 @@
   {/if}
   </div>
 
-  <p class="note">Servis aç/kapa ve daha fazlası — sonraki adımda gelecek.</p>
+  <p class="note">{$t('ui.settings.more_soon')}</p>
 </div>
 
 {#if draft}
@@ -273,7 +276,7 @@
     >
       <header class="modal-head">
         <span class="tile" style="--wa: {draftEntry.accent}">{@html draftEntry.icon}</span>
-        <h3 id="widget-modal-title">{isNew ? `${draftEntry.title} ekle` : `${draftEntry.title} düzenle`}</h3>
+        <h3 id="widget-modal-title">{isNew ? $t('ui.settings.add_widget', $t(draftEntry.title)) : $t('ui.settings.edit_widget', $t(draftEntry.title))}</h3>
         <button class="x" on:click={closeModal} aria-label="kapat">×</button>
       </header>
 
@@ -296,17 +299,17 @@
       </div>
 
       <label class="field">
-        <span>Başlık</span>
+        <span>{$t('ui.settings.title_field')}</span>
         <input type="text" bind:value={draft.title} />
       </label>
 
       {#if draftEntry.modes.length > 1}
         <div class="field">
-          <span>Ne göster?</span>
+          <span>{$t('ui.settings.what_to_show')}</span>
           <div class="radios">
             {#each draftEntry.modes as m}
               <button class="radio" class:active={draft.mode === m.id} on:click={() => setMode(m.id)}>
-                {m.label}
+                {$t(m.label)}
               </button>
             {/each}
           </div>
@@ -315,7 +318,7 @@
 
       {#each draftMode.params as p (p.key)}
         <label class="field">
-          <span>{p.label}</span>
+          <span>{$t(p.label)}</span>
           <input
             type="text"
             placeholder={p.placeholder || ''}
@@ -326,10 +329,10 @@
 
       <div class="row">
         <label class="field">
-          <span>Sütun</span>
+          <span>{$t('ui.settings.column')}</span>
           <div class="radios">
             <button class="radio" class:active={draft.column === 'left'}  on:click={() => (draft.column = 'left')}>Sol</button>
-            <button class="radio" class:active={draft.column === 'right'} on:click={() => (draft.column = 'right')}>Sağ</button>
+            <button class="radio" class:active={draft.column === 'right'} on:click={() => (draft.column = 'right')}>{$t('ui.right')}</button>
           </div>
         </label>
 
@@ -338,7 +341,7 @@
           <div class="radios">
             {#each REFRESH_OPTIONS as r}
               <button class="radio" class:active={draft.refresh === r.value} on:click={() => (draft.refresh = r.value)}>
-                {r.label}
+                {$t(r.label)}
               </button>
             {/each}
           </div>
@@ -350,7 +353,7 @@
           <button class="danger" on:click={remove}>Sil</button>
         {/if}
         <span class="spacer"></span>
-        <button class="ghost" on:click={closeModal}>İptal</button>
+        <button class="ghost" on:click={closeModal}>{$t('ui.cancel')}</button>
         <button class="primary" on:click={save}>{isNew ? 'Ekle' : 'Kaydet'}</button>
       </footer>
     </div>

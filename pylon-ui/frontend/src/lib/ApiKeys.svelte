@@ -1,4 +1,5 @@
 <script>
+  import { t } from './i18n.js'
   // Credential entry. Everything here goes to the daemon's encrypted vault
   // (AES-256-GCM) under the name the shipped pylon.yaml already references as
   // `secret:<name>`, so saving one is all it takes — no config editing, and the
@@ -11,17 +12,17 @@
     {
       name: 'gemini',
       title: 'Yapay Zekâ (Gemini)',
-      hint: 'Sesli asistanı ve akıllı komutları çalıştıran dil modelinin anahtarı. Ücretsiz anahtar: aistudio.google.com/apikey',
+      hint: 'ui.keys.gemini_hint',
     },
     {
       name: 'github',
       title: 'GitHub',
-      hint: 'Kişisel erişim jetonu (PAT). Açık PR’larını ve commit hatırlatmasını buradan okur — klasik jeton için repo + read:org yetkisi yeter.',
+      hint: 'ui.keys.github_hint',
     },
     {
       name: 'freshrss',
       title: 'FreshRSS',
-      hint: 'Fever API parolası. Sunucu adresini pylon.yaml’daki services.freshrss.url alanına yazmayı unutma — parola tek başına yetmez.',
+      hint: 'ui.keys.freshrss_hint',
     },
   ]
 
@@ -85,18 +86,17 @@
 
 <section class="card">
   <div class="card-head">
-    <div class="card-title"><h3>API Anahtarları</h3></div>
+    <div class="card-title"><h3>{$t('ui.keys.title')}</h3></div>
   </div>
   <p class="lead">
-    Hepsi şifreli kasaya kaydedilir; config dosyasına düz metin olarak yazılmaz.
-    Boş bıraktığın servis kapalı kalır.
+    {$t('ui.keys.note')}
   </p>
 
   {#each KEYS as k (k.name)}
     <div class="key-row">
       <div class="key-head">
         <span class="key-title">{k.title}</span>
-        {#if saved[k.name]}<span class="badge">kayıtlı ✓</span>{/if}
+        {#if saved[k.name]}<span class="badge">{$t('ui.keys.saved')}</span>{/if}
       </div>
       <p class="hint">{k.hint}</p>
 
@@ -104,7 +104,7 @@
         <input
           class="key"
           type="password"
-          placeholder={saved[k.name] ? 'yeni değerle değiştir…' : 'anahtarı yapıştır'}
+          placeholder={saved[k.name] ? $t('ui.keys.replace') : $t('ui.keys.paste')}
           bind:value={value[k.name]}
           on:keydown={(e) => e.key === 'Enter' && save(k.name)}
           autocomplete="off"
@@ -117,13 +117,13 @@
 
       {#if confirming === k.name}
         <p class="note confirm">
-          Anahtar silinsin mi? Geri alınamaz.
+          {$t('ui.keys.delete_ask')}
           <button class="danger" on:click={() => remove(k.name)} disabled={busy[k.name]}>Sil</button>
-          <button class="link" on:click={() => (confirming = '')}>Vazgeç</button>
+          <button class="link" on:click={() => (confirming = '')}>{$t('ui.cancel')}</button>
         </p>
       {:else if saved[k.name]}
         <p class="note">
-          <button class="link" on:click={() => (confirming = k.name)} disabled={busy[k.name]}>Anahtarı sil</button>
+          <button class="link" on:click={() => (confirming = k.name)} disabled={busy[k.name]}>{$t('ui.keys.delete')}</button>
         </p>
       {/if}
 

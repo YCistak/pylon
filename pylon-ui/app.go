@@ -83,7 +83,7 @@ func send(req request) (response, error) {
 func sendTimeout(req request, timeout time.Duration) (response, error) {
 	conn, err := net.DialTimeout("unix", daemonSocket(), 2*time.Second)
 	if err != nil {
-		return response{}, fmt.Errorf("daemon çalışmıyor (pylon start): %w", err)
+		return response{}, fmt.Errorf("daemon is not running (pylon start): %w", err)
 	}
 	defer conn.Close()
 	_ = conn.SetDeadline(time.Now().Add(timeout))
@@ -153,6 +153,20 @@ func (a *App) Ask(text string) (string, error) {
 		return "", fmt.Errorf("%s", resp.Error)
 	}
 	return resp.Text, nil
+}
+
+// Language reports the language the daemon is speaking, so the interface can
+// label itself the same way. The GUI deliberately has no language setting of
+// its own: two settings would eventually disagree, and a window whose buttons
+// are English while the answers inside them are Turkish looks broken.
+//
+// With no daemon reachable it returns "" and the frontend keeps its default.
+func (a *App) Language() string {
+	resp, err := send(request{Cmd: "lang"})
+	if err != nil || !resp.OK {
+		return ""
+	}
+	return resp.Text
 }
 
 // Platform reports the desktop the GUI is running on, so the settings UI can

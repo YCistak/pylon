@@ -1,4 +1,5 @@
 <script>
+  import { t } from './i18n.js'
   import { onDestroy } from 'svelte'
   import { fly, slide } from 'svelte/transition'
   import { Do } from '../../wailsjs/go/main/App.js'
@@ -26,9 +27,9 @@
   let logsLoading = false
 
   function friendlyError(msg) {
-    if (/servissiz aksiyon|bilinmeyen aksiyon/i.test(msg)) return 'Docker bağlı değil'
-    if (/adında konteyner yok/i.test(msg)) return 'Konteyner bulunamadı'
-    return 'Şu an ulaşılamıyor'
+    if (/unknown or unregistered action|unknown action/i.test(msg)) return $t('ui.docker.not_connected')
+    if (/no container named/i.test(msg)) return $t('ui.docker.not_found')
+    return $t('ui.widget.unreachable')
   }
 
   async function load() {
@@ -37,7 +38,7 @@
     try {
       statusText = await Do('docker.status', { container })
       // "X çalışıyor (...)" vs "X çalışmıyor (...)" — the two differ past "çalış".
-      running = /çalışıyor/.test(statusText)
+      running = statusText.includes($t('ui.match.docker_up'))
       statsText = ''
       if (running) {
         try { statsText = await Do('docker.stats', { container }) } catch { /* stats optional */ }
@@ -99,9 +100,9 @@
     <span class="tile">{@html iconDocker}</span>
     <span class="title">{container || title}</span>
     <span class="dot" class:on={running === true} class:off={running === false}
-          title={running === true ? 'çalışıyor' : running === false ? 'durduruldu' : ''}></span>
+          title={running === true ? $t('ui.docker.up') : running === false ? $t('ui.docker.down') : ''}></span>
     {#if onEdit}
-      <button class="icon-btn" on:click={onEdit} title="düzenle" aria-label="düzenle">✎</button>
+      <button class="icon-btn" on:click={onEdit} title={$t('ui.edit')} aria-label={$t('ui.edit')}>✎</button>
     {/if}
     <button class="icon-btn" on:click={load} title="yenile" aria-label="yenile">⟳</button>
   </header>
@@ -114,7 +115,7 @@
     {:else}
       <div class="statline">
         <span class="badge" class:up={running} class:down={!running}>
-          {running ? 'çalışıyor' : 'durduruldu'}
+          {running ? $t('ui.docker.up') : $t('ui.docker.down')}
         </span>
         {#if running && uptime}<span class="muted">{uptime}</span>{/if}
       </div>
@@ -132,7 +133,7 @@
           </button>
         {:else}
           <button class="ctl start" disabled={!!busy} on:click={() => control('start')}>
-            {busy === 'start' ? '…' : '▶ Başlat'}
+            {busy === 'start' ? '…' : '▶ ' + $t('ui.docker.start')}
           </button>
         {/if}
         <button class="ctl logs" class:active={showLogs} on:click={toggleLogs}>Loglar</button>
@@ -141,7 +142,7 @@
       {#if showLogs}
         <div class="logwrap" transition:slide={{ duration: 200 }}>
           {#if logsLoading}
-            <span class="muted">Loglar yükleniyor…</span>
+            <span class="muted">{$t('ui.docker.logs_loading')}</span>
           {:else}
             <pre class="logs">{logsText || 'Log yok.'}</pre>
             <button class="loglink" on:click={loadLogs}>⟳ yenile</button>

@@ -96,7 +96,7 @@ func (f *FreshRSS) Execute(ctx context.Context, action intent.Action, _ map[stri
 		}
 		return i18n.N("freshrss.unread", n), nil
 	default:
-		return "", fmt.Errorf("freshrss: bilinmeyen aksiyon %q", action)
+		return "", fmt.Errorf("freshrss: unknown action %q", action)
 	}
 }
 

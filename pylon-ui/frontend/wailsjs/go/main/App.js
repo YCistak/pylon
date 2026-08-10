@@ -38,6 +38,10 @@ export function Hotkey() {
   return window['go']['main']['App']['Hotkey']();
 }
 
+export function Language() {
+  return window['go']['main']['App']['Language']();
+}
+
 export function Listen() {
   return window['go']['main']['App']['Listen']();
 }
