@@ -397,3 +397,127 @@ func TestServiceSingleAppDoesNotRepeatTheTotal(t *testing.T) {
 		t.Fatalf("summary = %q", got)
 	}
 }
+
+// ------------------------------------------------------------ break nudge ---
+
+// nudgeTracker builds a tracker that records its nudges instead of showing them.
+func nudgeTracker(t *testing.T, store Store, c *clock, after time.Duration, got *[]string) *Tracker {
+	t.Helper()
+	tr := NewTracker(TrackerOptions{
+		Store: store, Apps: []string{"code"}, Logger: quietLogger(), Now: c.now,
+		BreakAfter: after,
+		Nudge:      func(text string) { *got = append(*got, text) },
+	})
+	if tr == nil {
+		t.Fatal("NewTracker returned nil")
+	}
+	return tr
+}
+
+func TestBreakNudgeFiresOnceThenRepeats(t *testing.T) {
+	store := testStore(t)
+	c := &clock{t: time.Date(2026, 8, 10, 9, 0, 0, 0, time.UTC)}
+	var got []string
+	tr := nudgeTracker(t, store, c, 2*time.Hour, &got)
+
+	tr.Observe("code", true, c.now())
+
+	// Short of the threshold: nothing.
+	c.advance(119 * time.Minute)
+	tr.checkBreak()
+	if len(got) != 0 {
+		t.Fatalf("nudged too early: %v", got)
+	}
+
+	c.advance(time.Minute) // exactly 2h
+	tr.checkBreak()
+	if len(got) != 1 || !strings.Contains(got[0], "Aralıksız 2 saat oldu") {
+		t.Fatalf("first nudge = %v", got)
+	}
+
+	// Still working, but inside the quiet window.
+	c.advance(29 * time.Minute)
+	tr.checkBreak()
+	if len(got) != 1 {
+		t.Fatalf("nudged again during the quiet window: %v", got)
+	}
+
+	c.advance(time.Minute) // 30 minutes since the last nudge
+	tr.checkBreak()
+	if len(got) != 2 || !strings.Contains(got[1], "2 saat 30 dakika") {
+		t.Fatalf("repeat nudge = %v", got)
+	}
+}
+
+// Closing every tracked app is the break: the clock starts over, so a full
+// threshold has to pass again before the next nudge.
+func TestBreakNudgeResetsWhenEverythingCloses(t *testing.T) {
+	store := testStore(t)
+	c := &clock{t: time.Date(2026, 8, 10, 9, 0, 0, 0, time.UTC)}
+	var got []string
+	tr := nudgeTracker(t, store, c, 2*time.Hour, &got)
+
+	tr.Observe("code", true, c.now())
+	c.advance(110 * time.Minute)
+	tr.Observe("code", false, c.now()) // break taken
+	c.advance(20 * time.Minute)
+	tr.Observe("code", true, c.now()) // back at it
+
+	c.advance(30 * time.Minute) // 30 minutes into the new stretch
+	tr.checkBreak()
+	if len(got) != 0 {
+		t.Fatalf("stretch should have restarted: %v", got)
+	}
+
+	c.advance(90 * time.Minute) // 2h into the new stretch
+	tr.checkBreak()
+	if len(got) != 1 || !strings.Contains(got[0], "2 saat") {
+		t.Fatalf("nudge after the new stretch = %v", got)
+	}
+}
+
+// A second app opening mid-stretch is not a fresh start — the stretch is about
+// the person, not the window.
+func TestBreakNudgeIgnoresAppsOpeningMidStretch(t *testing.T) {
+	store := testStore(t)
+	c := &clock{t: time.Date(2026, 8, 10, 9, 0, 0, 0, time.UTC)}
+	var got []string
+	tr := NewTracker(TrackerOptions{
+		Store: store, Apps: []string{"code", "steam"}, Logger: quietLogger(), Now: c.now,
+		BreakAfter: 2 * time.Hour,
+		Nudge:      func(text string) { got = append(got, text) },
+	})
+
+	tr.Observe("code", true, c.now())
+	c.advance(90 * time.Minute)
+	tr.Observe("steam", true, c.now()) // opened later
+	c.advance(30 * time.Minute)        // 2h since code came up
+
+	tr.checkBreak()
+	if len(got) != 1 {
+		t.Fatalf("second app restarted the clock: %v", got)
+	}
+
+	// One app closing while another stays open is not a break either.
+	tr.Observe("code", false, c.now())
+	c.advance(31 * time.Minute)
+	tr.checkBreak()
+	if len(got) != 2 {
+		t.Fatalf("stretch should continue while steam is open: %v", got)
+	}
+}
+
+// Zero disables the feature, and a tracker with no Nudge never calls one.
+func TestBreakNudgeOffByDefault(t *testing.T) {
+	store := testStore(t)
+	c := &clock{t: time.Date(2026, 8, 10, 9, 0, 0, 0, time.UTC)}
+	var got []string
+	tr := nudgeTracker(t, store, c, 0, &got)
+
+	tr.Observe("code", true, c.now())
+	c.advance(9 * time.Hour)
+	tr.checkBreak()
+	if len(got) != 0 {
+		t.Fatalf("disabled tracker nudged: %v", got)
+	}
+}

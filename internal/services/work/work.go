@@ -31,6 +31,12 @@ const (
 // interval of the session it was in, instead of the whole session.
 const heartbeat = time.Minute
 
+// breakRepeat is how long the tracker stays quiet after nudging you about a
+// break before nudging again. Ignoring the first nudge usually means "not now",
+// not "never" — but repeating it every heartbeat would get the banner muted for
+// good.
+const breakRepeat = 30 * time.Minute
+
 // Store is the slice of persistence this package needs. *db.DB satisfies it.
 type Store interface {
 	StartSession(app string, at time.Time) (int64, error)
@@ -52,8 +58,13 @@ type Tracker struct {
 	now   func() time.Time
 	beat  time.Duration
 
+	breakAfter time.Duration     // unbroken stretch that earns a nudge; 0 disables
+	nudge      func(text string) // how the nudge reaches you; nil disables
+
 	mu      sync.Mutex
 	running map[string]struct{}
+	since   time.Time // start of the current stretch; zero when nothing is open
+	nudged  time.Time // last nudge in this stretch; zero when not yet nudged
 }
 
 // TrackerOptions configures a Tracker.
@@ -63,6 +74,13 @@ type TrackerOptions struct {
 	Logger *slog.Logger     //
 	Now    func() time.Time // injectable clock (tests)
 	Beat   time.Duration    // heartbeat interval; zero means the default
+
+	// BreakAfter nudges you to stand up once a tracked app has been open this
+	// long without a gap; zero (the default) never nudges. Nudge receives the
+	// finished sentence — the tracker words it, the caller decides whether that
+	// is a banner, speech or a log line.
+	BreakAfter time.Duration
+	Nudge      func(text string)
 }
 
 // NewTracker builds a Tracker. It returns nil when no apps are tracked, so the
@@ -87,12 +105,14 @@ func NewTracker(o TrackerOptions) *Tracker {
 		o.Beat = heartbeat
 	}
 	return &Tracker{
-		store:   o.Store,
-		apps:    apps,
-		log:     o.Logger,
-		now:     o.Now,
-		beat:    o.Beat,
-		running: map[string]struct{}{},
+		store:      o.Store,
+		apps:       apps,
+		log:        o.Logger,
+		now:        o.Now,
+		beat:       o.Beat,
+		breakAfter: o.BreakAfter,
+		nudge:      o.Nudge,
+		running:    map[string]struct{}{},
 	}
 }
 
@@ -141,6 +161,12 @@ func (t *Tracker) Observe(app string, isRunning bool, at time.Time) {
 		}
 		t.running[app] = struct{}{}
 		t.log.Info("sessions: started", "app", app)
+		// First tracked app up after a quiet spell: a new unbroken stretch. Apps
+		// opening on top of it don't restart the clock — the stretch is about you,
+		// not about any one window.
+		if len(t.running) == 1 {
+			t.since, t.nudged = at, time.Time{}
+		}
 	case !isRunning && was:
 		if err := t.store.EndSession(app, at); err != nil {
 			t.log.Warn("sessions: end failed", "app", app, "err", err)
@@ -148,6 +174,11 @@ func (t *Tracker) Observe(app string, isRunning bool, at time.Time) {
 		}
 		delete(t.running, app)
 		t.log.Info("sessions: ended", "app", app)
+		// Everything closed — whatever you are doing now, it isn't this. The next
+		// stretch starts from scratch.
+		if len(t.running) == 0 {
+			t.since, t.nudged = time.Time{}, time.Time{}
+		}
 	}
 }
 
@@ -166,8 +197,52 @@ func (t *Tracker) Run(ctx context.Context) error {
 			return ctx.Err()
 		case <-ticker.C:
 			t.touch()
+			t.checkBreak()
 		}
 	}
+}
+
+// checkBreak nudges you to stand up when the current stretch has run past
+// BreakAfter, then goes quiet for breakRepeat. It rides the heartbeat rather
+// than its own timer so there is one clock deciding what "still open" means.
+//
+// The honest limitation: this measures how long a tracked app has been *open*,
+// not how long you have been at the keyboard. An editor left open over lunch
+// keeps the stretch running. That errs toward reminding you too often, which is
+// the harmless direction for a banner that disappears by itself.
+func (t *Tracker) checkBreak() {
+	if t.breakAfter <= 0 || t.nudge == nil {
+		return
+	}
+	now := t.now()
+
+	t.mu.Lock()
+	stretch := time.Duration(0)
+	due := false
+	if !t.since.IsZero() {
+		stretch = now.Sub(t.since)
+		switch {
+		case stretch < t.breakAfter:
+			// Not long enough yet.
+		case t.nudged.IsZero():
+			due = true // first nudge of this stretch
+		case now.Sub(t.nudged) >= breakRepeat:
+			due = true // you kept going; remind again
+		}
+	}
+	if due {
+		t.nudged = now
+	}
+	t.mu.Unlock()
+
+	if !due {
+		return
+	}
+	// Phrased without a suffix on the duration: "2 saat" and "45 dakika" would
+	// need different Turkish endings, and a separate sentence sidesteps it.
+	text := fmt.Sprintf("Aralıksız %s oldu. Biraz ara ver.", humanDuration(stretch))
+	t.log.Info("sessions: break nudge", "stretch", stretch.Round(time.Minute))
+	t.nudge(text)
 }
 
 func (t *Tracker) touch() {
@@ -194,6 +269,7 @@ func (t *Tracker) closeAll() {
 		apps = append(apps, a)
 	}
 	t.running = map[string]struct{}{}
+	t.since, t.nudged = time.Time{}, time.Time{}
 	t.mu.Unlock()
 
 	for _, app := range apps {

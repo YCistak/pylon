@@ -1024,10 +1024,20 @@ func registerWatcher(d *daemon.Daemon, cfg config.Config, database *db.DB, track
 // and for how long. It returns the tracker so the watcher can feed it, and nil
 // when `work.tracked_apps` is empty — nothing is recorded unless asked for.
 func registerSessions(d *daemon.Daemon, cfg config.Config, database *db.DB, log *slog.Logger) *work.Tracker {
+	// The break nudge reuses the briefing's banner: it is the one channel the
+	// user already agreed to be interrupted on, and an unconfigured banner_cmd
+	// makes Show a no-op, so this stays silent rather than half-working.
+	pres := briefingPresenter(cfg)
 	tracker := work.NewTracker(work.TrackerOptions{
-		Store:  database,
-		Apps:   cfg.Work.TrackedApps,
-		Logger: log,
+		Store:      database,
+		Apps:       cfg.Work.TrackedApps,
+		Logger:     log,
+		BreakAfter: time.Duration(cfg.Work.BreakAfterHours * float64(time.Hour)),
+		Nudge: func(text string) {
+			if err := pres.Show(context.Background(), text); err != nil {
+				log.Warn("sessions: break nudge failed", "err", err)
+			}
+		},
 	})
 	if tracker == nil {
 		return nil
