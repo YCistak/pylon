@@ -1,0 +1,214 @@
+{
+  "auth.connected": "bağlandı",
+  "auth.disconnected": "✔ %s bağlantısı kaldırıldı.",
+  "auth.google.done": "Pylon: giriş tamam ✓ — bu sekmeyi kapatabilirsin.",
+  "auth.google.ok": "✔ Giriş tamam — artık takvimine ve Drive'ına erişebilirim.",
+  "auth.google.opening": "Google ile giriş yap — tarayıcı açılıyor...",
+  "auth.logged_out": "çıkış yapıldı",
+  "auth.spotify.done": "Pylon: Spotify bağlandı ✓ — bu sekmeyi kapatabilirsin.",
+  "auth.spotify.ok": "✔ Spotify bağlandı.",
+  "auth.spotify.opening": "Spotify ile giriş yap — tarayıcı açılıyor...",
+  "briefing.calendar": {
+    "other": "Takvimde %d etkinlik var."
+  },
+  "briefing.calendar_empty": "Takvim boş.",
+  "briefing.greeting.day": "İyi günler",
+  "briefing.greeting.evening": "İyi akşamlar",
+  "briefing.greeting.morning": "Günaydın",
+  "briefing.greeting.night": "İyi geceler",
+  "briefing.news": {
+    "other": "%d okunmamış haber var."
+  },
+  "briefing.opener": "%[1]s! Bugün %[2]d %[3]s %[4]s.",
+  "briefing.weather": "Hava %[1]s, şu an %.0[2]f derece.",
+  "briefing.weather_high": "Hava %[1]s, şu an %.0[2]f, en yüksek %.0[3]f derece.",
+  "calc.unparsable": "İşlemi çözemedim.",
+  "calendar.empty": "Bugün takvimin boş.",
+  "calendar.events": {
+    "other": "Bugün %d etkinliğin var."
+  },
+  "calendar.events_detail": {
+    "other": "Bugün %[1]d etkinlik: %[2]s."
+  },
+  "currency.AED": {
+    "other": "dirhem"
+  },
+  "currency.AUD": {
+    "other": "Avustralya doları"
+  },
+  "currency.CAD": {
+    "other": "Kanada doları"
+  },
+  "currency.CHF": {
+    "other": "İsviçre frangı"
+  },
+  "currency.EUR": {
+    "other": "euro"
+  },
+  "currency.GBP": {
+    "other": "sterlin"
+  },
+  "currency.JPY": {
+    "other": "yen"
+  },
+  "currency.RUB": {
+    "other": "ruble"
+  },
+  "currency.SAR": {
+    "other": "Suudi riyali"
+  },
+  "currency.TRY": {
+    "other": "Türk lirası"
+  },
+  "currency.USD": {
+    "other": "dolar"
+  },
+  "date.day.friday": "Cuma",
+  "date.day.monday": "Pazartesi",
+  "date.day.saturday": "Cumartesi",
+  "date.day.sunday": "Pazar",
+  "date.day.thursday": "Perşembe",
+  "date.day.tuesday": "Salı",
+  "date.day.wednesday": "Çarşamba",
+  "date.month.april": "Nisan",
+  "date.month.august": "Ağustos",
+  "date.month.december": "Aralık",
+  "date.month.february": "Şubat",
+  "date.month.january": "Ocak",
+  "date.month.july": "Temmuz",
+  "date.month.june": "Haziran",
+  "date.month.march": "Mart",
+  "date.month.may": "Mayıs",
+  "date.month.november": "Kasım",
+  "date.month.october": "Ekim",
+  "date.month.september": "Eylül",
+  "docker.also_stopped": {
+    "other": "(%d tanesi durdurulmuş)"
+  },
+  "docker.down": "%s çalışmıyor.",
+  "docker.down_status": "%[1]s çalışmıyor (%[2]s).",
+  "docker.no_logs": "%s için log yok.",
+  "docker.none": "Hiç konteyner yok.",
+  "docker.none_running": "Çalışan konteyner yok.",
+  "docker.restarted": "%s yeniden başlatıldı.",
+  "docker.running": {
+    "other": "%[1]d konteyner çalışıyor: %[2]s."
+  },
+  "docker.started": "%s başlatıldı.",
+  "docker.stopped": "durduruldu",
+  "docker.up": "%s çalışıyor.",
+  "docker.up_status": "%[1]s çalışıyor (%[2]s).",
+  "drive.no_match": "Drive'da %q ile eşleşen dosya yok.",
+  "exchange.price": "%[1]s %[2]s %[3]s.",
+  "exchange.price_unavailable": "Fiyatı şu an alamadım.",
+  "exchange.rate": "1 %[1]s %[2]s %[3]s.",
+  "exchange.rate_unavailable": "Kur bilgisini şu an alamadım.",
+  "exchange.which_coin": "Hangi kripto parayı soruyorsun?",
+  "exchange.which_currency": "Hangi para birimini soruyorsun?",
+  "freshrss.none": "Okunmamış haberin yok.",
+  "freshrss.unread": {
+    "other": "%d okunmamış haberin var."
+  },
+  "github.issues": {
+    "other": "Sana atanmış %[1]d issue: %[2]s."
+  },
+  "github.no_commits_many": "Bugün şu repolarda commit yok: %s.",
+  "github.no_commits_one": "Bugün %s için henüz commit atmadın.",
+  "github.no_issues": "Sana atanmış açık issue yok.",
+  "intent.no_model": "anlayamadım (lokal eşleşme %.2f) ve model bağlı değil",
+  "intent.unclear": "hımm, ne demek istedin tam anlamadım",
+  "listen.fixed_window": "dinliyorum (%d sn) — konuş ve bekle, Ctrl+C YAPMA...",
+  "listen.silence_stop": "dinliyorum — konuş, susunca duracağım (en fazla %d sn)...",
+  "profile.address": "sana %q diye hitap ediyor",
+  "profile.casual": "samimi (sen dili) konuşuyor",
+  "profile.fillers": "sık kullandığı dolgu sözcükleri: %s",
+  "profile.formal": "resmi (siz dili) konuşuyor",
+  "profile.long_sentences": "uzun, detaylı cümleler kuruyor",
+  "profile.short_sentences": "kısa cümleler kuruyor",
+  "profile.style_card": "Kullanıcının konuşma tarzı: %s. Cevaplarında bu tarzı doğal biçimde yansıt.",
+  "recall.empty": "henüz konuşma geçmişi yok",
+  "reminder.set": "tamam — '%[1]s' kapanınca hatırlatacağım: %[2]q (task #%[3]d)",
+  "reminder.spoken": "Hatırlatma. %s",
+  "secret.prompt": "%s değerini gir (görünmez): ",
+  "secret.saved": "✔ %[1]q şifrelenip kaydedildi. Config'de: secret:%[2]s",
+  "spotify.current_track": "Şu an: %s.",
+  "spotify.next": "Sonraki parça.",
+  "spotify.no_match": "%q ile eşleşen bir şey bulamadım.",
+  "spotify.nothing_playing": "Şu an bir şey çalmıyor.",
+  "spotify.now_playing": "Çalınıyor: %s.",
+  "spotify.paused": "Duraklatıldı.",
+  "spotify.paused_track": "Duraklatılmış: %s.",
+  "spotify.playing": "Oynatılıyor.",
+  "spotify.prev": "Önceki parça.",
+  "sysmon.disk": "disk %.0f GB boş",
+  "sysmon.load": "CPU yükü %.2f",
+  "sysmon.ram": "RAM %%%[1]d dolu (%.1[2]f/%.1[3]f GB)",
+  "sysmon.temp": "CPU sıcaklığı %.0f derece",
+  "sysmon.unavailable": "Sistem bilgisine ulaşamadım.",
+  "sysmon.uptime": "açık %s",
+  "system.close.fail": "%s kapatılamadı ya da zaten kapalı.",
+  "system.close.ok": "%s kapatıldı.",
+  "system.close.self": "Kendimi kapatamam.",
+  "system.close.which": "Neyi kapatayım?",
+  "system.lock.fail": "Ekranı kilitleyemedim.",
+  "system.lock.ok": "Ekranı kilitliyorum.",
+  "system.media.next": "Sonraki parçaya geçtim.",
+  "system.media.no_player": "Oynatıcıyı bulamadım.",
+  "system.media.pause": "Durdurdum.",
+  "system.media.play": "Oynatıyorum.",
+  "system.media.prev": "Önceki parçaya döndüm.",
+  "system.volume.down": "Sesi kıstım.",
+  "system.volume.fail": "Sesi değiştiremedim.",
+  "system.volume.muted": "Sesi kapattım.",
+  "system.volume.up": "Sesi açtım.",
+  "time.days": {
+    "other": "%d gün"
+  },
+  "time.hours": {
+    "other": "%d saat"
+  },
+  "time.join": "%[1]s %[2]s",
+  "time.less_than_minute": "bir dakikadan az",
+  "time.minutes": {
+    "other": "%d dakika"
+  },
+  "update.available": "Yeni sürüm var: %[1]s (şu an %[2]s)",
+  "update.current": "Zaten güncelsin (%s).",
+  "update.dev_build": "Bu bir geliştirme sürümü; güncelleme sadece yayınlanmış sürümler için.",
+  "update.downloading": "İndiriliyor ve imzası doğrulanıyor...",
+  "update.installed": "✔ %s kuruldu. Değişikliğin geçerli olması için Pylon'u yeniden başlat.",
+  "update.packaged": "Bu kopyayı paket yöneticin yönetiyor (%s).",
+  "update.packaged_hint": "Güncellemek için onu kullan — örneğin: pacman -Syu",
+  "update.unsigned": "Bu yapıda güncelleme kapalı (imza anahtarı gömülü değil).",
+  "voice.nothing_heard": "ses algılanamadı",
+  "weather.code.clear": "açık",
+  "weather.code.drizzle": "çisentili",
+  "weather.code.fog": "sisli",
+  "weather.code.mostly_clear": "az bulutlu",
+  "weather.code.overcast": "çok bulutlu",
+  "weather.code.partly_cloudy": "parçalı bulutlu",
+  "weather.code.rain": "yağmurlu",
+  "weather.code.showers": "sağanak yağışlı",
+  "weather.code.snow": "karlı",
+  "weather.code.snow_showers": "kar sağanaklı",
+  "weather.code.thunderstorm": "gök gürültülü fırtınalı",
+  "weather.code.thunderstorm_hail": "dolu ve gök gürültülü fırtınalı",
+  "weather.code.unknown": "değişken",
+  "weather.here": "Konumun",
+  "weather.no_location": "Konum ayarlanmamış. pylon.yaml'da services.weather.latitude ve longitude gir.",
+  "weather.now": "%[1]s için hava %[2]s, şu an %.0[3]f derece.",
+  "weather.rain": "Yağış ihtimali %%%[1]d.",
+  "weather.today": "Bugün en yüksek %.0[1]f, en düşük %.0[2]f derece.",
+  "weather.unavailable": "Hava durumuna şu an ulaşamadım.",
+  "work.break_nudge": "Aralıksız %s oldu. Biraz ara ver.",
+  "work.goal.daily.met": "Günlük hedefi (%s) geçtin.",
+  "work.goal.daily.progress": "Günlük hedef %[1]s, %%%[2]d tamamlandı — %[3]s kaldı.",
+  "work.goal.weekly.met": "Haftalık hedefi (%s) geçtin.",
+  "work.goal.weekly.progress": "Haftalık hedef %[1]s, %%%[2]d tamamlandı — %[3]s kaldı.",
+  "work.today.nothing": "Bugün takip edilen bir uygulamada zaman geçirmemişsin.",
+  "work.today.single": "Bugün %[1]s ile %[2]s.",
+  "work.today.total": "Bugün toplam %[1]s: %[2]s.",
+  "work.week.nothing": "Son 7 günde takip edilen bir uygulamada zaman geçirmemişsin.",
+  "work.week.single": "Son 7 günde %[1]s ile %[2]s.",
+  "work.week.total": "Son 7 günde toplam %[1]s: %[2]s."
+}

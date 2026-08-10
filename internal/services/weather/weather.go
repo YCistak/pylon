@@ -7,17 +7,23 @@ package weather
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
 	"time"
 
+	"github.com/YCistak/pylon/internal/i18n"
 	"github.com/YCistak/pylon/internal/intent"
 )
 
 // ActionToday reports the current conditions and today's outlook.
 const ActionToday intent.Action = "weather.today"
+
+// ErrNoLocation means no coordinates were configured. Callers that compose
+// their own text (the briefing) tell it apart from a network failure this way.
+var ErrNoLocation = errors.New("weather: no location configured")
 
 // Forecast is the slice of an Open-Meteo response Pylon speaks. It is exported
 // whole because the briefing reads the raw numbers and phrases its own, shorter
@@ -38,23 +44,26 @@ type forecaster interface {
 }
 
 // Service reports the weather for a fixed location. It needs no key, so it is
-// always registered; the location defaults to İstanbul and is overridable.
+// always registered — but it does need coordinates, and says so when it has
+// none.
 type Service struct {
 	lat, lon float64
 	place    string // display name, e.g. "İstanbul"
+	located  bool   // whether coordinates were configured
 	api      forecaster
 }
 
-// New builds the service. A zero lat/lon falls back to İstanbul so a fresh
-// install still answers "hava nasıl" with something sensible.
+// New builds the service. A zero lat/lon leaves it unconfigured rather than
+// guessing: the service used to fall back to İstanbul, which is a sensible
+// default for exactly one user and a confusing one for everybody else — someone
+// in Lisbon asking about the weather should be told to set a location, not
+// handed a forecast for a city 3000 km away.
 func New(lat, lon float64, place string) *Service {
-	if lat == 0 && lon == 0 {
-		lat, lon, place = 41.0082, 28.9784, "İstanbul"
-	}
+	located := lat != 0 || lon != 0
 	if strings.TrimSpace(place) == "" {
-		place = "Konumun"
+		place = i18n.T("weather.here")
 	}
-	return &Service{lat: lat, lon: lon, place: place, api: &httpForecaster{
+	return &Service{lat: lat, lon: lon, place: place, located: located, api: &httpForecaster{
 		client: &http.Client{Timeout: 8 * time.Second},
 	}}
 }
@@ -73,7 +82,13 @@ func (s *Service) Actions() []intent.ActionSpec {
 // Today fetches the raw forecast for the configured location. The spoken action
 // goes through it too; it exists separately so the briefing can read the numbers
 // and word its own clause instead of quoting a whole sentence.
+//
+// With no coordinates it errors rather than fetching, which is what drops the
+// briefing's weather clause instead of putting a stranger's city in it.
 func (s *Service) Today(ctx context.Context) (Forecast, error) {
+	if !s.located {
+		return Forecast{}, ErrNoLocation
+	}
 	return s.api.forecast(ctx, s.lat, s.lon)
 }
 
@@ -81,58 +96,61 @@ func (s *Service) Execute(ctx context.Context, action intent.Action, _ map[strin
 	switch action {
 	case ActionToday:
 		f, err := s.Today(ctx)
-		if err != nil {
-			return "Hava durumuna şu an ulaşamadım.", nil
+		switch {
+		case errors.Is(err, ErrNoLocation):
+			return i18n.T("weather.no_location"), nil
+		case err != nil:
+			return i18n.T("weather.unavailable"), nil
 		}
 		return s.speak(f), nil
 	default:
-		return "", fmt.Errorf("weather: bilinmeyen aksiyon %q", action)
+		return "", fmt.Errorf("weather: unknown action %q", action)
 	}
 }
 
-// speak renders a forecast as one Turkish line.
+// speak renders a forecast as one line in the active language.
 func (s *Service) speak(f Forecast) string {
-	out := fmt.Sprintf("%s'da hava %s, şu an %.0f derece.", s.place, Describe(f.Code), f.TempNow)
+	out := i18n.T("weather.now", s.place, Describe(f.Code), f.TempNow)
 	if f.HaveDay {
-		out += fmt.Sprintf(" Bugün en yüksek %.0f, en düşük %.0f derece.", f.High, f.Low)
+		out += " " + i18n.T("weather.today", f.High, f.Low)
 		if f.RainPct > 0 {
-			out += fmt.Sprintf(" Yağış ihtimali %%%d.", f.RainPct)
+			out += " " + i18n.T("weather.rain", f.RainPct)
 		}
 	}
 	return out
 }
 
-// Describe maps a WMO weather code to a Turkish phrase. Codes group naturally
-// (drizzle 51-57, rain 61-67, snow 71-77, showers 80-82); unknown codes get a
-// neutral fallback rather than an empty string.
+// Describe maps a WMO weather code to a phrase in the active language. Codes
+// group naturally (drizzle 51-57, rain 61-67, snow 71-77, showers 80-82);
+// unknown codes get a neutral fallback rather than an empty string.
 func Describe(code int) string {
 	switch code {
 	case 0:
-		return "açık"
+		return i18n.T("weather.code.clear")
 	case 1:
-		return "az bulutlu"
+		return i18n.T("weather.code.mostly_clear")
 	case 2:
-		return "parçalı bulutlu"
+		return i18n.T("weather.code.partly_cloudy")
 	case 3:
-		return "çok bulutlu"
+		return i18n.T("weather.code.overcast")
 	case 45, 48:
-		return "sisli"
+		return i18n.T("weather.code.fog")
 	case 51, 53, 55, 56, 57:
-		return "çisentili"
+		return i18n.T("weather.code.drizzle")
 	case 61, 63, 65, 66, 67:
-		return "yağmurlu"
+		return i18n.T("weather.code.rain")
 	case 71, 73, 75, 77:
-		return "karlı"
+		return i18n.T("weather.code.snow")
 	case 80, 81, 82:
-		return "sağanak yağışlı"
+		return i18n.T("weather.code.showers")
 	case 85, 86:
-		return "kar sağanaklı"
+		return i18n.T("weather.code.snow_showers")
 	case 95:
-		return "gök gürültülü fırtınalı"
+		return i18n.T("weather.code.thunderstorm")
 	case 96, 99:
-		return "dolu ve gök gürültülü fırtınalı"
+		return i18n.T("weather.code.thunderstorm_hail")
 	default:
-		return "değişken"
+		return i18n.T("weather.code.unknown")
 	}
 }
 

@@ -52,7 +52,7 @@ func TestObserveBuildsStyleCard(t *testing.T) {
 	if !strings.Contains(card, "kanka") {
 		t.Fatalf("style card missing adopted address term: %q", card)
 	}
-	if !strings.Contains(card, "samimi") {
+	if !strings.Contains(card, "speaks casually") {
 		t.Fatalf("style card missing informal register: %q", card)
 	}
 }

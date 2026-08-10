@@ -36,7 +36,7 @@ func runAction(t *testing.T, fr *fakeRunner, action intent.Action, args map[stri
 func TestVolumeUpUnmutesThenRaises(t *testing.T) {
 	fr := &fakeRunner{}
 	got := runAction(t, fr, intent.ActionVolumeUp, nil)
-	if got != "Sesi açtım." {
+	if got != "Volume up." {
 		t.Fatalf("reply %q", got)
 	}
 	want := []string{
@@ -50,10 +50,10 @@ func TestVolumeUpUnmutesThenRaises(t *testing.T) {
 
 func TestVolumeDownAndMute(t *testing.T) {
 	fr := &fakeRunner{}
-	if got := runAction(t, fr, intent.ActionVolumeDown, nil); got != "Sesi kıstım." {
+	if got := runAction(t, fr, intent.ActionVolumeDown, nil); got != "Volume down." {
 		t.Fatalf("down reply %q", got)
 	}
-	if got := runAction(t, fr, intent.ActionMute, nil); got != "Sesi kapattım." {
+	if got := runAction(t, fr, intent.ActionMute, nil); got != "Muted." {
 		t.Fatalf("mute reply %q", got)
 	}
 	if fr.calls[0] != "pactl set-sink-volume @DEFAULT_SINK@ -10%" {
@@ -67,7 +67,7 @@ func TestVolumeDownAndMute(t *testing.T) {
 func TestLockFallsBackToSecondCommand(t *testing.T) {
 	// loginctl fails, xdg-screensaver succeeds → still locks.
 	fr := &fakeRunner{failIf: func(name string, _ []string) bool { return name == "loginctl" }}
-	if got := runAction(t, fr, intent.ActionLockScreen, nil); got != "Ekranı kilitliyorum." {
+	if got := runAction(t, fr, intent.ActionLockScreen, nil); got != "Locking the screen." {
 		t.Fatalf("lock reply %q", got)
 	}
 	if len(fr.calls) != 2 || !strings.HasPrefix(fr.calls[1], "xdg-screensaver") {
@@ -77,7 +77,7 @@ func TestLockFallsBackToSecondCommand(t *testing.T) {
 
 func TestLockBothFail(t *testing.T) {
 	fr := &fakeRunner{failIf: func(string, []string) bool { return true }}
-	if got := runAction(t, fr, intent.ActionLockScreen, nil); got != "Ekranı kilitleyemedim." {
+	if got := runAction(t, fr, intent.ActionLockScreen, nil); got != "I couldn't lock the screen." {
 		t.Fatalf("lock reply %q", got)
 	}
 }
@@ -88,10 +88,10 @@ func TestMediaControls(t *testing.T) {
 		verb   string
 		reply  string
 	}{
-		{intent.ActionMediaPlay, "play", "Oynatıyorum."},
-		{intent.ActionMediaPause, "pause", "Durdurdum."},
-		{intent.ActionMediaNext, "next", "Sonraki parçaya geçtim."},
-		{intent.ActionMediaPrev, "previous", "Önceki parçaya döndüm."},
+		{intent.ActionMediaPlay, "play", "Playing."},
+		{intent.ActionMediaPause, "pause", "Paused."},
+		{intent.ActionMediaNext, "next", "Next track."},
+		{intent.ActionMediaPrev, "previous", "Previous track."},
 	}
 	for _, c := range cases {
 		fr := &fakeRunner{}
@@ -106,7 +106,7 @@ func TestMediaControls(t *testing.T) {
 
 func TestCloseApp(t *testing.T) {
 	fr := &fakeRunner{}
-	if got := runAction(t, fr, ActionClose, map[string]string{"app": "chrome"}); got != "chrome kapatıldı." {
+	if got := runAction(t, fr, ActionClose, map[string]string{"app": "chrome"}); got != "chrome closed." {
 		t.Fatalf("reply %q", got)
 	}
 	if fr.calls[0] != "pkill chrome" {
@@ -116,10 +116,10 @@ func TestCloseApp(t *testing.T) {
 
 func TestCloseGuards(t *testing.T) {
 	fr := &fakeRunner{}
-	if got := runAction(t, fr, ActionClose, nil); got != "Neyi kapatayım?" {
+	if got := runAction(t, fr, ActionClose, nil); got != "What should I close?" {
 		t.Errorf("empty app: %q", got)
 	}
-	if got := runAction(t, fr, ActionClose, map[string]string{"app": "Pylon"}); got != "Kendimi kapatamam." {
+	if got := runAction(t, fr, ActionClose, map[string]string{"app": "Pylon"}); got != "I can't close myself." {
 		t.Errorf("self-close guard: %q", got)
 	}
 	if len(fr.calls) != 0 {
@@ -130,7 +130,7 @@ func TestCloseGuards(t *testing.T) {
 func TestCloseFailureGraceful(t *testing.T) {
 	fr := &fakeRunner{failIf: func(string, []string) bool { return true }}
 	got := runAction(t, fr, ActionClose, map[string]string{"app": "code"})
-	if got != "code kapatılamadı ya da zaten kapalı." {
+	if got != "code couldn't be closed, or wasn't running." {
 		t.Fatalf("reply %q", got)
 	}
 }

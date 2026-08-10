@@ -1,0 +1,236 @@
+{
+  "auth.connected": "verbunden",
+  "auth.disconnected": "✔ %s getrennt.",
+  "auth.google.done": "Pylon: angemeldet ✓ — du kannst diesen Tab schließen.",
+  "auth.google.ok": "✔ Angemeldet — ich komme jetzt an deinen Kalender und Drive.",
+  "auth.google.opening": "Anmeldung mit Google — Browser wird geöffnet...",
+  "auth.logged_out": "abgemeldet",
+  "auth.spotify.done": "Pylon: Spotify verbunden ✓ — du kannst diesen Tab schließen.",
+  "auth.spotify.ok": "✔ Spotify verbunden.",
+  "auth.spotify.opening": "Spotify verbinden — Browser wird geöffnet...",
+  "briefing.calendar": {
+    "one": "%d Termin steht im Kalender.",
+    "other": "%d Termine stehen im Kalender."
+  },
+  "briefing.calendar_empty": "Dein Kalender ist leer.",
+  "briefing.greeting.day": "Guten Tag",
+  "briefing.greeting.evening": "Guten Abend",
+  "briefing.greeting.morning": "Guten Morgen",
+  "briefing.greeting.night": "Gute Nacht",
+  "briefing.news": {
+    "one": "%d ungelesener Artikel.",
+    "other": "%d ungelesene Artikel."
+  },
+  "briefing.opener": "%[1]s! Heute ist %[4]s, der %[2]d. %[3]s.",
+  "briefing.weather": "Es ist %[1]s, %.0[2]f Grad.",
+  "briefing.weather_high": "Es ist %[1]s, %.0[2]f Grad, heute bis %.0[3]f.",
+  "calc.unparsable": "Das konnte ich nicht ausrechnen.",
+  "calendar.empty": "Dein Kalender ist heute leer.",
+  "calendar.events": {
+    "one": "Du hast heute %d Termin.",
+    "other": "Du hast heute %d Termine."
+  },
+  "calendar.events_detail": {
+    "one": "Heute %[1]d Termin: %[2]s.",
+    "other": "Heute %[1]d Termine: %[2]s."
+  },
+  "currency.AED": {
+    "one": "Dirham",
+    "other": "Dirham"
+  },
+  "currency.AUD": {
+    "one": "Australischer Dollar",
+    "other": "Australische Dollar"
+  },
+  "currency.CAD": {
+    "one": "Kanadischer Dollar",
+    "other": "Kanadische Dollar"
+  },
+  "currency.CHF": {
+    "one": "Schweizer Franken",
+    "other": "Schweizer Franken"
+  },
+  "currency.EUR": {
+    "one": "Euro",
+    "other": "Euro"
+  },
+  "currency.GBP": {
+    "one": "Pfund",
+    "other": "Pfund"
+  },
+  "currency.JPY": {
+    "one": "Yen",
+    "other": "Yen"
+  },
+  "currency.RUB": {
+    "one": "Rubel",
+    "other": "Rubel"
+  },
+  "currency.SAR": {
+    "one": "Saudi-Rial",
+    "other": "Saudi-Rial"
+  },
+  "currency.TRY": {
+    "one": "Türkische Lira",
+    "other": "Türkische Lira"
+  },
+  "currency.USD": {
+    "one": "Dollar",
+    "other": "Dollar"
+  },
+  "date.day.friday": "Freitag",
+  "date.day.monday": "Montag",
+  "date.day.saturday": "Samstag",
+  "date.day.sunday": "Sonntag",
+  "date.day.thursday": "Donnerstag",
+  "date.day.tuesday": "Dienstag",
+  "date.day.wednesday": "Mittwoch",
+  "date.month.april": "April",
+  "date.month.august": "August",
+  "date.month.december": "Dezember",
+  "date.month.february": "Februar",
+  "date.month.january": "Januar",
+  "date.month.july": "Juli",
+  "date.month.june": "Juni",
+  "date.month.march": "März",
+  "date.month.may": "Mai",
+  "date.month.november": "November",
+  "date.month.october": "Oktober",
+  "date.month.september": "September",
+  "docker.also_stopped": {
+    "one": "(%d ist gestoppt)",
+    "other": "(%d sind gestoppt)"
+  },
+  "docker.down": "%s läuft nicht.",
+  "docker.down_status": "%[1]s läuft nicht (%[2]s).",
+  "docker.no_logs": "Keine Logs für %s.",
+  "docker.none": "Es gibt keine Container.",
+  "docker.none_running": "Es läuft kein Container.",
+  "docker.restarted": "%s neu gestartet.",
+  "docker.running": {
+    "one": "%[1]d Container läuft: %[2]s.",
+    "other": "%[1]d Container laufen: %[2]s."
+  },
+  "docker.started": "%s gestartet.",
+  "docker.stopped": "gestoppt",
+  "docker.up": "%s läuft.",
+  "docker.up_status": "%[1]s läuft (%[2]s).",
+  "drive.no_match": "Keine Dateien in Drive passen zu %q.",
+  "exchange.price": "%[1]s steht bei %[2]s %[3]s.",
+  "exchange.price_unavailable": "Ich komme gerade nicht an den Kurs.",
+  "exchange.rate": "1 %[1]s sind %[2]s %[3]s.",
+  "exchange.rate_unavailable": "Ich komme gerade nicht an die Wechselkurse.",
+  "exchange.which_coin": "Welche Kryptowährung meinst du?",
+  "exchange.which_currency": "Welche Währung meinst du?",
+  "freshrss.none": "Du hast keine ungelesenen Artikel.",
+  "freshrss.unread": {
+    "one": "Du hast %d ungelesenen Artikel.",
+    "other": "Du hast %d ungelesene Artikel."
+  },
+  "github.issues": {
+    "one": "%[1]d Issue ist dir zugewiesen: %[2]s.",
+    "other": "%[1]d Issues sind dir zugewiesen: %[2]s."
+  },
+  "github.no_commits_many": "Heute keine Commits in: %s.",
+  "github.no_commits_one": "Heute noch keine Commits in %s.",
+  "github.no_issues": "Dir sind keine offenen Issues zugewiesen.",
+  "intent.no_model": "Ich habe das nicht verstanden (lokale Übereinstimmung %.2f) und es ist kein Modell verbunden.",
+  "intent.unclear": "hm, ich bin nicht sicher, was du meinst",
+  "listen.fixed_window": "ich höre zu (%d s) — sprich und warte, KEIN Ctrl+C...",
+  "listen.silence_stop": "ich höre zu — sprich, ich stoppe, wenn du aufhörst (max. %d s)...",
+  "profile.address": "spricht dich mit %q an",
+  "profile.casual": "spricht locker",
+  "profile.fillers": "verwendet oft diese Füllwörter: %s",
+  "profile.formal": "spricht förmlich",
+  "profile.long_sentences": "schreibt lange, ausführliche Sätze",
+  "profile.short_sentences": "schreibt kurze Sätze",
+  "profile.style_card": "Sprechstil des Nutzers: %s. Spiegle ihn in deinen Antworten natürlich wider.",
+  "recall.empty": "noch kein Gesprächsverlauf",
+  "reminder.set": "alles klar — ich erinnere dich, wenn '%[1]s' schließt: %[2]q (Task #%[3]d)",
+  "reminder.spoken": "Erinnerung. %s",
+  "secret.prompt": "Wert für %s eingeben (unsichtbar): ",
+  "secret.saved": "✔ %[1]q verschlüsselt gespeichert. In der Config: secret:%[2]s",
+  "spotify.current_track": "Jetzt: %s.",
+  "spotify.next": "Nächster Titel.",
+  "spotify.no_match": "Ich habe nichts zu %q gefunden.",
+  "spotify.nothing_playing": "Gerade läuft nichts.",
+  "spotify.now_playing": "Läuft: %s.",
+  "spotify.paused": "Pausiert.",
+  "spotify.paused_track": "Pausiert: %s.",
+  "spotify.playing": "Wiedergabe.",
+  "spotify.prev": "Vorheriger Titel.",
+  "sysmon.disk": "%.0f GB frei auf der Platte",
+  "sysmon.load": "CPU-Last %.2f",
+  "sysmon.ram": "RAM zu %[1]d%% belegt (%.1[2]f/%.1[3]f GB)",
+  "sysmon.temp": "CPU bei %.0f Grad",
+  "sysmon.unavailable": "Ich kann die Systemwerte nicht lesen.",
+  "sysmon.uptime": "läuft seit %s",
+  "system.close.fail": "%s ließ sich nicht schließen oder lief nicht.",
+  "system.close.ok": "%s geschlossen.",
+  "system.close.self": "Mich selbst kann ich nicht schließen.",
+  "system.close.which": "Was soll ich schließen?",
+  "system.lock.fail": "Ich konnte den Bildschirm nicht sperren.",
+  "system.lock.ok": "Ich sperre den Bildschirm.",
+  "system.media.next": "Nächster Titel.",
+  "system.media.no_player": "Ich habe keinen Player gefunden.",
+  "system.media.pause": "Pausiert.",
+  "system.media.play": "Wiedergabe.",
+  "system.media.prev": "Vorheriger Titel.",
+  "system.volume.down": "Leiser.",
+  "system.volume.fail": "Ich konnte die Lautstärke nicht ändern.",
+  "system.volume.muted": "Stumm.",
+  "system.volume.up": "Lauter.",
+  "time.days": {
+    "one": "%d Tag",
+    "other": "%d Tage"
+  },
+  "time.hours": {
+    "one": "%d Stunde",
+    "other": "%d Stunden"
+  },
+  "time.join": "%[1]s %[2]s",
+  "time.less_than_minute": "weniger als eine Minute",
+  "time.minutes": {
+    "one": "%d Minute",
+    "other": "%d Minuten"
+  },
+  "update.available": "Eine neue Version ist verfügbar: %[1]s (du hast %[2]s)",
+  "update.current": "Du bist bereits aktuell (%s).",
+  "update.dev_build": "Das ist ein Entwicklungs-Build; Updates gibt es nur für veröffentlichte Versionen.",
+  "update.downloading": "Wird heruntergeladen und die Signatur geprüft...",
+  "update.installed": "✔ %s installiert. Starte Pylon neu, damit es wirkt.",
+  "update.packaged": "Diese Installation verwaltet dein Paketmanager (%s).",
+  "update.packaged_hint": "Aktualisiere darüber — zum Beispiel: pacman -Syu",
+  "update.unsigned": "Updates sind in diesem Build deaktiviert (kein Signaturschlüssel eingebaut).",
+  "voice.nothing_heard": "Ich habe nichts gehört",
+  "weather.code.clear": "klar",
+  "weather.code.drizzle": "nieselig",
+  "weather.code.fog": "neblig",
+  "weather.code.mostly_clear": "überwiegend klar",
+  "weather.code.overcast": "bedeckt",
+  "weather.code.partly_cloudy": "teilweise bewölkt",
+  "weather.code.rain": "regnerisch",
+  "weather.code.showers": "schauerartig",
+  "weather.code.snow": "schneereich",
+  "weather.code.snow_showers": "Schneeschauer",
+  "weather.code.thunderstorm": "gewittrig",
+  "weather.code.thunderstorm_hail": "Gewitter mit Hagel",
+  "weather.code.unknown": "wechselhaft",
+  "weather.here": "dein Standort",
+  "weather.no_location": "Kein Standort gesetzt. Trage services.weather.latitude und longitude in pylon.yaml ein.",
+  "weather.now": "%[1]s: %[2]s, aktuell %.0[3]f Grad.",
+  "weather.rain": "Regenwahrscheinlichkeit %[1]d%%.",
+  "weather.today": "Heute höchstens %.0[1]f, mindestens %.0[2]f Grad.",
+  "weather.unavailable": "Ich erreiche den Wetterdienst gerade nicht.",
+  "work.break_nudge": "%s ohne Pause. Zeit aufzustehen.",
+  "work.goal.daily.met": "Du hast dein Tagesziel (%s) übertroffen.",
+  "work.goal.daily.progress": "Tagesziel %[1]s, %[2]d%% geschafft — noch %[3]s.",
+  "work.goal.weekly.met": "Du hast dein Wochenziel (%s) übertroffen.",
+  "work.goal.weekly.progress": "Wochenziel %[1]s, %[2]d%% geschafft — noch %[3]s.",
+  "work.today.nothing": "Du hast heute keine Zeit in einer erfassten App verbracht.",
+  "work.today.single": "Heute: %[2]s in %[1]s.",
+  "work.today.total": "Heute insgesamt %[1]s: %[2]s.",
+  "work.week.nothing": "Du hast in den letzten 7 Tagen keine Zeit in einer erfassten App verbracht.",
+  "work.week.single": "In den letzten 7 Tagen: %[2]s in %[1]s.",
+  "work.week.total": "In den letzten 7 Tagen insgesamt %[1]s: %[2]s."
+}

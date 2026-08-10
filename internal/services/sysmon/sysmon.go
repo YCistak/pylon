@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/YCistak/pylon/internal/i18n"
 	"github.com/YCistak/pylon/internal/intent"
 )
 
@@ -67,48 +68,32 @@ func (s *Service) Execute(_ context.Context, action intent.Action, _ map[string]
 	case ActionStats:
 		st, err := readStats(s.diskPath)
 		if err != nil {
-			return "Sistem bilgisine ulaşamadım.", nil
+			return i18n.T("sysmon.unavailable"), nil
 		}
 		return st.summary(), nil
 	default:
-		return "", fmt.Errorf("sysmon: bilinmeyen aksiyon %q", action)
+		return "", fmt.Errorf("sysmon: unknown action %q", action)
 	}
 }
 
-// summary renders the snapshot as one Turkish line, dropping any part whose
-// sensor was unavailable.
+// summary renders the snapshot as one line, dropping any part whose sensor was
+// unavailable.
 func (st Stats) summary() string {
 	var parts []string
-	parts = append(parts, fmt.Sprintf("CPU yükü %.2f", st.Load1))
+	parts = append(parts, i18n.T("sysmon.load", st.Load1))
 	if st.MemTotGB > 0 {
-		parts = append(parts, fmt.Sprintf("RAM %%%d dolu (%.1f/%.1f GB)", st.MemPct, st.MemUsedGB, st.MemTotGB))
+		parts = append(parts, i18n.T("sysmon.ram", st.MemPct, st.MemUsedGB, st.MemTotGB))
 	}
 	if st.DiskTotG > 0 {
-		parts = append(parts, fmt.Sprintf("disk %.0f GB boş", st.DiskFreeG))
+		parts = append(parts, i18n.T("sysmon.disk", st.DiskFreeG))
 	}
 	if st.TempC > 0 {
-		parts = append(parts, fmt.Sprintf("CPU sıcaklığı %.0f derece", st.TempC))
+		parts = append(parts, i18n.T("sysmon.temp", st.TempC))
 	}
 	if st.Uptime > 0 {
-		parts = append(parts, "açık "+humanUptime(st.Uptime))
+		parts = append(parts, i18n.T("sysmon.uptime", i18n.Uptime(st.Uptime)))
 	}
 	return strings.Join(parts, ", ") + "."
-}
-
-// humanUptime renders a duration as a short Turkish phrase: "2 gün 3 saat",
-// "5 saat 12 dakika", "8 dakika".
-func humanUptime(d time.Duration) string {
-	days := int(d.Hours()) / 24
-	hours := int(d.Hours()) % 24
-	mins := int(d.Minutes()) % 60
-	switch {
-	case days > 0:
-		return fmt.Sprintf("%d gün %d saat", days, hours)
-	case hours > 0:
-		return fmt.Sprintf("%d saat %d dakika", hours, mins)
-	default:
-		return fmt.Sprintf("%d dakika", mins)
-	}
 }
 
 // --- pure parsers (unit-tested; the Linux reader feeds them real file bytes) ---

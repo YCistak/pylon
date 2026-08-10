@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/YCistak/pylon/internal/i18n"
 	"github.com/YCistak/pylon/internal/intent"
 )
 
@@ -67,27 +68,27 @@ func (e *Exchange) Execute(ctx context.Context, action intent.Action, args map[s
 	case ActionCurrency:
 		base := code(args["base"])
 		if base == "" {
-			return "Hangi para birimini soruyorsun?", nil
+			return i18n.T("exchange.which_currency"), nil
 		}
 		quote := codeOr(args["quote"], defaultQuote)
 		rate, err := e.api.fiatRate(ctx, base, quote)
 		if err != nil {
-			return "Kur bilgisini şu an alamadım.", nil
+			return i18n.T("exchange.rate_unavailable"), nil
 		}
-		return fmt.Sprintf("1 %s %s %s.", currencyName(base), formatMoney(rate), currencyName(quote)), nil
+		return i18n.T("exchange.rate", currencyName(base, 1), formatMoney(rate), currencyName(quote, rate)), nil
 	case ActionCrypto:
 		coin := strings.ToLower(strings.TrimSpace(args["coin"]))
 		if coin == "" {
-			return "Hangi kripto parayı soruyorsun?", nil
+			return i18n.T("exchange.which_coin"), nil
 		}
 		vs := codeOr(args["vs"], defaultQuote)
 		price, err := e.api.cryptoPrice(ctx, coin, vs)
 		if err != nil {
-			return "Fiyatı şu an alamadım.", nil
+			return i18n.T("exchange.price_unavailable"), nil
 		}
-		return fmt.Sprintf("%s %s %s.", coinName(coin), formatMoney(price), currencyName(vs)), nil
+		return i18n.T("exchange.price", coinName(coin), formatMoney(price), currencyName(vs, price)), nil
 	default:
-		return "", fmt.Errorf("exchange: bilinmeyen aksiyon %q", action)
+		return "", fmt.Errorf("exchange: unknown action %q", action)
 	}
 }
 
@@ -145,25 +146,16 @@ func groupThousands(digits string) string {
 
 // currencyName maps common ISO codes to a Turkish spoken name, falling back to
 // the code itself for anything unlisted.
-func currencyName(codeUpper string) string {
-	if n, ok := trCurrency[codeUpper]; ok {
-		return n
+// currencyName speaks a code the way a person would ("USD" → "dollars",
+// "dolar", "доллара"). The names live in the catalogs rather than a table here,
+// because in the languages Pylon speaks they are ordinary nouns that decline.
+func currencyName(codeUpper string, amount float64) string {
+	if key := "currency." + codeUpper; i18n.Has(key) {
+		return i18n.FormFloat(key, amount)
 	}
+	// An unlisted code is spoken as the code itself — wrong-sounding but never
+	// wrong, which is the right trade for money.
 	return codeUpper
-}
-
-var trCurrency = map[string]string{
-	"TRY": "Türk lirası",
-	"USD": "dolar",
-	"EUR": "euro",
-	"GBP": "sterlin",
-	"JPY": "yen",
-	"CHF": "İsviçre frangı",
-	"AUD": "Avustralya doları",
-	"CAD": "Kanada doları",
-	"RUB": "ruble",
-	"SAR": "Suudi riyali",
-	"AED": "dirhem",
 }
 
 // coinName title-cases a CoinGecko id for display ("bitcoin" → "Bitcoin").
@@ -187,11 +179,11 @@ func (h *httpRates) fiatRate(ctx context.Context, base, quote string) (float64, 
 		return 0, err
 	}
 	if body.Result != "success" {
-		return 0, fmt.Errorf("exchange: geçersiz para birimi %q", base)
+		return 0, fmt.Errorf("exchange: invalid currency %q", base)
 	}
 	rate, ok := body.Rates[quote]
 	if !ok {
-		return 0, fmt.Errorf("exchange: kur bulunamadı %s/%s", base, quote)
+		return 0, fmt.Errorf("exchange: no rate for %s/%s", base, quote)
 	}
 	return rate, nil
 }
@@ -204,11 +196,11 @@ func (h *httpRates) cryptoPrice(ctx context.Context, coin, vs string) (float64, 
 	}
 	vsRates, ok := body[coin]
 	if !ok {
-		return 0, fmt.Errorf("exchange: kripto bulunamadı %q", coin)
+		return 0, fmt.Errorf("exchange: unknown coin %q", coin)
 	}
 	price, ok := vsRates[strings.ToLower(vs)]
 	if !ok {
-		return 0, fmt.Errorf("exchange: %s karşılığı bulunamadı %q", vs, coin)
+		return 0, fmt.Errorf("exchange: no %s price for %q", vs, coin)
 	}
 	return price, nil
 }

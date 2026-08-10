@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/YCistak/pylon/internal/banner"
+	"github.com/YCistak/pylon/internal/i18n"
 	"github.com/YCistak/pylon/internal/intent"
 	"github.com/YCistak/pylon/internal/services/weather"
 )
@@ -104,7 +105,7 @@ func (s *Service) Execute(ctx context.Context, action intent.Action, _ map[strin
 		}
 		return text, nil
 	default:
-		return "", fmt.Errorf("briefing: bilinmeyen aksiyon %q", action)
+		return "", fmt.Errorf("briefing: unknown action %q", action)
 	}
 }
 
@@ -113,7 +114,7 @@ func (s *Service) Execute(ctx context.Context, action intent.Action, _ map[strin
 // is a full short sentence, so they join into a flowing line.
 func (s *Service) compose(ctx context.Context) string {
 	t := s.clock()
-	parts := []string{fmt.Sprintf("%s! Bugün %d %s %s.", helloWord(t), t.Day(), trMonths[t.Month()], trDays[t.Weekday()])}
+	parts := []string{i18n.T("briefing.opener", helloWord(t), t.Day(), monthName(t.Month()), dayName(t.Weekday()))}
 
 	if line := s.weatherLine(ctx); line != "" {
 		parts = append(parts, line)
@@ -144,15 +145,15 @@ func (s *Service) weatherLine(ctx context.Context) string {
 	if err != nil {
 		return ""
 	}
-	// "derece" lands once, at the end, so the clause reads as one phrase whether
-	// or not the daily block came through.
-	line := fmt.Sprintf("Hava %s, şu an %.0f", weather.Describe(f.Code), f.TempNow)
+	// Two whole phrasings rather than one with an optional tail: the unit sits in
+	// a different place in each language ("28 derece" vs "28 degrees"), and a
+	// clause glued together from fragments cannot be translated properly.
+	line := i18n.T("briefing.weather", weather.Describe(f.Code), f.TempNow)
 	if f.HaveDay {
-		line += fmt.Sprintf(", en yüksek %.0f", f.High)
+		line = i18n.T("briefing.weather_high", weather.Describe(f.Code), f.TempNow, f.High)
 	}
-	line += " derece."
 	if f.HaveDay && f.RainPct >= rainWorthSaying {
-		line += fmt.Sprintf(" Yağış ihtimali %%%d.", f.RainPct)
+		line += " " + i18n.T("weather.rain", f.RainPct)
 	}
 	return line
 }
@@ -168,9 +169,9 @@ func (s *Service) calendarLine(ctx context.Context) string {
 		return ""
 	}
 	if n == 0 {
-		return "Takvim boş."
+		return i18n.T("briefing.calendar_empty")
 	}
-	return fmt.Sprintf("Takvimde %d etkinlik var.", n)
+	return i18n.N("briefing.calendar", n)
 }
 
 // newsLine phrases the unread count. It is dropped when no RSS is configured,
@@ -183,7 +184,7 @@ func (s *Service) newsLine(ctx context.Context) string {
 	if err != nil || n <= 0 {
 		return ""
 	}
-	return fmt.Sprintf("%d okunmamış haber var.", n)
+	return i18n.N("briefing.news", n)
 }
 
 // clock returns the current time from the injectable clock.
@@ -194,29 +195,28 @@ func (s *Service) clock() time.Time {
 	return time.Now()
 }
 
-// helloWord is the bare time-of-day greeting.
+// helloWord is the bare time-of-day greeting. The boundaries are the same in
+// every language Pylon speaks; only the words change.
 func helloWord(t time.Time) string {
 	switch h := t.Hour(); {
 	case h < 6:
-		return "İyi geceler"
+		return i18n.T("briefing.greeting.night")
 	case h < 12:
-		return "Günaydın"
+		return i18n.T("briefing.greeting.morning")
 	case h < 18:
-		return "İyi günler"
+		return i18n.T("briefing.greeting.day")
 	default:
-		return "İyi akşamlar"
+		return i18n.T("briefing.greeting.evening")
 	}
 }
 
-var trDays = map[time.Weekday]string{
-	time.Monday: "Pazartesi", time.Tuesday: "Salı", time.Wednesday: "Çarşamba",
-	time.Thursday: "Perşembe", time.Friday: "Cuma", time.Saturday: "Cumartesi",
-	time.Sunday: "Pazar",
+// dayName and monthName translate a date. Go's time package formats these in
+// English only, so the names come from the catalogs like any other text — which
+// also keeps the briefing's date readable when the rest of the line is Russian.
+func dayName(d time.Weekday) string {
+	return i18n.T("date.day." + strings.ToLower(d.String()))
 }
 
-var trMonths = map[time.Month]string{
-	time.January: "Ocak", time.February: "Şubat", time.March: "Mart",
-	time.April: "Nisan", time.May: "Mayıs", time.June: "Haziran",
-	time.July: "Temmuz", time.August: "Ağustos", time.September: "Eylül",
-	time.October: "Ekim", time.November: "Kasım", time.December: "Aralık",
+func monthName(m time.Month) string {
+	return i18n.T("date.month." + strings.ToLower(m.String()))
 }

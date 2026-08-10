@@ -13,6 +13,7 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -23,6 +24,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/YCistak/pylon/internal/i18n"
 	"github.com/YCistak/pylon/internal/intent"
 )
 
@@ -184,7 +186,7 @@ func (d *Docker) Execute(ctx context.Context, action intent.Action, args map[str
 	case ActionList:
 		return d.listJSON(ctx, api)
 	default:
-		return "", fmt.Errorf("docker: bilinmeyen aksiyon %q", action)
+		return "", fmt.Errorf("docker: unknown action %q", action)
 	}
 }
 
@@ -221,20 +223,20 @@ func (d *Docker) ps(ctx context.Context, api dockerAPI) (string, error) {
 	sort.Strings(running)
 	if len(running) == 0 {
 		if stopped == 0 {
-			return "Hiç konteyner yok.", nil
+			return i18n.T("docker.none"), nil
 		}
-		return "Çalışan konteyner yok.", nil
+		return i18n.T("docker.none_running"), nil
 	}
-	reply := fmt.Sprintf("%d konteyner çalışıyor: %s.", len(running), strings.Join(running, ", "))
+	reply := i18n.N("docker.running", len(running), strings.Join(running, ", "))
 	if stopped > 0 {
-		reply += fmt.Sprintf(" (%d tanesi durdurulmuş)", stopped)
+		reply += " " + i18n.N("docker.also_stopped", stopped)
 	}
 	return reply, nil
 }
 
 func (d *Docker) status(ctx context.Context, api dockerAPI, name string) (string, error) {
 	if strings.TrimSpace(name) == "" {
-		return "", fmt.Errorf("konteyner adı gerekli")
+		return "", errors.New("docker: container name required")
 	}
 	c, err := find(ctx, api, name)
 	if err != nil {
@@ -242,16 +244,16 @@ func (d *Docker) status(ctx context.Context, api dockerAPI, name string) (string
 	}
 	if c.Running() {
 		if c.Status != "" {
-			return fmt.Sprintf("%s çalışıyor (%s).", c.Name, c.Status), nil
+			return i18n.T("docker.up_status", c.Name, c.Status), nil
 		}
-		return fmt.Sprintf("%s çalışıyor.", c.Name), nil
+		return i18n.T("docker.up", c.Name), nil
 	}
-	return fmt.Sprintf("%s çalışmıyor (%s).", c.Name, statusOr(c, "durduruldu")), nil
+	return i18n.T("docker.down_status", c.Name, statusOr(c, i18n.T("docker.stopped"))), nil
 }
 
 func (d *Docker) statsReply(ctx context.Context, api dockerAPI, name string) (string, error) {
 	if strings.TrimSpace(name) == "" {
-		return "", fmt.Errorf("konteyner adı gerekli")
+		return "", errors.New("docker: container name required")
 	}
 	// A stopped container has no stats — say so plainly instead of erroring.
 	c, err := find(ctx, api, name)
@@ -259,7 +261,7 @@ func (d *Docker) statsReply(ctx context.Context, api dockerAPI, name string) (st
 		return "", err
 	}
 	if !c.Running() {
-		return fmt.Sprintf("%s çalışmıyor.", c.Name), nil
+		return i18n.T("docker.down", c.Name), nil
 	}
 	s, err := api.stats(ctx, c.Name)
 	if err != nil {
@@ -270,7 +272,7 @@ func (d *Docker) statsReply(ctx context.Context, api dockerAPI, name string) (st
 
 func (d *Docker) controlReply(ctx context.Context, api dockerAPI, name, verb string) (string, error) {
 	if strings.TrimSpace(name) == "" {
-		return "", fmt.Errorf("konteyner adı gerekli")
+		return "", errors.New("docker: container name required")
 	}
 	// Resolve the friendly name first so control errors read cleanly.
 	c, err := find(ctx, api, name)
@@ -282,19 +284,19 @@ func (d *Docker) controlReply(ctx context.Context, api dockerAPI, name, verb str
 	}
 	switch verb {
 	case "start":
-		return fmt.Sprintf("%s başlatıldı.", c.Name), nil
+		return i18n.T("docker.started", c.Name), nil
 	case "stop":
 		return fmt.Sprintf("%s durduruldu.", c.Name), nil
 	case "restart":
-		return fmt.Sprintf("%s yeniden başlatıldı.", c.Name), nil
+		return i18n.T("docker.restarted", c.Name), nil
 	default:
-		return "", fmt.Errorf("docker: bilinmeyen işlem %q", verb)
+		return "", fmt.Errorf("docker: unknown verb %q", verb)
 	}
 }
 
 func (d *Docker) logsReply(ctx context.Context, api dockerAPI, name, lines string) (string, error) {
 	if strings.TrimSpace(name) == "" {
-		return "", fmt.Errorf("konteyner adı gerekli")
+		return "", errors.New("docker: container name required")
 	}
 	// Resolve the friendly name (and give a clean "yok" error) — logs exist for
 	// stopped containers too, so we don't gate on running state.
@@ -317,7 +319,7 @@ func (d *Docker) logsReply(ctx context.Context, api dockerAPI, name, lines strin
 	}
 	out = strings.TrimRight(out, "\n ")
 	if out == "" {
-		return fmt.Sprintf("%s için log yok.", c.Name), nil
+		return i18n.T("docker.no_logs", c.Name), nil
 	}
 	return out, nil
 }
@@ -335,7 +337,7 @@ func find(ctx context.Context, api dockerAPI, name string) (Container, error) {
 			return c, nil
 		}
 	}
-	return Container{}, fmt.Errorf("%q adında konteyner yok", name)
+	return Container{}, fmt.Errorf("no container named %q", name)
 }
 
 func statusOr(c Container, fallback string) string {
@@ -571,7 +573,7 @@ func (s statsJSON) compute() Stats {
 }
 
 func dialErr(err error) error {
-	return fmt.Errorf("docker: Engine'e ulaşılamadı (socket erişimi var mı?): %w", err)
+	return fmt.Errorf("docker: cannot reach the Engine (is the socket accessible?): %w", err)
 }
 
 func apiErr(resp *http.Response) error {

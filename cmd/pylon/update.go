@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/YCistak/pylon/internal/i18n"
 	"time"
 
 	"github.com/YCistak/pylon/internal/selfupdate"
@@ -29,8 +30,8 @@ func cmdUpdate(args []string) error {
 	if by, packaged := selfupdate.Packaged(); packaged {
 		// Not an error: the copy is up to date by a route that works better
 		// than this one. Say which, so the next step is obvious.
-		fmt.Printf("Bu kopyayı paket yöneticin yönetiyor (%s).\n", by)
-		fmt.Println("Güncellemek için onu kullan — örneğin: pacman -Syu")
+		fmt.Println(i18n.T("update.packaged", by))
+		fmt.Println(i18n.T("update.packaged_hint"))
 		return nil
 	}
 
@@ -41,28 +42,28 @@ func cmdUpdate(args []string) error {
 	rel, newer, err := client.Check(ctx, version)
 	switch {
 	case errors.Is(err, selfupdate.ErrDevBuild):
-		fmt.Println("Bu bir geliştirme sürümü; güncelleme sadece yayınlanmış sürümler için.")
+		fmt.Println(i18n.T("update.dev_build"))
 		return nil
 	case errors.Is(err, selfupdate.ErrUpdatesDisabled):
-		fmt.Println("Bu yapıda güncelleme kapalı (imza anahtarı gömülü değil).")
+		fmt.Println(i18n.T("update.unsigned"))
 		return nil
 	case err != nil:
 		return err
 	}
 
 	if !newer {
-		fmt.Printf("Zaten güncelsin (%s).\n", version)
+		fmt.Println(i18n.T("update.current", version))
 		return nil
 	}
-	fmt.Printf("Yeni sürüm var: %s (şu an %s)\n", rel.Version, version)
+	fmt.Println(i18n.T("update.available", rel.Version, version))
 	if checkOnly {
 		return nil
 	}
 
-	fmt.Println("İndiriliyor ve imzası doğrulanıyor...")
+	fmt.Println(i18n.T("update.downloading"))
 	if err := client.Apply(ctx, rel); err != nil {
 		return err
 	}
-	fmt.Printf("✔ %s kuruldu. Değişikliğin geçerli olması için Pylon'u yeniden başlat.\n", rel.Version)
+	fmt.Println(i18n.T("update.installed", rel.Version))
 	return nil
 }

@@ -10,6 +10,7 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -17,6 +18,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/YCistak/pylon/internal/i18n"
 	"github.com/YCistak/pylon/internal/intent"
 )
 
@@ -90,11 +92,11 @@ func (f *FreshRSS) Execute(ctx context.Context, action intent.Action, _ map[stri
 			return "", err
 		}
 		if n == 0 {
-			return "Okunmamış haberin yok.", nil
+			return i18n.T("freshrss.none"), nil
 		}
-		return fmt.Sprintf("%d okunmamış haberin var.", n), nil
+		return i18n.N("freshrss.unread", n), nil
 	default:
-		return "", fmt.Errorf("freshrss: bilinmeyen aksiyon %q", action)
+		return "", fmt.Errorf("freshrss: unknown action %q", action)
 	}
 }
 
@@ -114,7 +116,7 @@ func (f *FreshRSS) client() (feverAPI, error) {
 	}
 	key := apiKey(f.cfg)
 	if f.cfg.URL == "" || key == "" {
-		return nil, fmt.Errorf("freshrss: yapılandırılmamış (url + kimlik gerekli)")
+		return nil, errors.New("freshrss: not configured (url + credentials required)")
 	}
 	return &realFever{base: f.cfg.URL, key: key, hc: &http.Client{Timeout: 10 * time.Second}}, nil
 }
@@ -153,7 +155,7 @@ func (r *realFever) unreadCount(ctx context.Context) (int, error) {
 		return 0, err
 	}
 	if out.Auth != 1 {
-		return 0, fmt.Errorf("freshrss: kimlik doğrulama başarısız (api_key hatalı?)")
+		return 0, errors.New("freshrss: authentication failed (wrong api_key?)")
 	}
 	return countIDs(out.UnreadItemIDs), nil
 }

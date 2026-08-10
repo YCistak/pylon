@@ -20,6 +20,12 @@ import (
 
 // Config is the fully-resolved Pylon configuration.
 type Config struct {
+	// Language is what Pylon speaks and writes: one of internal/i18n.Supported
+	// ("en", "de", "es", "fr", "pt", "ru", "tr"). Empty follows the desktop's
+	// locale ($LC_ALL / $LC_MESSAGES / $LANG) and falls back to English, so a
+	// fresh install speaks the right language without being told.
+	Language string `yaml:"language"`
+
 	Voice   Voice   `yaml:"voice"`
 	Intent  Intent  `yaml:"intent"`
 	Persona Persona `yaml:"persona"`

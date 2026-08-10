@@ -2,6 +2,7 @@ package google
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -9,6 +10,7 @@ import (
 	calendar "google.golang.org/api/calendar/v3"
 	"google.golang.org/api/option"
 
+	"github.com/YCistak/pylon/internal/i18n"
 	"github.com/YCistak/pylon/internal/intent"
 )
 
@@ -82,7 +84,7 @@ func (c *Calendar) Execute(ctx context.Context, action intent.Action, args map[s
 	case ActionAddEvent:
 		return c.addEvent(ctx, api, args)
 	default:
-		return "", fmt.Errorf("calendar: bilinmeyen aksiyon %q", action)
+		return "", fmt.Errorf("calendar: unknown action %q", action)
 	}
 }
 
@@ -100,13 +102,13 @@ func (c *Calendar) listToday(ctx context.Context, api calAPI) (string, error) {
 		return "", err
 	}
 	if len(events) == 0 {
-		return "Bugün takvimin boş.", nil
+		return i18n.T("calendar.empty"), nil
 	}
 	var parts []string
 	for _, e := range events {
 		parts = append(parts, fmt.Sprintf("%s %s", e.Start.Local().Format("15:04"), e.Summary))
 	}
-	return fmt.Sprintf("Bugün %d etkinlik: %s.", len(events), strings.Join(parts, "; ")), nil
+	return i18n.N("calendar.events_detail", len(events), strings.Join(parts, "; ")), nil
 }
 
 // countToday reports only how many events today has, for "bugün kaç etkinliğim
@@ -117,9 +119,9 @@ func (c *Calendar) countToday(ctx context.Context, api calAPI) (string, error) {
 		return "", err
 	}
 	if n == 0 {
-		return "Bugün takvimin boş.", nil
+		return i18n.T("calendar.empty"), nil
 	}
-	return fmt.Sprintf("Bugün %d etkinliğin var.", n), nil
+	return i18n.N("calendar.events", n), nil
 }
 
 // count is the raw event count for today.
@@ -146,15 +148,15 @@ func (c *Calendar) TodayCount(ctx context.Context) (int, error) {
 func (c *Calendar) addEvent(ctx context.Context, api calAPI, args map[string]string) (string, error) {
 	title := strings.TrimSpace(args["content"])
 	if title == "" {
-		return "", fmt.Errorf("etkinlik için bir başlık gerekli")
+		return "", errors.New("calendar: the event needs a title")
 	}
 	dtRaw := strings.TrimSpace(args["datetime"])
 	if dtRaw == "" {
-		return "", fmt.Errorf("etkinlik için tarih/saat gerekli")
+		return "", errors.New("calendar: the event needs a date and time")
 	}
 	start, err := parseDateTime(dtRaw)
 	if err != nil {
-		return "", fmt.Errorf("tarihi anlayamadım (%q)", dtRaw)
+		return "", fmt.Errorf("calendar: could not read the date (%q)", dtRaw)
 	}
 	end := start.Add(time.Hour)
 	if err := api.insert(ctx, c.cfg.CalendarID, Event{Summary: title, Start: start, End: end}); err != nil {

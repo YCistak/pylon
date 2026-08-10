@@ -48,7 +48,7 @@ func TestDriveFindEmpty(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out, "eşleşen dosya yok") {
+	if !strings.Contains(out, "No files in Drive match") {
 		t.Errorf("expected no-match reply, got %q", out)
 	}
 }

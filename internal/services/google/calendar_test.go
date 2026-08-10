@@ -39,7 +39,7 @@ func TestListTodayFormats(t *testing.T) {
 	if err != nil {
 		t.Fatalf("execute: %v", err)
 	}
-	for _, want := range []string{"2 etkinlik", "15:00 Toplantı", "18:30 Spor"} {
+	for _, want := range []string{"2 events today", "15:00 Toplantı", "18:30 Spor"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("missing %q in %q", want, got)
 		}
@@ -49,7 +49,7 @@ func TestListTodayFormats(t *testing.T) {
 func TestListTodayEmpty(t *testing.T) {
 	c := testCalendar(&fakeCal{})
 	got, _ := c.Execute(context.Background(), ActionListToday, nil)
-	if !strings.Contains(got, "boş") {
+	if !strings.Contains(got, "is empty today") {
 		t.Fatalf("empty calendar = %q", got)
 	}
 }
@@ -111,7 +111,7 @@ func TestCountTodaySpeaksOnlyCount(t *testing.T) {
 	if err != nil {
 		t.Fatalf("execute: %v", err)
 	}
-	if !strings.Contains(got, "2 etkinliğin var") {
+	if !strings.Contains(got, "2 events today") {
 		t.Errorf("count = %q, want the number", got)
 	}
 	// The count must NOT leak the event titles — that is list_today's job.
@@ -123,7 +123,7 @@ func TestCountTodaySpeaksOnlyCount(t *testing.T) {
 func TestCountTodayEmpty(t *testing.T) {
 	c := testCalendar(&fakeCal{})
 	got, _ := c.Execute(context.Background(), ActionCountToday, nil)
-	if !strings.Contains(got, "boş") {
-		t.Errorf("empty day = %q, want 'boş'", got)
+	if !strings.Contains(got, "is empty today") {
+		t.Errorf("empty day = %q, want it to say the day is empty", got)
 	}
 }

@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/YCistak/pylon/internal/db"
+	"github.com/YCistak/pylon/internal/i18n"
 	"github.com/YCistak/pylon/internal/intent"
 )
 
@@ -240,7 +241,7 @@ func (t *Tracker) checkBreak() {
 	}
 	// Phrased without a suffix on the duration: "2 saat" and "45 dakika" would
 	// need different Turkish endings, and a separate sentence sidesteps it.
-	text := fmt.Sprintf("Aralıksız %s oldu. Biraz ara ver.", humanDuration(stretch))
+	text := i18n.T("work.break_nudge", i18n.Duration(stretch))
 	t.log.Info("sessions: break nudge", "stretch", stretch.Round(time.Minute))
 	t.nudge(text)
 }
@@ -340,38 +341,40 @@ func (s *Service) Execute(_ context.Context, action intent.Action, _ map[string]
 	switch action {
 	case ActionToday:
 		start := midnight(now)
-		return s.summary(start, start.AddDate(0, 0, 1), now, "Bugün", 1)
+		return s.summary(start, start.AddDate(0, 0, 1), now, "today", 1)
 	case ActionWeek:
 		end := midnight(now).AddDate(0, 0, 1)
-		return s.summary(end.AddDate(0, 0, -7), end, now, "Son 7 günde", 7)
+		return s.summary(end.AddDate(0, 0, -7), end, now, "week", 7)
 	default:
-		return "", fmt.Errorf("work: bilinmeyen aksiyon %q", action)
+		return "", fmt.Errorf("work: unknown action %q", action)
 	}
 }
 
-// summary renders one window. days scales the goal so a weekly answer is judged
+// summary renders one window. window is "today" or "week" — a key suffix, not
+// a phrase, because the period is part of the sentence in every language and
+// cannot be prefixed onto it. days scales the goal so a weekly answer is judged
 // against a week's worth of it.
-func (s *Service) summary(from, to, now time.Time, lead string, days int) (string, error) {
+func (s *Service) summary(from, to, now time.Time, window string, days int) (string, error) {
 	totals, err := s.store.SessionTotals(from, to, now)
 	if err != nil {
 		return "", err
 	}
 	if len(totals) == 0 {
-		return lead + " takip edilen bir uygulamada zaman geçirmemişsin.", nil
+		return i18n.T("work." + window + ".nothing"), nil
 	}
 
 	var sum time.Duration
 	parts := make([]string, 0, len(totals))
 	for _, t := range totals {
 		sum += t.Total
-		parts = append(parts, fmt.Sprintf("%s %s", t.App, humanDuration(t.Total)))
+		parts = append(parts, fmt.Sprintf("%s %s", t.App, i18n.Duration(t.Total)))
 	}
 
-	// With a single app the breakdown *is* the total, and saying both ("Bugün 1
-	// saat: code 1 saat") sounds broken read aloud.
-	line := fmt.Sprintf("%s %s ile %s.", lead, totals[0].App, humanDuration(sum))
+	// With a single app the breakdown *is* the total, and saying both ("Today 1
+	// hour: code 1 hour") sounds broken read aloud.
+	line := i18n.T("work."+window+".single", totals[0].App, i18n.Duration(sum))
 	if len(totals) > 1 {
-		line = fmt.Sprintf("%s toplam %s: %s.", lead, humanDuration(sum), strings.Join(parts, ", "))
+		line = i18n.T("work."+window+".total", i18n.Duration(sum), strings.Join(parts, ", "))
 	}
 	if s.goal > 0 {
 		line += " " + s.goalSentence(sum, days)
@@ -384,46 +387,20 @@ func (s *Service) summary(from, to, now time.Time, lead string, days int) (strin
 // thing a spoken reply makes obvious.
 func (s *Service) goalSentence(sum time.Duration, days int) string {
 	target := s.goal * time.Duration(days)
+	period := "daily"
+	if days > 1 {
+		period = "weekly"
+	}
 	if sum >= target {
-		if days > 1 {
-			return fmt.Sprintf("Haftalık hedefi (%s) geçtin.", humanDuration(target))
-		}
-		return fmt.Sprintf("Günlük hedefi (%s) geçtin.", humanDuration(target))
+		return i18n.T("work.goal."+period+".met", i18n.Duration(target))
 	}
 	pct := int(float64(sum) / float64(target) * 100)
-	label := "Günlük hedef"
-	if days > 1 {
-		label = "Haftalık hedef"
-	}
-	return fmt.Sprintf("%s %s, %%%d tamamlandı — %s kaldı.",
-		label, humanDuration(target), pct, humanDuration(target-sum))
+	return i18n.T("work.goal."+period+".progress",
+		i18n.Duration(target), pct, i18n.Duration(target-sum))
 }
 
 // midnight returns the start of the day t falls in, in t's own location.
 func midnight(t time.Time) time.Time {
 	y, m, d := t.Date()
 	return time.Date(y, m, d, 0, 0, 0, 0, t.Location())
-}
-
-// humanDuration renders a duration the way it would be said out loud. Rounding
-// to the minute is deliberate: seconds are noise in an answer about a day.
-func humanDuration(d time.Duration) string {
-	// Checked before rounding: half a minute rounds up to "1 dakika", which
-	// overstates a session that barely happened.
-	if d < time.Minute {
-		return "bir dakikadan az"
-	}
-	d = d.Round(time.Minute)
-	h := int(d / time.Hour)
-	m := int((d % time.Hour) / time.Minute)
-	switch {
-	case h > 0 && m > 0:
-		return fmt.Sprintf("%d saat %d dakika", h, m)
-	case h > 0:
-		return fmt.Sprintf("%d saat", h)
-	case m > 0:
-		return fmt.Sprintf("%d dakika", m)
-	default:
-		return "bir dakikadan az"
-	}
 }

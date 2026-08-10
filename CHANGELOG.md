@@ -11,6 +11,17 @@ Cutting a release: [docs/RELEASE.md](docs/RELEASE.md).
 
 ### Added
 
+- **Pylon speaks seven languages** (`language:` in `pylon.yaml`; empty follows
+  the desktop locale). English, German, Spanish, French, Portuguese, Russian
+  and Turkish, covering every reply, the CLI, and the GUI — including weekday
+  and month names, which Go's `time` package only knows in English. Plural
+  rules are per language: Turkish marks none after a number, English needs two
+  forms, Russian four, and money follows the fractional rule of each language
+  ("0.87 dollars" but "0,87 euro"). A missing translation falls back to English
+  key by key, so a partly translated language stays usable, and the LLM is told
+  which language to reply in rather than left to infer it from the question.
+  Translations beyond English and Turkish are unreviewed by native speakers.
+
 - **The briefing now opens with the weather.** The slot had been left empty
   since the briefing was written. It reads the raw forecast from the same
   `weather` service the spoken action uses and phrases its own short clause —
