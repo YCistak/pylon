@@ -20,10 +20,24 @@ and Windows run the daemon and most services, but not everything — see
 
 ## What it does
 
-Ask in plain language (Turkish or English) and Pylon routes it. A local router
-resolves the common phrasings for free; anything it cannot place falls through
-to an LLM chain (Gemini / OpenAI / Anthropic), which tries each model in order
-and moves on when one hits its quota.
+Ask in plain language and Pylon routes it. A local router resolves the common
+phrasings for free; anything it cannot place falls through to an LLM chain
+(Gemini / OpenAI / Anthropic), which tries each model in order and moves on
+when one hits its quota.
+
+**Languages.** Pylon answers in English, German, Spanish, French, Portuguese,
+Russian or Turkish. Set `language:` in `pylon.yaml`, or leave it empty and it
+follows your desktop's locale. That covers everything it says and writes — the
+GUI included, down to the weekday names in the daily briefing. Understanding
+you is a separate matter: the LLM handles whatever language it knows, while the
+key-less local router recognises Turkish and English phrasings only.
+
+> Everything beyond English and Turkish was translated by the author with
+> machine assistance and has not been reviewed by a native speaker. Corrections
+> are welcome and cheap to make: one plain JSON file per language in
+> [`internal/i18n/locales/`](internal/i18n/locales) (what Pylon says) and
+> [`pylon-ui/frontend/src/lib/locales/`](pylon-ui/frontend/src/lib/locales)
+> (what the GUI labels), no build step required to add another.
 
 | Service | Actions |
 | --- | --- |

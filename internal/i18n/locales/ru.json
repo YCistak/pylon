@@ -26,8 +26,8 @@
     "other": "%d непрочитанных статей."
   },
   "briefing.opener": "%[1]s! Сегодня %[4]s, %[2]d %[3]s.",
-  "briefing.weather": "%[1]s, %.0[2]f градусов.",
-  "briefing.weather_high": "%[1]s, сейчас %.0[2]f, максимум %.0[3]f градусов.",
+  "briefing.weather": "Сейчас %[1]s, %.0[2]f°.",
+  "briefing.weather_high": "Сейчас %[1]s, %.0[2]f°, максимум %.0[3]f°.",
   "calc.unparsable": "Не смог это посчитать.",
   "calendar.empty": "Сегодня календарь пуст.",
   "calendar.events": {
@@ -262,9 +262,9 @@
   "weather.code.unknown": "переменчиво",
   "weather.here": "твоё местоположение",
   "weather.no_location": "Местоположение не задано. Добавь services.weather.latitude и longitude в pylon.yaml.",
-  "weather.now": "%[1]s: %[2]s, сейчас %.0[3]f градусов.",
+  "weather.now": "%[1]s: %[2]s, сейчас %.0[3]f°.",
   "weather.rain": "Вероятность осадков %[1]d%%.",
-  "weather.today": "Сегодня максимум %.0[1]f, минимум %.0[2]f градусов.",
+  "weather.today": "Сегодня максимум %.0[1]f°, минимум %.0[2]f°.",
   "weather.unavailable": "Сейчас не могу получить прогноз погоды.",
   "work.break_nudge": "%s без перерыва. Пора размяться.",
   "work.goal.daily.met": "Ты превысил дневную цель (%s).",

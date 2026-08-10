@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -76,7 +75,7 @@ func (e *Exchange) Execute(ctx context.Context, action intent.Action, args map[s
 		if err != nil {
 			return i18n.T("exchange.rate_unavailable"), nil
 		}
-		return i18n.T("exchange.rate", currencyName(base, 1), formatMoney(rate), currencyName(quote, amountFor(rate))), nil
+		return i18n.T("exchange.rate", currencyName(base, 1), formatMoney(rate), currencyName(quote, rate)), nil
 	case ActionCrypto:
 		coin := strings.ToLower(strings.TrimSpace(args["coin"]))
 		if coin == "" {
@@ -87,7 +86,7 @@ func (e *Exchange) Execute(ctx context.Context, action intent.Action, args map[s
 		if err != nil {
 			return i18n.T("exchange.price_unavailable"), nil
 		}
-		return i18n.T("exchange.price", coinName(coin), formatMoney(price), currencyName(vs, amountFor(price))), nil
+		return i18n.T("exchange.price", coinName(coin), formatMoney(price), currencyName(vs, price)), nil
 	default:
 		return "", fmt.Errorf("exchange: unknown action %q", action)
 	}
@@ -150,19 +149,9 @@ func groupThousands(digits string) string {
 // currencyName speaks a code the way a person would ("USD" → "dollars",
 // "dolar", "доллара"). The names live in the catalogs rather than a table here,
 // because in the languages Pylon speaks they are ordinary nouns that decline.
-// amountFor turns a money amount into the count a plural rule can use. A whole
-// number speaks for itself; anything with a fraction takes the plural form, in
-// every language Pylon speaks: "1.27 dollars", never "1.27 dollar".
-func amountFor(v float64) int {
-	if v == math.Trunc(v) {
-		return int(v)
-	}
-	return 2
-}
-
-func currencyName(codeUpper string, amount int) string {
+func currencyName(codeUpper string, amount float64) string {
 	if key := "currency." + codeUpper; i18n.Has(key) {
-		return i18n.Form(key, amount)
+		return i18n.FormFloat(key, amount)
 	}
 	// An unlisted code is spoken as the code itself — wrong-sounding but never
 	// wrong, which is the right trade for money.
