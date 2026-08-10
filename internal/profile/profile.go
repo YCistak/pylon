@@ -1,7 +1,7 @@
 package profile
 
 import (
-	"fmt"
+	"github.com/YCistak/pylon/internal/i18n"
 	"math"
 	"sort"
 	"strings"
@@ -130,30 +130,30 @@ func (e *Engine) buildCard() string {
 
 	var parts []string
 	if p, ok := best["address"]; ok {
-		parts = append(parts, fmt.Sprintf("sana %q diye hitap ediyor", p.value))
+		parts = append(parts, i18n.T("profile.address", p.value))
 	}
 	if p, ok := best["formality"]; ok {
 		if p.value == "formal" {
-			parts = append(parts, "resmi (siz dili) konuşuyor")
+			parts = append(parts, i18n.T("profile.formal"))
 		} else {
-			parts = append(parts, "samimi (sen dili) konuşuyor")
+			parts = append(parts, i18n.T("profile.casual"))
 		}
 	}
 	if fillers := adoptedFillers(stored, now, e.halfLife, e.adopt); len(fillers) > 0 {
-		parts = append(parts, "sık kullandığı dolgu sözcükleri: "+strings.Join(fillers, ", "))
+		parts = append(parts, i18n.T("profile.fillers", strings.Join(fillers, ", ")))
 	}
 	if p, ok := best["verbosity"]; ok {
 		switch p.value {
 		case "short":
-			parts = append(parts, "kısa cümleler kuruyor")
+			parts = append(parts, i18n.T("profile.short_sentences"))
 		case "long":
-			parts = append(parts, "uzun, detaylı cümleler kuruyor")
+			parts = append(parts, i18n.T("profile.long_sentences"))
 		}
 	}
 	if len(parts) == 0 {
 		return ""
 	}
-	return "Kullanıcının konuşma tarzı: " + strings.Join(parts, "; ") + ". Cevaplarında bu tarzı doğal biçimde yansıt."
+	return i18n.T("profile.style_card", strings.Join(parts, "; "))
 }
 
 // adoptedFillers returns up to three most-used filler words above threshold.

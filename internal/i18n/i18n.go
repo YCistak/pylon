@@ -137,6 +137,47 @@ func N(key string, n int, args ...any) string {
 	return format(form, key, append([]any{n}, args...)...)
 }
 
+// englishNames are how the languages are named to an LLM. English on purpose:
+// a model follows "write it in Portuguese" more reliably than "escreve em
+// português", and the instruction is the one part of the prompt the user never
+// sees.
+var englishNames = map[string]string{
+	"en": "English", "de": "German", "es": "Spanish", "fr": "French",
+	"pt": "Portuguese", "ru": "Russian", "tr": "Turkish",
+}
+
+// EnglishName names a language in English, for prompts. An unknown tag returns
+// the tag, which is still a usable instruction.
+func EnglishName(lang string) string {
+	if n, ok := englishNames[lang]; ok {
+		return n
+	}
+	return lang
+}
+
+// Form picks the plural form that agrees with n but does not print n — for
+// names that stand next to a number the sentence states in its own way: "1
+// dollar" and "34.12 dollars" share one amount but not one form, and the amount
+// is formatted as money, not as a count.
+func Form(key string, n int) string {
+	m := lookup(key)
+	if m.other == "" {
+		return key
+	}
+	if !m.plural {
+		return m.other
+	}
+	switch pluralCategory(Language(), n) {
+	case "one":
+		return firstNonEmpty(m.one, m.other)
+	case "few":
+		return firstNonEmpty(m.few, m.other)
+	case "many":
+		return firstNonEmpty(m.many, m.other)
+	}
+	return m.other
+}
+
 // Has reports whether key exists in any loaded catalog. It exists for tests
 // that assert every key a package uses is actually shipped.
 func Has(key string) bool {

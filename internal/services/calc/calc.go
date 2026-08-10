@@ -15,6 +15,7 @@ import (
 
 	"context"
 
+	"github.com/YCistak/pylon/internal/i18n"
 	"github.com/YCistak/pylon/internal/intent"
 )
 
@@ -45,11 +46,11 @@ func (c *Calc) Execute(_ context.Context, action intent.Action, args map[string]
 	case ActionEval:
 		expr := strings.TrimSpace(args["expr"])
 		if expr == "" {
-			return "", errors.New("calc: boş ifade")
+			return "", errors.New("calc: empty expression")
 		}
 		v, err := Eval(expr)
 		if err != nil {
-			return "İşlemi çözemedim.", nil
+			return i18n.T("calc.unparsable"), nil
 		}
 		return fmt.Sprintf("%s eder.", formatTR(v)), nil
 	default:
@@ -81,7 +82,7 @@ func Eval(expr string) (float64, error) {
 		return 0, fmt.Errorf("beklenmeyen karakter: %q", p.src[p.pos:])
 	}
 	if math.IsInf(v, 0) || math.IsNaN(v) {
-		return 0, errors.New("tanımsız sonuç")
+		return 0, errors.New("undefined result")
 	}
 	return v, nil
 }
@@ -161,7 +162,7 @@ func (p *parser) parseTerm() (float64, error) {
 				return 0, err
 			}
 			if r == 0 {
-				return 0, errors.New("sıfıra bölme")
+				return 0, errors.New("division by zero")
 			}
 			v /= r
 		case '%':
@@ -171,7 +172,7 @@ func (p *parser) parseTerm() (float64, error) {
 				return 0, err
 			}
 			if r == 0 {
-				return 0, errors.New("sıfıra bölme")
+				return 0, errors.New("division by zero")
 			}
 			v = math.Mod(v, r)
 		default:
@@ -245,7 +246,7 @@ func (p *parser) parseNumber() (float64, error) {
 		break
 	}
 	if p.pos == start {
-		return 0, fmt.Errorf("sayı bekleniyordu: %q", p.src[p.pos:])
+		return 0, fmt.Errorf("expected a number: %q", p.src[p.pos:])
 	}
 	return strconv.ParseFloat(p.src[start:p.pos], 64)
 }

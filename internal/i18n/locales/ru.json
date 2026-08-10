@@ -1,4 +1,13 @@
 {
+  "auth.connected": "подключено",
+  "auth.disconnected": "✔ %s отключён.",
+  "auth.google.done": "Pylon: вход выполнен ✓ — эту вкладку можно закрыть.",
+  "auth.google.ok": "✔ Вход выполнен — теперь у меня есть доступ к календарю и Drive.",
+  "auth.google.opening": "Вход через Google — открываю браузер...",
+  "auth.logged_out": "выход выполнен",
+  "auth.spotify.done": "Pylon: Spotify подключён ✓ — эту вкладку можно закрыть.",
+  "auth.spotify.ok": "✔ Spotify подключён.",
+  "auth.spotify.opening": "Подключаю Spotify — открываю браузер...",
   "briefing.calendar": {
     "few": "В календаре %d события.",
     "many": "В календаре %d событий.",
@@ -19,6 +28,86 @@
   "briefing.opener": "%[1]s! Сегодня %[4]s, %[2]d %[3]s.",
   "briefing.weather": "%[1]s, %.0[2]f градусов.",
   "briefing.weather_high": "%[1]s, сейчас %.0[2]f, максимум %.0[3]f градусов.",
+  "calc.unparsable": "Не смог это посчитать.",
+  "calendar.empty": "Сегодня календарь пуст.",
+  "calendar.events": {
+    "few": "Сегодня у тебя %d события.",
+    "many": "Сегодня у тебя %d событий.",
+    "one": "Сегодня у тебя %d событие.",
+    "other": "Сегодня у тебя %d событий."
+  },
+  "calendar.events_detail": {
+    "few": "Сегодня %[1]d события: %[2]s.",
+    "many": "Сегодня %[1]d событий: %[2]s.",
+    "one": "Сегодня %[1]d событие: %[2]s.",
+    "other": "Сегодня %[1]d событий: %[2]s."
+  },
+  "currency.AED": {
+    "few": "дирхама",
+    "many": "дирхамов",
+    "one": "дирхам",
+    "other": "дирхамов"
+  },
+  "currency.AUD": {
+    "few": "австралийских доллара",
+    "many": "австралийских долларов",
+    "one": "австралийский доллар",
+    "other": "австралийских долларов"
+  },
+  "currency.CAD": {
+    "few": "канадских доллара",
+    "many": "канадских долларов",
+    "one": "канадский доллар",
+    "other": "канадских долларов"
+  },
+  "currency.CHF": {
+    "few": "швейцарских франка",
+    "many": "швейцарских франков",
+    "one": "швейцарский франк",
+    "other": "швейцарских франков"
+  },
+  "currency.EUR": {
+    "few": "евро",
+    "many": "евро",
+    "one": "евро",
+    "other": "евро"
+  },
+  "currency.GBP": {
+    "few": "фунта",
+    "many": "фунтов",
+    "one": "фунт",
+    "other": "фунтов"
+  },
+  "currency.JPY": {
+    "few": "иены",
+    "many": "иен",
+    "one": "иена",
+    "other": "иен"
+  },
+  "currency.RUB": {
+    "few": "рубля",
+    "many": "рублей",
+    "one": "рубль",
+    "other": "рублей"
+  },
+  "currency.SAR": {
+    "few": "саудовских риала",
+    "many": "саудовских риалов",
+    "one": "саудовский риал",
+    "other": "саудовских риалов"
+  },
+  "currency.TRY": {
+    "few": "турецкие лиры",
+    "many": "турецких лир",
+    "one": "турецкая лира",
+    "other": "турецких лир"
+  },
+  "currency.USD": {
+    "few": "доллара",
+    "many": "долларов",
+    "one": "доллар",
+    "other": "долларов"
+  },
   "date.day.friday": "пятница",
   "date.day.monday": "понедельник",
   "date.day.saturday": "суббота",
@@ -38,6 +127,126 @@
   "date.month.november": "ноября",
   "date.month.october": "октября",
   "date.month.september": "сентября",
+  "docker.also_stopped": {
+    "few": "(%d остановлены)",
+    "many": "(%d остановлено)",
+    "one": "(%d остановлен)",
+    "other": "(%d остановлено)"
+  },
+  "docker.down": "%s не запущен.",
+  "docker.down_status": "%[1]s не запущен (%[2]s).",
+  "docker.no_logs": "Логов для %s нет.",
+  "docker.none": "Контейнеров нет.",
+  "docker.none_running": "Нет запущенных контейнеров.",
+  "docker.restarted": "%s перезапущен.",
+  "docker.running": {
+    "few": "%[1]d контейнера запущены: %[2]s.",
+    "many": "%[1]d контейнеров запущено: %[2]s.",
+    "one": "%[1]d контейнер запущен: %[2]s.",
+    "other": "%[1]d контейнеров запущено: %[2]s."
+  },
+  "docker.started": "%s запущен.",
+  "docker.stopped": "остановлен",
+  "docker.up": "%s запущен.",
+  "docker.up_status": "%[1]s запущен (%[2]s).",
+  "drive.no_match": "В Drive нет файлов по запросу %q.",
+  "exchange.price": "%[1]s стоит %[2]s %[3]s.",
+  "exchange.price_unavailable": "Сейчас не могу получить цену.",
+  "exchange.rate": "1 %[1]s — это %[2]s %[3]s.",
+  "exchange.rate_unavailable": "Сейчас не могу получить курсы валют.",
+  "exchange.which_coin": "Какую криптовалюту ты имеешь в виду?",
+  "exchange.which_currency": "Какую валюту ты имеешь в виду?",
+  "freshrss.none": "Непрочитанных статей нет.",
+  "freshrss.unread": {
+    "few": "У тебя %d непрочитанные статьи.",
+    "many": "У тебя %d непрочитанных статей.",
+    "one": "У тебя %d непрочитанная статья.",
+    "other": "У тебя %d непрочитанных статей."
+  },
+  "github.issues": {
+    "few": "%[1]d задачи назначены на тебя: %[2]s.",
+    "many": "%[1]d задач назначено на тебя: %[2]s.",
+    "one": "%[1]d задача назначена на тебя: %[2]s.",
+    "other": "%[1]d задач назначено на тебя: %[2]s."
+  },
+  "github.no_commits_many": "Сегодня нет коммитов в: %s.",
+  "github.no_commits_one": "Сегодня в %s ещё нет коммитов.",
+  "github.no_issues": "На тебя не назначено открытых задач.",
+  "intent.no_model": "Не понял (локальное совпадение %.2f), и модель не подключена.",
+  "intent.unclear": "хм, не совсем понял, что ты имел в виду",
+  "listen.fixed_window": "слушаю (%d с) — говори и жди, НЕ нажимай Ctrl+C...",
+  "listen.silence_stop": "слушаю — говори, остановлюсь, когда закончишь (макс. %d с)...",
+  "profile.address": "обращается к тебе «%q»",
+  "profile.casual": "говорит неформально (на «ты»)",
+  "profile.fillers": "часто использует слова-паразиты: %s",
+  "profile.formal": "говорит формально (на «вы»)",
+  "profile.long_sentences": "пишет длинными, подробными предложениями",
+  "profile.short_sentences": "пишет короткими предложениями",
+  "profile.style_card": "Стиль речи пользователя: %s. Естественно отражай его в ответах.",
+  "recall.empty": "истории разговоров пока нет",
+  "reminder.set": "готово — напомню, когда закроется '%[1]s': %[2]q (задача #%[3]d)",
+  "reminder.spoken": "Напоминание. %s",
+  "secret.prompt": "Введи значение для %s (не отображается): ",
+  "secret.saved": "✔ %[1]q зашифровано и сохранено. В конфиге: secret:%[2]s",
+  "spotify.current_track": "Сейчас: %s.",
+  "spotify.next": "Следующий трек.",
+  "spotify.no_match": "Ничего не найдено по запросу %q.",
+  "spotify.nothing_playing": "Сейчас ничего не играет.",
+  "spotify.now_playing": "Играет: %s.",
+  "spotify.paused": "Пауза.",
+  "spotify.paused_track": "На паузе: %s.",
+  "spotify.playing": "Играю.",
+  "spotify.prev": "Предыдущий трек.",
+  "sysmon.disk": "%.0f ГБ свободно на диске",
+  "sysmon.load": "загрузка ЦП %.2f",
+  "sysmon.ram": "ОЗУ занято %[1]d%% (%.1[2]f/%.1[3]f ГБ)",
+  "sysmon.temp": "ЦП %.0f градусов",
+  "sysmon.unavailable": "Не могу получить данные системы.",
+  "sysmon.uptime": "работает %s",
+  "system.close.fail": "%s не удалось закрыть или он не запущен.",
+  "system.close.ok": "%s закрыт.",
+  "system.close.self": "Себя закрыть не могу.",
+  "system.close.which": "Что закрыть?",
+  "system.lock.fail": "Не удалось заблокировать экран.",
+  "system.lock.ok": "Блокирую экран.",
+  "system.media.next": "Следующий трек.",
+  "system.media.no_player": "Не нашёл проигрыватель.",
+  "system.media.pause": "Пауза.",
+  "system.media.play": "Играю.",
+  "system.media.prev": "Предыдущий трек.",
+  "system.volume.down": "Сделал тише.",
+  "system.volume.fail": "Не удалось изменить громкость.",
+  "system.volume.muted": "Звук выключен.",
+  "system.volume.up": "Сделал громче.",
+  "time.days": {
+    "few": "%d дня",
+    "many": "%d дней",
+    "one": "%d день",
+    "other": "%d дней"
+  },
+  "time.hours": {
+    "few": "%d часа",
+    "many": "%d часов",
+    "one": "%d час",
+    "other": "%d часов"
+  },
+  "time.join": "%[1]s %[2]s",
+  "time.less_than_minute": "меньше минуты",
+  "time.minutes": {
+    "few": "%d минуты",
+    "many": "%d минут",
+    "one": "%d минута",
+    "other": "%d минут"
+  },
+  "update.available": "Доступна новая версия: %[1]s (у тебя %[2]s)",
+  "update.current": "У тебя уже последняя версия (%s).",
+  "update.dev_build": "Это сборка для разработки; обновления только для выпущенных версий.",
+  "update.downloading": "Скачиваю и проверяю подпись...",
+  "update.installed": "✔ %s установлено. Перезапусти Pylon, чтобы применить.",
+  "update.packaged": "Этой копией управляет твой пакетный менеджер (%s).",
+  "update.packaged_hint": "Обновляй через него — например: pacman -Syu",
+  "update.unsigned": "Обновления отключены в этой сборке (нет ключа подписи).",
+  "voice.nothing_heard": "Ничего не услышал",
   "weather.code.clear": "ясно",
   "weather.code.drizzle": "морось",
   "weather.code.fog": "туманно",
@@ -56,5 +265,16 @@
   "weather.now": "%[1]s: %[2]s, сейчас %.0[3]f градусов.",
   "weather.rain": "Вероятность осадков %[1]d%%.",
   "weather.today": "Сегодня максимум %.0[1]f, минимум %.0[2]f градусов.",
-  "weather.unavailable": "Сейчас не могу получить прогноз погоды."
+  "weather.unavailable": "Сейчас не могу получить прогноз погоды.",
+  "work.break_nudge": "%s без перерыва. Пора размяться.",
+  "work.goal.daily.met": "Ты превысил дневную цель (%s).",
+  "work.goal.daily.progress": "Дневная цель %[1]s, выполнено %[2]d%% — осталось %[3]s.",
+  "work.goal.weekly.met": "Ты превысил недельную цель (%s).",
+  "work.goal.weekly.progress": "Недельная цель %[1]s, выполнено %[2]d%% — осталось %[3]s.",
+  "work.today.nothing": "Сегодня ты не провёл время ни в одном отслеживаемом приложении.",
+  "work.today.single": "Сегодня: %[2]s в %[1]s.",
+  "work.today.total": "Сегодня всего %[1]s: %[2]s.",
+  "work.week.nothing": "За последние 7 дней ты не провёл время ни в одном отслеживаемом приложении.",
+  "work.week.single": "За последние 7 дней: %[2]s в %[1]s.",
+  "work.week.total": "За последние 7 дней всего %[1]s: %[2]s."
 }

@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/YCistak/pylon/internal/i18n"
 	"github.com/YCistak/pylon/internal/intent"
 )
 
@@ -62,66 +63,66 @@ func (s *System) Execute(ctx context.Context, action intent.Action, args map[str
 			cmd{"loginctl", []string{"lock-session"}},
 			cmd{"xdg-screensaver", []string{"lock"}},
 		) {
-			return "Ekranı kilitliyorum.", nil
+			return i18n.T("system.lock.ok"), nil
 		}
-		return "Ekranı kilitleyemedim.", nil
+		return i18n.T("system.lock.fail"), nil
 
 	case intent.ActionVolumeUp:
-		// Unmute as well, so "sesi aç" both wakes and raises the output.
+		// Unmute as well, so "volume up" both wakes and raises the output.
 		_ = s.run.run(ctx, "pactl", "set-sink-mute", "@DEFAULT_SINK@", "0")
 		if err := s.run.run(ctx, "pactl", "set-sink-volume", "@DEFAULT_SINK@", "+10%"); err != nil {
-			return "Sesi değiştiremedim.", nil
+			return i18n.T("system.volume.fail"), nil
 		}
-		return "Sesi açtım.", nil
+		return i18n.T("system.volume.up"), nil
 
 	case intent.ActionVolumeDown:
 		if err := s.run.run(ctx, "pactl", "set-sink-volume", "@DEFAULT_SINK@", "-10%"); err != nil {
-			return "Sesi değiştiremedim.", nil
+			return i18n.T("system.volume.fail"), nil
 		}
-		return "Sesi kıstım.", nil
+		return i18n.T("system.volume.down"), nil
 
 	case intent.ActionMute:
 		if err := s.run.run(ctx, "pactl", "set-sink-mute", "@DEFAULT_SINK@", "1"); err != nil {
-			return "Sesi değiştiremedim.", nil
+			return i18n.T("system.volume.fail"), nil
 		}
-		return "Sesi kapattım.", nil
+		return i18n.T("system.volume.muted"), nil
 
 	case intent.ActionMediaPlay:
-		return s.player(ctx, "play", "Oynatıyorum.")
+		return s.player(ctx, "play", i18n.T("system.media.play"))
 	case intent.ActionMediaPause:
-		return s.player(ctx, "pause", "Durdurdum.")
+		return s.player(ctx, "pause", i18n.T("system.media.pause"))
 	case intent.ActionMediaNext:
-		return s.player(ctx, "next", "Sonraki parçaya geçtim.")
+		return s.player(ctx, "next", i18n.T("system.media.next"))
 	case intent.ActionMediaPrev:
-		return s.player(ctx, "previous", "Önceki parçaya döndüm.")
+		return s.player(ctx, "previous", i18n.T("system.media.prev"))
 
 	case ActionClose:
 		app := strings.TrimSpace(args["app"])
 		if app == "" {
-			return "Neyi kapatayım?", nil
+			return i18n.T("system.close.which"), nil
 		}
 		// Never let Pylon be asked to kill itself.
 		if isSelf(app) {
-			return "Kendimi kapatamam.", nil
+			return i18n.T("system.close.self"), nil
 		}
 		// Match by process NAME (comm), not full command line: `pkill -f` matches
 		// any substring in any process's args — including the very command that
 		// invoked us — so a stray arg could kill unintended processes. Process-name
 		// matching is precise (code, chrome, spotify) and won't hit the daemon.
 		if err := s.run.run(ctx, "pkill", app); err != nil {
-			return fmt.Sprintf("%s kapatılamadı ya da zaten kapalı.", app), nil
+			return i18n.T("system.close.fail", app), nil
 		}
-		return fmt.Sprintf("%s kapatıldı.", app), nil
+		return i18n.T("system.close.ok", app), nil
 
 	default:
-		return "", fmt.Errorf("system: bilinmeyen aksiyon %q", action)
+		return "", fmt.Errorf("system: unknown action %q", action)
 	}
 }
 
 // player runs a playerctl command against the active MPRIS player.
 func (s *System) player(ctx context.Context, verb, ok string) (string, error) {
 	if err := s.run.run(ctx, "playerctl", verb); err != nil {
-		return "Oynatıcıyı bulamadım.", nil
+		return i18n.T("system.media.no_player"), nil
 	}
 	return ok, nil
 }

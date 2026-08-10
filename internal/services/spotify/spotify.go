@@ -8,12 +8,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"strings"
 
+	"github.com/YCistak/pylon/internal/i18n"
 	"github.com/YCistak/pylon/internal/intent"
 )
 
@@ -94,22 +96,22 @@ func (s *Spotify) Execute(ctx context.Context, action intent.Action, args map[st
 		if err := api.resume(ctx); err != nil {
 			return "", err
 		}
-		return "Oynatılıyor.", nil
+		return i18n.T("spotify.playing"), nil
 	case ActionPause:
 		if err := api.pause(ctx); err != nil {
 			return "", err
 		}
-		return "Duraklatıldı.", nil
+		return i18n.T("spotify.paused"), nil
 	case ActionNext:
 		if err := api.next(ctx); err != nil {
 			return "", err
 		}
-		return "Sonraki parça.", nil
+		return i18n.T("spotify.next"), nil
 	case ActionPrevious:
 		if err := api.previous(ctx); err != nil {
 			return "", err
 		}
-		return "Önceki parça.", nil
+		return i18n.T("spotify.prev"), nil
 	case ActionVolumeUp:
 		return s.nudgeVolume(ctx, api, +volumeStep)
 	case ActionVolumeDown:
@@ -141,16 +143,16 @@ func (s *Spotify) nudgeVolume(ctx context.Context, api spAPI, delta int) (string
 func (s *Spotify) playTrack(ctx context.Context, api spAPI, args map[string]string) (string, error) {
 	query := strings.TrimSpace(args["query"])
 	if query == "" {
-		return "", fmt.Errorf("çalınacak bir şey söylemen gerek")
+		return "", errors.New("spotify: nothing to play was named")
 	}
 	label, err := api.playQuery(ctx, query)
 	if err != nil {
 		return "", err
 	}
 	if label == "" {
-		return fmt.Sprintf("%q ile eşleşen bir şey bulamadım.", query), nil
+		return i18n.T("spotify.no_match", query), nil
 	}
-	return "Çalınıyor: " + label + ".", nil
+	return i18n.T("spotify.now_playing", label), nil
 }
 
 func (s *Spotify) currentlyPlaying(ctx context.Context, api spAPI) (string, error) {
@@ -159,12 +161,12 @@ func (s *Spotify) currentlyPlaying(ctx context.Context, api spAPI) (string, erro
 		return "", err
 	}
 	if !pb.HasDevice || pb.Track == "" {
-		return "Şu an bir şey çalmıyor.", nil
+		return i18n.T("spotify.nothing_playing"), nil
 	}
 	if !pb.IsPlaying {
-		return "Duraklatılmış: " + pb.Track + ".", nil
+		return i18n.T("spotify.paused_track", pb.Track), nil
 	}
-	return "Şu an: " + pb.Track + ".", nil
+	return i18n.T("spotify.current_track", pb.Track), nil
 }
 
 func clampVolume(v int) int {
@@ -184,7 +186,7 @@ func (s *Spotify) client() (spAPI, error) {
 		return s.api, nil
 	}
 	if !Configured(s.cfg) {
-		return nil, fmt.Errorf("spotify: yapılandırılmamış (client_id/secret + `pylon auth spotify`)")
+		return nil, errors.New("spotify: not configured (client_id + `pylon auth spotify`)")
 	}
 	return &realSpotify{cfg: s.cfg}, nil
 }
@@ -192,8 +194,8 @@ func (s *Spotify) client() (spAPI, error) {
 // errNoDevice / errPremium are the two friendly failure modes users actually hit
 // with Spotify playback control.
 var (
-	errNoDevice = fmt.Errorf("aktif Spotify cihazı yok — Spotify'ı bir cihazda açıp tekrar dene")
-	errPremium  = fmt.Errorf("bu işlem Spotify Premium gerektiriyor")
+	errNoDevice = errors.New("no active Spotify device — open Spotify somewhere and try again")
+	errPremium  = errors.New("this needs Spotify Premium")
 )
 
 // realSpotify calls the Spotify Web API over the OAuth http.Client (auto-refresh).

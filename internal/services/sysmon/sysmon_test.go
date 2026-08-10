@@ -1,6 +1,7 @@
 package sysmon
 
 import (
+	"github.com/YCistak/pylon/internal/i18n"
 	"strings"
 	"testing"
 	"time"
@@ -59,13 +60,14 @@ func TestParseUptime(t *testing.T) {
 
 func TestHumanUptime(t *testing.T) {
 	cases := map[time.Duration]string{
-		50 * time.Hour:                    "2 gün 2 saat",
-		5*time.Hour + 12*time.Minute:      "5 saat 12 dakika",
-		8 * time.Minute:                   "8 dakika",
+		50 * time.Hour:               "2 days 2 hours",
+		5*time.Hour + 12*time.Minute: "5 hours 12 minutes",
+		8 * time.Minute:              "8 minutes",
+		61 * time.Minute:             "1 hour 1 minute", // singular on both sides
 	}
 	for d, want := range cases {
-		if got := humanUptime(d); got != want {
-			t.Errorf("humanUptime(%v) = %q, want %q", d, got, want)
+		if got := i18n.Uptime(d); got != want {
+			t.Errorf("Uptime(%v) = %q, want %q", d, got, want)
 		}
 	}
 }
@@ -79,10 +81,10 @@ func TestSummaryDropsMissingSensors(t *testing.T) {
 	if strings.Contains(got, "derece") {
 		t.Errorf("summary spoke a temperature that was not read: %q", got)
 	}
-	if strings.Contains(got, "disk") {
+	if strings.Contains(got, "free on disk") {
 		t.Errorf("summary spoke disk with no reading: %q", got)
 	}
-	if !strings.Contains(got, "CPU yükü 0.50") || !strings.Contains(got, "RAM %27") {
+	if !strings.Contains(got, "CPU load 0.50") || !strings.Contains(got, "RAM 27%") {
 		t.Errorf("summary missing the parts it does have: %q", got)
 	}
 }

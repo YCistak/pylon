@@ -235,14 +235,14 @@ func authProviders(cfg config.Config) map[string]authProvider {
 			connected:   func() bool { return google.Configured(gcfg) },
 			login:       func(ctx context.Context) error { return google.Authorize(ctx, gcfg) },
 			logout:      google.Logout,
-			unavailable: "Google girişi bu Pylon sürümünde henüz yapılandırılmadı",
+			unavailable: "Google sign-in is not configured in this Pylon build",
 		},
 		"spotify": {
 			hasClient: func() bool { return spotify.HasClient(scfg) },
 			connected: func() bool { return spotify.Configured(scfg) },
 			login:     func(ctx context.Context) error { return spotify.Authorize(ctx, scfg) },
 			logout:    spotify.Logout,
-			unavailable: "Spotify bağlantısı bu Pylon sürümünde henüz yapılandırılmadı " +
+			unavailable: "Spotify is not configured in this Pylon build " +
 				"(Redirect URI: " + spotify.RedirectURI(scfg) + ")",
 		},
 	}
@@ -293,14 +293,14 @@ func registerAuth(d *daemon.Daemon, cfg config.Config) {
 			if err := p.login(ctx); err != nil {
 				return ipc.Response{OK: false, Error: err.Error()}
 			}
-			return ipc.Response{OK: true, Text: "bağlandı"}
+			return ipc.Response{OK: true, Text: i18n.T("auth.connected")}
 		case "logout":
 			if err := p.logout(); err != nil {
 				return ipc.Response{OK: false, Error: err.Error()}
 			}
-			return ipc.Response{OK: true, Text: "çıkış yapıldı"}
+			return ipc.Response{OK: true, Text: i18n.T("auth.logged_out")}
 		default:
-			return ipc.Response{OK: false, Error: "bilinmeyen işlem: " + req.Args[1] + " — " + usage}
+			return ipc.Response{OK: false, Error: "unknown operation: " + req.Args[1] + " — " + usage}
 		}
 	})
 }
@@ -318,7 +318,7 @@ func registerSecrets(d *daemon.Daemon) {
 		switch op {
 		case "set":
 			if len(req.Args) < 3 {
-				return ipc.Response{OK: false, Error: "secret set için değer gerekli"}
+				return ipc.Response{OK: false, Error: "secret set needs a value"}
 			}
 			if err := secrets.Set(name, req.Args[2]); err != nil {
 				return ipc.Response{OK: false, Error: err.Error()}
@@ -332,7 +332,7 @@ func registerSecrets(d *daemon.Daemon) {
 		case "has":
 			return ipc.Response{OK: true, Text: strconv.FormatBool(secrets.Has(name))}
 		default:
-			return ipc.Response{OK: false, Error: "bilinmeyen işlem: " + op}
+			return ipc.Response{OK: false, Error: "unknown operation: " + op}
 		}
 	})
 }
@@ -403,10 +403,10 @@ func registerHotkey(d *daemon.Daemon, cfg config.Config, database *db.DB, log *s
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		if err := mgr.Unbind(ctx, *combo); err != nil {
-			log.Warn("hotkey: bağlantı kaldırılamadı", "hotkey", combo.String(), "err", err)
+			log.Warn("hotkey: could not unbind", "hotkey", combo.String(), "err", err)
 			return
 		}
-		log.Info("hotkey: bağlantı kaldırıldı", "hotkey", combo.String())
+		log.Info("hotkey: unbound", "hotkey", combo.String())
 	}
 
 	// stored falls back to the config's hotkey, which is what a fresh install
@@ -429,14 +429,14 @@ func registerHotkey(d *daemon.Daemon, cfg config.Config, database *db.DB, log *s
 	d.Register("hotkey", func(ctx context.Context) error {
 		switch combo, err := hotkey.Parse(stored()); {
 		case err != nil:
-			log.Warn("hotkey: kayıtlı kısayol okunamadı", "value", stored(), "err", err)
+			log.Warn("hotkey: stored shortcut unreadable", "value", stored(), "err", err)
 		case mgr == nil:
-			log.Info("hotkey: bu masaüstünde çalışma-anı bağlama yok", "hotkey", combo.String())
+			log.Info("hotkey: no runtime binding on this desktop", "hotkey", combo.String())
 		default:
 			if err := apply(combo); err != nil {
-				log.Warn("hotkey: bağlanamadı", "hotkey", combo.String(), "wm", wm, "err", err)
+				log.Warn("hotkey: could not bind", "hotkey", combo.String(), "wm", wm, "err", err)
 			} else {
-				log.Info("hotkey: bağlandı", "hotkey", combo.String(), "wm", wm, "cmd", command)
+				log.Info("hotkey: bound", "hotkey", combo.String(), "wm", wm, "cmd", command)
 			}
 		}
 		<-ctx.Done()
@@ -462,7 +462,7 @@ func registerHotkey(d *daemon.Daemon, cfg config.Config, database *db.DB, log *s
 
 		case "set":
 			if len(req.Args) < 2 {
-				return ipc.Response{OK: false, Error: "hotkey set için kısayol gerekli"}
+				return ipc.Response{OK: false, Error: "hotkey set needs a shortcut"}
 			}
 			combo, err := hotkey.Parse(req.Args[1])
 			if err != nil {
@@ -485,11 +485,11 @@ func registerHotkey(d *daemon.Daemon, cfg config.Config, database *db.DB, log *s
 					log.Warn("hotkey: kaydedilemedi", "err", err)
 				}
 			}
-			log.Info("hotkey: değişti", "hotkey", combo.String(), "wm", wm)
+			log.Info("hotkey: changed", "hotkey", combo.String(), "wm", wm)
 			return ipc.Response{OK: true, Text: combo.String() + "\t" + wm}
 
 		default:
-			return ipc.Response{OK: false, Error: "bilinmeyen işlem: " + req.Args[0]}
+			return ipc.Response{OK: false, Error: "unknown operation: " + req.Args[0]}
 		}
 	})
 }
@@ -593,7 +593,7 @@ func registerIntent(d *daemon.Daemon, cfg config.Config, database *db.DB, regist
 		source := "local"
 		if !cmd.Resolved() {
 			if !chain.Configured() {
-				return ipc.Response{OK: true, Text: fmt.Sprintf("anlayamadım (lokal eşleşme %.2f) ve model bağlı değil", cmd.Confidence)}
+				return ipc.Response{OK: true, Text: i18n.T("intent.no_model", cmd.Confidence)}
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 			defer cancel()
@@ -601,7 +601,7 @@ func registerIntent(d *daemon.Daemon, cfg config.Config, database *db.DB, regist
 			cmd, source, err = chain.Parse(ctx, text, styleCard)
 			if err != nil {
 				log.Warn("intent: llm chain failed", "err", err)
-				return ipc.Response{OK: false, Error: "model hatası: " + err.Error()}
+				return ipc.Response{OK: false, Error: "model error: " + err.Error()}
 			}
 		}
 		log.Info("intent", "text", text, "action", string(cmd.Action), "confidence", cmd.Confidence, "source", source)
@@ -621,7 +621,7 @@ func registerIntent(d *daemon.Daemon, cfg config.Config, database *db.DB, regist
 	// reply text comes back prefixed with what was heard, for the UI to show.
 	d.Handle("listen", func(ipc.Request) ipc.Response {
 		if cfg.Voice.STTBin == "" || cfg.Voice.STTModel == "" {
-			return ipc.Response{OK: false, Error: "ses tanıma yapılandırılmadı (voice.stt_bin / stt_model)"}
+			return ipc.Response{OK: false, Error: "speech recognition is not configured (voice.stt_bin / stt_model)"}
 		}
 		pipe := voice.NewPipeline(voiceOptions(cfg))
 		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
@@ -629,14 +629,14 @@ func registerIntent(d *daemon.Daemon, cfg config.Config, database *db.DB, regist
 
 		heard, err := pipe.Capture(ctx)
 		if voice.IsNoSpeech(err) {
-			return ipc.Response{OK: true, Text: "ses algılanamadı"}
+			return ipc.Response{OK: true, Text: i18n.T("voice.nothing_heard")}
 		}
 		if err != nil {
 			log.Warn("listen: capture failed", "err", err)
-			return ipc.Response{OK: false, Error: "ses alınamadı: " + err.Error()}
+			return ipc.Response{OK: false, Error: "recording failed: " + err.Error()}
 		}
 		if heard = strings.TrimSpace(heard); heard == "" {
-			return ipc.Response{OK: true, Text: "ses algılanamadı"}
+			return ipc.Response{OK: true, Text: i18n.T("voice.nothing_heard")}
 		}
 		log.Info("listen", "heard", heard)
 
@@ -699,7 +699,7 @@ func registerIntent(d *daemon.Daemon, cfg config.Config, database *db.DB, regist
 		case err != nil:
 			return ipc.Response{OK: false, Error: err.Error()}
 		case !ok:
-			return ipc.Response{OK: false, Error: "brifing servisi kayıtlı değil"}
+			return ipc.Response{OK: false, Error: "the briefing service is not registered"}
 		}
 
 		// No TTS configured is not a failure: you still get the banner and the
@@ -768,7 +768,8 @@ func buildServiceRegistry(cfg config.Config, database *db.DB, log *slog.Logger) 
 	// Exchange rates/crypto use free key-less APIs — always available.
 	svcs = append(svcs, exchange.New())
 
-	// Weather uses Open-Meteo (no key). Always available; defaults to İstanbul.
+	// Weather uses Open-Meteo (no key). Always registered; it reports a missing
+	// location rather than guessing one.
 	// The briefing reads the same instance, so both speak the same location.
 	wx := weather.New(cfg.Services.Weather.Latitude, cfg.Services.Weather.Longitude, cfg.Services.Weather.Name)
 	svcs = append(svcs, wx)
@@ -875,10 +876,10 @@ func registerRecall(d *daemon.Daemon, database *db.DB) {
 		}
 		entries, err := database.RecentContext(limit)
 		if err != nil {
-			return ipc.Response{OK: false, Error: "hafıza okunamadı: " + err.Error()}
+			return ipc.Response{OK: false, Error: "could not read memory: " + err.Error()}
 		}
 		if len(entries) == 0 {
-			return ipc.Response{OK: true, Text: "henüz konuşma geçmişi yok"}
+			return ipc.Response{OK: true, Text: i18n.T("recall.empty")}
 		}
 		var b strings.Builder
 		for _, e := range entries {
@@ -927,23 +928,22 @@ func executeCommand(cmd intent.Command, database *db.DB, registry *services.Regi
 	switch cmd.Action {
 	case intent.ActionRemindOnExit:
 		if cmd.Args["process"] == "" || cmd.Args["content"] == "" {
-			return ipc.Response{OK: false, Error: "hatırlatma için process ve içerik gerekli"}
+			return ipc.Response{OK: false, Error: "a reminder needs both a process and content"}
 		}
 		id, err := database.AddTask(db.Task{
 			Content:        cmd.Args["content"],
 			TriggerProcess: cmd.Args["process"],
 		})
 		if err != nil {
-			return ipc.Response{OK: false, Error: "task eklenemedi: " + err.Error()}
+			return ipc.Response{OK: false, Error: "could not add the task: " + err.Error()}
 		}
-		return ipc.Response{OK: true, Text: fmt.Sprintf(
-			"tamam — '%s' kapanınca hatırlatacağım: %q (task #%d)",
+		return ipc.Response{OK: true, Text: i18n.T("reminder.set",
 			cmd.Args["process"], cmd.Args["content"], id)}
 
 	case intent.ActionChat:
 		reply := cmd.Args["reply"]
 		if reply == "" {
-			reply = "hımm, ne demek istedin tam anlamadım"
+			reply = i18n.T("intent.unclear")
 		}
 		return ipc.Response{OK: true, Text: reply}
 
@@ -961,7 +961,7 @@ func executeCommand(cmd intent.Command, database *db.DB, registry *services.Regi
 		}
 		// Recognized but owned by no service (should be rare now that the system
 		// service handles media/lock/close).
-		return ipc.Response{OK: true, Text: fmt.Sprintf("komut anlaşıldı ama karşılığı yok: %s (conf %.2f)", cmd.Action, cmd.Confidence)}
+		return ipc.Response{OK: true, Text: fmt.Sprintf("understood but unhandled: %s (conf %.2f)", cmd.Action, cmd.Confidence)}
 	}
 }
 
@@ -1010,7 +1010,7 @@ func registerWatcher(d *daemon.Daemon, cfg config.Config, database *db.DB, track
 			log.Info("reminder", "process", e.Name, "task", t.Content)
 			if speaker != nil {
 				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-				if err := speaker.Say(ctx, "Hatırlatma. "+t.Content); err != nil {
+				if err := speaker.Say(ctx, i18n.T("reminder.spoken", t.Content)); err != nil {
 					log.Warn("reminder: speak failed", "err", err)
 				}
 				cancel()
@@ -1347,13 +1347,13 @@ func cmdListen() error {
 		secs = 5
 	}
 	if cfg.Voice.SilenceStop {
-		fmt.Fprintf(os.Stderr, "dinliyorum — konuş, susunca duracağım (en fazla %d sn)...\n", secs)
+		fmt.Fprintln(os.Stderr, i18n.T("listen.silence_stop", secs))
 	} else {
-		fmt.Fprintf(os.Stderr, "dinliyorum (%d sn) — konuş ve bekle, Ctrl+C YAPMA...\n", secs)
+		fmt.Fprintln(os.Stderr, i18n.T("listen.fixed_window", secs))
 	}
 	text, err := pipe.Capture(ctx)
 	if voice.IsNoSpeech(err) {
-		fmt.Fprintln(os.Stderr, "ses algılanamadı")
+		fmt.Fprintln(os.Stderr, i18n.T("voice.nothing_heard"))
 		return nil
 	}
 	if err != nil {
@@ -1361,7 +1361,7 @@ func cmdListen() error {
 	}
 	text = strings.TrimSpace(text)
 	if text == "" {
-		fmt.Fprintln(os.Stderr, "ses algılanamadı")
+		fmt.Fprintln(os.Stderr, i18n.T("voice.nothing_heard"))
 		return nil
 	}
 	fmt.Printf("» %s\n", text)
@@ -1376,7 +1376,7 @@ func cmdListen() error {
 	fmt.Println(resp.Text)
 	if err := pipe.Speak(ctx, resp.Text); err != nil {
 		// Speaking is best-effort; the text reply already printed.
-		fmt.Fprintln(os.Stderr, "seslendirme hatası:", err)
+		fmt.Fprintln(os.Stderr, "text-to-speech failed:", err)
 	}
 	return nil
 }
@@ -1405,7 +1405,7 @@ func cmdAuth(args []string) error {
 		if err := logout(); err != nil {
 			return err
 		}
-		fmt.Printf("✔ %s bağlantısı kaldırıldı.\n", args[0])
+		fmt.Println(i18n.T("auth.disconnected", args[0]))
 		return nil
 	}
 
@@ -1413,30 +1413,30 @@ func cmdAuth(args []string) error {
 	case "google":
 		gcfg := googleConfig(cfg)
 		if !google.HasClient(gcfg) {
-			return errors.New("bu Pylon derlemesine Google OAuth client'ı gömülmemiş. " +
-				"Yapımcı: `make build GOOGLE_CLIENT_ID=... GOOGLE_CLIENT_SECRET=...` ile göm, " +
-				"ya da services.google.client_id / client_secret ayarla")
+			return errors.New("this Pylon build has no Google OAuth client baked in. " +
+				"Build one in with `make build GOOGLE_CLIENT_ID=... GOOGLE_CLIENT_SECRET=...`, " +
+				"or set services.google.client_id / client_secret")
 		}
-		fmt.Println("Google ile giriş yap — tarayıcı açılıyor...")
+		fmt.Println(i18n.T("auth.google.opening"))
 		if err := google.Authorize(ctx, gcfg); err != nil {
 			return err
 		}
-		fmt.Println("✔ Giriş tamam — artık takvimine ve Drive'ına erişebilirim.")
+		fmt.Println(i18n.T("auth.google.ok"))
 		return nil
 
 	case "spotify":
 		scfg := spotifyConfig(cfg)
 		if !spotify.HasClient(scfg) {
-			return errors.New("bu Pylon derlemesine Spotify OAuth client'ı gömülmemiş. " +
-				"Yapımcı: `make build SPOTIFY_CLIENT_ID=...` ile göm, " +
-				"ya da services.spotify.client_id ayarla (Redirect URI olarak " +
-				spotify.RedirectURI(scfg) + " kayıtlı olmalı)")
+			return errors.New("this Pylon build has no Spotify OAuth client baked in. " +
+				"Build one in with `make build SPOTIFY_CLIENT_ID=...`, or set " +
+				"services.spotify.client_id (registering " + spotify.RedirectURI(scfg) +
+				" as the Redirect URI)")
 		}
-		fmt.Println("Spotify ile giriş yap — tarayıcı açılıyor...")
+		fmt.Println(i18n.T("auth.spotify.opening"))
 		if err := spotify.Authorize(ctx, scfg); err != nil {
 			return err
 		}
-		fmt.Println("✔ Spotify bağlandı.")
+		fmt.Println(i18n.T("auth.spotify.ok"))
 		return nil
 
 	default:
@@ -1466,7 +1466,7 @@ func cmdSecret(args []string) error {
 		if err := secrets.Set(name, value); err != nil {
 			return err
 		}
-		fmt.Printf("✔ %q şifrelenip kaydedildi. Config'de: secret:%s\n", name, name)
+		fmt.Println(i18n.T("secret.saved", name, name))
 		return nil
 	case "rm", "delete", "remove":
 		if err := secrets.Delete(name); err != nil {
@@ -1483,7 +1483,7 @@ func cmdSecret(args []string) error {
 // stdin when piped (e.g. `cat token | pylon secret set github`).
 func readSecretValue(name string) (string, error) {
 	if term.IsTerminal(int(os.Stdin.Fd())) {
-		fmt.Printf("%s değerini gir (görünmez): ", name)
+		fmt.Print(i18n.T("secret.prompt", name))
 		b, err := term.ReadPassword(int(os.Stdin.Fd()))
 		fmt.Println()
 		if err != nil {

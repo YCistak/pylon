@@ -4,6 +4,7 @@ package google
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -20,6 +21,7 @@ import (
 	calendar "google.golang.org/api/calendar/v3"
 	drive "google.golang.org/api/drive/v3"
 
+	"github.com/YCistak/pylon/internal/i18n"
 	"github.com/YCistak/pylon/internal/secrets"
 )
 
@@ -38,7 +40,9 @@ type Config struct {
 }
 
 // embeddedClientID/Secret are baked into release builds via
-//   -ldflags "-X .../google.embeddedClientID=... -X .../google.embeddedClientSecret=..."
+//
+//	-ldflags "-X .../google.embeddedClientID=... -X .../google.embeddedClientSecret=..."
+//
 // so end users only sign in — they never register an app or touch Google Cloud.
 var (
 	embeddedClientID     string
@@ -95,7 +99,7 @@ func oauthConfig(c Config) (*oauth2.Config, error) {
 			return google.ConfigFromJSON(data, scopes...)
 		}
 	}
-	return nil, fmt.Errorf("google: OAuth client tanımlı değil (Pylon'a client_id gömülmemiş)")
+	return nil, errors.New("google: no OAuth client configured (no client_id built into Pylon)")
 }
 
 func firstNonEmpty(vals ...string) string {
@@ -217,10 +221,10 @@ func Authorize(ctx context.Context, c Config) error {
 		}
 		if q.Get("state") != state {
 			http.Error(w, "state mismatch", http.StatusBadRequest)
-			once.Do(func() { errCh <- fmt.Errorf("oauth state uyuşmazlığı") })
+			once.Do(func() { errCh <- errors.New("oauth state mismatch") })
 			return
 		}
-		fmt.Fprintln(w, "Pylon: giriş tamam ✓ — bu sekmeyi kapatabilirsin.")
+		fmt.Fprintln(w, i18n.T("auth.google.done"))
 		once.Do(func() { codeCh <- q.Get("code") })
 	})}
 	go srv.Serve(ln)
@@ -238,7 +242,7 @@ func Authorize(ctx context.Context, c Config) error {
 	case <-ctx.Done():
 		return ctx.Err()
 	case <-time.After(3 * time.Minute):
-		return fmt.Errorf("oauth: zaman aşımı (3 dk)")
+		return errors.New("oauth: timed out after 3 minutes")
 	}
 
 	tok, err := cfg.Exchange(ctx, code)

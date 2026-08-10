@@ -1,4 +1,13 @@
 {
+  "auth.connected": "ligado",
+  "auth.disconnected": "✔ %s desligado.",
+  "auth.google.done": "Pylon: sessão iniciada ✓ — podes fechar este separador.",
+  "auth.google.ok": "✔ Sessão iniciada — já consigo aceder à tua agenda e ao Drive.",
+  "auth.google.opening": "A iniciar sessão com a Google — a abrir o navegador...",
+  "auth.logged_out": "sessão terminada",
+  "auth.spotify.done": "Pylon: Spotify ligado ✓ — podes fechar este separador.",
+  "auth.spotify.ok": "✔ Spotify ligado.",
+  "auth.spotify.opening": "A ligar o Spotify — a abrir o navegador...",
   "briefing.calendar": {
     "one": "Tens %d evento na agenda.",
     "other": "Tens %d eventos na agenda."
@@ -15,6 +24,60 @@
   "briefing.opener": "%[1]s! Hoje é %[4]s, %[2]d de %[3]s.",
   "briefing.weather": "Está %[1]s, %.0[2]f graus.",
   "briefing.weather_high": "Está %[1]s, %.0[2]f graus agora e até %.0[3]f hoje.",
+  "calc.unparsable": "Não consegui resolver isso.",
+  "calendar.empty": "Hoje tens a agenda vazia.",
+  "calendar.events": {
+    "one": "Hoje tens %d evento.",
+    "other": "Hoje tens %d eventos."
+  },
+  "calendar.events_detail": {
+    "one": "Hoje %[1]d evento: %[2]s.",
+    "other": "Hoje %[1]d eventos: %[2]s."
+  },
+  "currency.AED": {
+    "one": "dirham",
+    "other": "dirhams"
+  },
+  "currency.AUD": {
+    "one": "dólar australiano",
+    "other": "dólares australianos"
+  },
+  "currency.CAD": {
+    "one": "dólar canadiano",
+    "other": "dólares canadianos"
+  },
+  "currency.CHF": {
+    "one": "franco suíço",
+    "other": "francos suíços"
+  },
+  "currency.EUR": {
+    "one": "euro",
+    "other": "euros"
+  },
+  "currency.GBP": {
+    "one": "libra",
+    "other": "libras"
+  },
+  "currency.JPY": {
+    "one": "iene",
+    "other": "ienes"
+  },
+  "currency.RUB": {
+    "one": "rublo",
+    "other": "rublos"
+  },
+  "currency.SAR": {
+    "one": "rial saudita",
+    "other": "riais sauditas"
+  },
+  "currency.TRY": {
+    "one": "lira turca",
+    "other": "liras turcas"
+  },
+  "currency.USD": {
+    "one": "dólar",
+    "other": "dólares"
+  },
   "date.day.friday": "sexta-feira",
   "date.day.monday": "segunda-feira",
   "date.day.saturday": "sábado",
@@ -34,6 +97,112 @@
   "date.month.november": "novembro",
   "date.month.october": "outubro",
   "date.month.september": "setembro",
+  "docker.also_stopped": {
+    "one": "(%d está parado)",
+    "other": "(%d estão parados)"
+  },
+  "docker.down": "%s não está em execução.",
+  "docker.down_status": "%[1]s não está em execução (%[2]s).",
+  "docker.no_logs": "Sem registos para %s.",
+  "docker.none": "Não há contentores.",
+  "docker.none_running": "Nenhum contentor em execução.",
+  "docker.restarted": "%s reiniciado.",
+  "docker.running": {
+    "one": "%[1]d contentor em execução: %[2]s.",
+    "other": "%[1]d contentores em execução: %[2]s."
+  },
+  "docker.started": "%s iniciado.",
+  "docker.stopped": "parado",
+  "docker.up": "%s está em execução.",
+  "docker.up_status": "%[1]s está em execução (%[2]s).",
+  "drive.no_match": "Nenhum ficheiro no Drive corresponde a %q.",
+  "exchange.price": "%[1]s está a %[2]s %[3]s.",
+  "exchange.price_unavailable": "Não consigo obter o preço neste momento.",
+  "exchange.rate": "1 %[1]s vale %[2]s %[3]s.",
+  "exchange.rate_unavailable": "Não consigo obter as taxas de câmbio neste momento.",
+  "exchange.which_coin": "Que criptomoeda queres saber?",
+  "exchange.which_currency": "Que moeda queres saber?",
+  "freshrss.none": "Não tens artigos por ler.",
+  "freshrss.unread": {
+    "one": "Tens %d artigo por ler.",
+    "other": "Tens %d artigos por ler."
+  },
+  "github.issues": {
+    "one": "%[1]d issue atribuída: %[2]s.",
+    "other": "%[1]d issues atribuídas: %[2]s."
+  },
+  "github.no_commits_many": "Hoje sem commits em: %s.",
+  "github.no_commits_one": "Ainda sem commits em %s hoje.",
+  "github.no_issues": "Não tens issues abertas atribuídas.",
+  "intent.no_model": "Não percebi (correspondência local %.2f) e não há modelo ligado.",
+  "intent.unclear": "hmm, não percebi bem o que querias dizer",
+  "listen.fixed_window": "a ouvir (%d s) — fala e espera, NÃO carregues em Ctrl+C...",
+  "listen.silence_stop": "a ouvir — fala, paro quando terminares (máx. %d s)...",
+  "profile.address": "trata-te por %q",
+  "profile.casual": "fala de forma informal",
+  "profile.fillers": "usa frequentemente estas bordões: %s",
+  "profile.formal": "fala de forma formal",
+  "profile.long_sentences": "usa frases longas e detalhadas",
+  "profile.short_sentences": "usa frases curtas",
+  "profile.style_card": "Estilo de fala do utilizador: %s. Reflete-o naturalmente nas tuas respostas.",
+  "recall.empty": "ainda sem histórico de conversa",
+  "reminder.set": "feito — aviso-te quando '%[1]s' fechar: %[2]q (tarefa #%[3]d)",
+  "reminder.spoken": "Lembrete. %s",
+  "secret.prompt": "Introduz o valor de %s (oculto): ",
+  "secret.saved": "✔ %[1]q cifrado e guardado. Na configuração: secret:%[2]s",
+  "spotify.current_track": "Agora: %s.",
+  "spotify.next": "Faixa seguinte.",
+  "spotify.no_match": "Não encontrei nada que corresponda a %q.",
+  "spotify.nothing_playing": "Não está a tocar nada.",
+  "spotify.now_playing": "A tocar: %s.",
+  "spotify.paused": "Em pausa.",
+  "spotify.paused_track": "Em pausa: %s.",
+  "spotify.playing": "A reproduzir.",
+  "spotify.prev": "Faixa anterior.",
+  "sysmon.disk": "%.0f GB livres no disco",
+  "sysmon.load": "carga do CPU %.2f",
+  "sysmon.ram": "RAM a %[1]d%% (%.1[2]f/%.1[3]f GB)",
+  "sysmon.temp": "CPU a %.0f graus",
+  "sysmon.unavailable": "Não consigo ler os dados do sistema.",
+  "sysmon.uptime": "ligado há %s",
+  "system.close.fail": "%s não pôde ser fechado ou não estava aberto.",
+  "system.close.ok": "%s fechado.",
+  "system.close.self": "Não me posso fechar a mim próprio.",
+  "system.close.which": "O que devo fechar?",
+  "system.lock.fail": "Não consegui bloquear o ecrã.",
+  "system.lock.ok": "A bloquear o ecrã.",
+  "system.media.next": "Faixa seguinte.",
+  "system.media.no_player": "Não encontrei nenhum leitor.",
+  "system.media.pause": "Em pausa.",
+  "system.media.play": "A reproduzir.",
+  "system.media.prev": "Faixa anterior.",
+  "system.volume.down": "Baixei o volume.",
+  "system.volume.fail": "Não consegui alterar o volume.",
+  "system.volume.muted": "Som desligado.",
+  "system.volume.up": "Aumentei o volume.",
+  "time.days": {
+    "one": "%d dia",
+    "other": "%d dias"
+  },
+  "time.hours": {
+    "one": "%d hora",
+    "other": "%d horas"
+  },
+  "time.join": "%[1]s %[2]s",
+  "time.less_than_minute": "menos de um minuto",
+  "time.minutes": {
+    "one": "%d minuto",
+    "other": "%d minutos"
+  },
+  "update.available": "Está disponível uma nova versão: %[1]s (tens %[2]s)",
+  "update.current": "Já estás atualizado (%s).",
+  "update.dev_build": "Esta é uma compilação de desenvolvimento; as atualizações são só para versões publicadas.",
+  "update.downloading": "A descarregar e a verificar a assinatura...",
+  "update.installed": "✔ %s instalado. Reinicia o Pylon para ter efeito.",
+  "update.packaged": "Esta cópia é gerida pelo teu gestor de pacotes (%s).",
+  "update.packaged_hint": "Atualiza através dele — por exemplo: pacman -Syu",
+  "update.unsigned": "As atualizações estão desativadas nesta compilação (sem chave de assinatura).",
+  "voice.nothing_heard": "Não ouvi nada",
   "weather.code.clear": "céu limpo",
   "weather.code.drizzle": "com chuvisco",
   "weather.code.fog": "com nevoeiro",
@@ -52,5 +221,16 @@
   "weather.now": "%[1]s: %[2]s, %.0[3]f graus neste momento.",
   "weather.rain": "Probabilidade de chuva de %[1]d%%.",
   "weather.today": "Hoje máxima de %.0[1]f e mínima de %.0[2]f graus.",
-  "weather.unavailable": "Não consigo aceder ao serviço de meteorologia neste momento."
+  "weather.unavailable": "Não consigo aceder ao serviço de meteorologia neste momento.",
+  "work.break_nudge": "%s sem pausa. Levanta-te um pouco.",
+  "work.goal.daily.met": "Ultrapassaste o teu objetivo diário (%s).",
+  "work.goal.daily.progress": "Objetivo diário %[1]s, %[2]d%% concluído — faltam %[3]s.",
+  "work.goal.weekly.met": "Ultrapassaste o teu objetivo semanal (%s).",
+  "work.goal.weekly.progress": "Objetivo semanal %[1]s, %[2]d%% concluído — faltam %[3]s.",
+  "work.today.nothing": "Hoje não passaste tempo em nenhuma aplicação monitorizada.",
+  "work.today.single": "Hoje: %[2]s em %[1]s.",
+  "work.today.total": "Hoje no total %[1]s: %[2]s.",
+  "work.week.nothing": "Nos últimos 7 dias não passaste tempo em nenhuma aplicação monitorizada.",
+  "work.week.single": "Nos últimos 7 dias: %[2]s em %[1]s.",
+  "work.week.total": "Nos últimos 7 dias, %[1]s no total: %[2]s."
 }

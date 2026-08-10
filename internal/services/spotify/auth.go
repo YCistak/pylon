@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -16,6 +17,7 @@ import (
 
 	"golang.org/x/oauth2"
 
+	"github.com/YCistak/pylon/internal/i18n"
 	"github.com/YCistak/pylon/internal/secrets"
 )
 
@@ -124,7 +126,7 @@ func Authorize(ctx context.Context, c Config) error {
 	addr := fmt.Sprintf("127.0.0.1:%d", redirectPort(c))
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
-		return fmt.Errorf("loopback %s dinlenemedi (port meşgul olabilir): %w", addr, err)
+		return fmt.Errorf("cannot listen on loopback %s (port in use?): %w", addr, err)
 	}
 	defer ln.Close()
 
@@ -150,10 +152,10 @@ func Authorize(ctx context.Context, c Config) error {
 		}
 		if q.Get("state") != state {
 			http.Error(w, "state mismatch", http.StatusBadRequest)
-			once.Do(func() { errCh <- fmt.Errorf("oauth state uyuşmazlığı") })
+			once.Do(func() { errCh <- errors.New("oauth state mismatch") })
 			return
 		}
-		fmt.Fprintln(w, "Pylon: Spotify bağlandı ✓ — bu sekmeyi kapatabilirsin.")
+		fmt.Fprintln(w, i18n.T("auth.spotify.done"))
 		once.Do(func() { codeCh <- q.Get("code") })
 	})}
 	go srv.Serve(ln)
@@ -172,7 +174,7 @@ func Authorize(ctx context.Context, c Config) error {
 	case <-ctx.Done():
 		return ctx.Err()
 	case <-time.After(3 * time.Minute):
-		return fmt.Errorf("oauth: zaman aşımı (3 dk)")
+		return errors.New("oauth: timed out after 3 minutes")
 	}
 
 	tok, err := cfg.Exchange(ctx, code, oauth2.SetAuthURLParam("code_verifier", verifier))
@@ -216,7 +218,7 @@ func (p *persistingSource) Token() (*oauth2.Token, error) {
 func httpClient(ctx context.Context, c Config) (*http.Client, error) {
 	tok, err := loadToken()
 	if err != nil {
-		return nil, fmt.Errorf("spotify: kayıtlı token yok — önce `pylon auth spotify` çalıştır (%v)", err)
+		return nil, fmt.Errorf("spotify: no saved token — run `pylon auth spotify` first (%v)", err)
 	}
 	return oauth2.NewClient(ctx, &persistingSource{
 		src:  oauthConfig(c).TokenSource(ctx, tok),

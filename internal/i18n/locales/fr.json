@@ -1,4 +1,13 @@
 {
+  "auth.connected": "connecté",
+  "auth.disconnected": "✔ %s déconnecté.",
+  "auth.google.done": "Pylon : connecté ✓ — tu peux fermer cet onglet.",
+  "auth.google.ok": "✔ Connecté — j'ai maintenant accès à ton agenda et à Drive.",
+  "auth.google.opening": "Connexion avec Google — ouverture du navigateur...",
+  "auth.logged_out": "déconnecté",
+  "auth.spotify.done": "Pylon : Spotify connecté ✓ — tu peux fermer cet onglet.",
+  "auth.spotify.ok": "✔ Spotify connecté.",
+  "auth.spotify.opening": "Connexion à Spotify — ouverture du navigateur...",
   "briefing.calendar": {
     "one": "Tu as %d événement dans ton agenda.",
     "other": "Tu as %d événements dans ton agenda."
@@ -15,6 +24,60 @@
   "briefing.opener": "%[1]s ! Nous sommes le %[4]s %[2]d %[3]s.",
   "briefing.weather": "Le temps est %[1]s, %.0[2]f degrés.",
   "briefing.weather_high": "Le temps est %[1]s, %.0[2]f degrés et jusqu'à %.0[3]f aujourd'hui.",
+  "calc.unparsable": "Je n'ai pas réussi à calculer ça.",
+  "calendar.empty": "Ton agenda est vide aujourd'hui.",
+  "calendar.events": {
+    "one": "Tu as %d événement aujourd'hui.",
+    "other": "Tu as %d événements aujourd'hui."
+  },
+  "calendar.events_detail": {
+    "one": "%[1]d événement aujourd'hui : %[2]s.",
+    "other": "%[1]d événements aujourd'hui : %[2]s."
+  },
+  "currency.AED": {
+    "one": "dirham",
+    "other": "dirhams"
+  },
+  "currency.AUD": {
+    "one": "dollar australien",
+    "other": "dollars australiens"
+  },
+  "currency.CAD": {
+    "one": "dollar canadien",
+    "other": "dollars canadiens"
+  },
+  "currency.CHF": {
+    "one": "franc suisse",
+    "other": "francs suisses"
+  },
+  "currency.EUR": {
+    "one": "euro",
+    "other": "euros"
+  },
+  "currency.GBP": {
+    "one": "livre sterling",
+    "other": "livres sterling"
+  },
+  "currency.JPY": {
+    "one": "yen",
+    "other": "yens"
+  },
+  "currency.RUB": {
+    "one": "rouble",
+    "other": "roubles"
+  },
+  "currency.SAR": {
+    "one": "riyal saoudien",
+    "other": "riyals saoudiens"
+  },
+  "currency.TRY": {
+    "one": "livre turque",
+    "other": "livres turques"
+  },
+  "currency.USD": {
+    "one": "dollar",
+    "other": "dollars"
+  },
   "date.day.friday": "vendredi",
   "date.day.monday": "lundi",
   "date.day.saturday": "samedi",
@@ -34,6 +97,112 @@
   "date.month.november": "novembre",
   "date.month.october": "octobre",
   "date.month.september": "septembre",
+  "docker.also_stopped": {
+    "one": "(%d est arrêté)",
+    "other": "(%d sont arrêtés)"
+  },
+  "docker.down": "%s ne tourne pas.",
+  "docker.down_status": "%[1]s ne tourne pas (%[2]s).",
+  "docker.no_logs": "Aucun journal pour %s.",
+  "docker.none": "Il n'y a aucun conteneur.",
+  "docker.none_running": "Aucun conteneur ne tourne.",
+  "docker.restarted": "%s redémarré.",
+  "docker.running": {
+    "one": "%[1]d conteneur en cours : %[2]s.",
+    "other": "%[1]d conteneurs en cours : %[2]s."
+  },
+  "docker.started": "%s démarré.",
+  "docker.stopped": "arrêté",
+  "docker.up": "%s tourne.",
+  "docker.up_status": "%[1]s tourne (%[2]s).",
+  "drive.no_match": "Aucun fichier dans Drive ne correspond à %q.",
+  "exchange.price": "%[1]s est à %[2]s %[3]s.",
+  "exchange.price_unavailable": "Je n'arrive pas à obtenir le cours pour le moment.",
+  "exchange.rate": "1 %[1]s vaut %[2]s %[3]s.",
+  "exchange.rate_unavailable": "Je n'arrive pas à obtenir les taux de change pour le moment.",
+  "exchange.which_coin": "Quelle cryptomonnaie ?",
+  "exchange.which_currency": "Quelle devise ?",
+  "freshrss.none": "Tu n'as aucun article non lu.",
+  "freshrss.unread": {
+    "one": "Tu as %d article non lu.",
+    "other": "Tu as %d articles non lus."
+  },
+  "github.issues": {
+    "one": "%[1]d issue t'est assignée : %[2]s.",
+    "other": "%[1]d issues te sont assignées : %[2]s."
+  },
+  "github.no_commits_many": "Aucun commit aujourd'hui dans : %s.",
+  "github.no_commits_one": "Pas encore de commit dans %s aujourd'hui.",
+  "github.no_issues": "Aucune issue ouverte ne t'est assignée.",
+  "intent.no_model": "Je n'ai pas compris (correspondance locale %.2f) et aucun modèle n'est connecté.",
+  "intent.unclear": "hum, je ne suis pas sûr de ce que tu voulais dire",
+  "listen.fixed_window": "j'écoute (%d s) — parle et attends, ne fais PAS Ctrl+C...",
+  "listen.silence_stop": "j'écoute — parle, je m'arrête quand tu t'arrêtes (max %d s)...",
+  "profile.address": "t'appelle %q",
+  "profile.casual": "s'exprime de manière familière",
+  "profile.fillers": "utilise souvent ces mots de remplissage : %s",
+  "profile.formal": "s'exprime de manière formelle",
+  "profile.long_sentences": "fait des phrases longues et détaillées",
+  "profile.short_sentences": "fait des phrases courtes",
+  "profile.style_card": "Style de langage de l'utilisateur : %s. Reflète-le naturellement dans tes réponses.",
+  "recall.empty": "pas encore d'historique de conversation",
+  "reminder.set": "c'est noté — je te rappellerai à la fermeture de '%[1]s' : %[2]q (tâche #%[3]d)",
+  "reminder.spoken": "Rappel. %s",
+  "secret.prompt": "Saisis la valeur de %s (masquée) : ",
+  "secret.saved": "✔ %[1]q chiffré et enregistré. Dans la config : secret:%[2]s",
+  "spotify.current_track": "Actuellement : %s.",
+  "spotify.next": "Piste suivante.",
+  "spotify.no_match": "Je n'ai rien trouvé correspondant à %q.",
+  "spotify.nothing_playing": "Rien ne joue en ce moment.",
+  "spotify.now_playing": "Lecture : %s.",
+  "spotify.paused": "En pause.",
+  "spotify.paused_track": "En pause : %s.",
+  "spotify.playing": "Lecture.",
+  "spotify.prev": "Piste précédente.",
+  "sysmon.disk": "%.0f Go libres sur le disque",
+  "sysmon.load": "charge CPU %.2f",
+  "sysmon.ram": "RAM utilisée à %[1]d%% (%.1[2]f/%.1[3]f Go)",
+  "sysmon.temp": "CPU à %.0f degrés",
+  "sysmon.unavailable": "Je n'arrive pas à lire les données système.",
+  "sysmon.uptime": "allumé depuis %s",
+  "system.close.fail": "%s n'a pas pu être fermé ou n'était pas lancé.",
+  "system.close.ok": "%s fermé.",
+  "system.close.self": "Je ne peux pas me fermer moi-même.",
+  "system.close.which": "Qu'est-ce que je ferme ?",
+  "system.lock.fail": "Je n'ai pas pu verrouiller l'écran.",
+  "system.lock.ok": "Je verrouille l'écran.",
+  "system.media.next": "Piste suivante.",
+  "system.media.no_player": "Je n'ai trouvé aucun lecteur.",
+  "system.media.pause": "En pause.",
+  "system.media.play": "Lecture.",
+  "system.media.prev": "Piste précédente.",
+  "system.volume.down": "Je baisse le volume.",
+  "system.volume.fail": "Je n'ai pas pu changer le volume.",
+  "system.volume.muted": "Son coupé.",
+  "system.volume.up": "J'augmente le volume.",
+  "time.days": {
+    "one": "%d jour",
+    "other": "%d jours"
+  },
+  "time.hours": {
+    "one": "%d heure",
+    "other": "%d heures"
+  },
+  "time.join": "%[1]s %[2]s",
+  "time.less_than_minute": "moins d'une minute",
+  "time.minutes": {
+    "one": "%d minute",
+    "other": "%d minutes"
+  },
+  "update.available": "Une nouvelle version est disponible : %[1]s (tu as %[2]s)",
+  "update.current": "Tu es déjà à jour (%s).",
+  "update.dev_build": "Ceci est une version de développement ; les mises à jour ne concernent que les versions publiées.",
+  "update.downloading": "Téléchargement et vérification de la signature...",
+  "update.installed": "✔ %s installé. Redémarre Pylon pour l'appliquer.",
+  "update.packaged": "Cette copie est gérée par ton gestionnaire de paquets (%s).",
+  "update.packaged_hint": "Mets à jour avec lui — par exemple : pacman -Syu",
+  "update.unsigned": "Les mises à jour sont désactivées dans cette version (pas de clé de signature).",
+  "voice.nothing_heard": "Je n'ai rien entendu",
   "weather.code.clear": "dégagé",
   "weather.code.drizzle": "bruineux",
   "weather.code.fog": "brumeux",
@@ -52,5 +221,16 @@
   "weather.now": "%[1]s : %[2]s, %.0[3]f degrés en ce moment.",
   "weather.rain": "Risque de pluie de %[1]d%%.",
   "weather.today": "Aujourd'hui, maximale de %.0[1]f et minimale de %.0[2]f degrés.",
-  "weather.unavailable": "Je n'arrive pas à joindre le service météo pour le moment."
+  "weather.unavailable": "Je n'arrive pas à joindre le service météo pour le moment.",
+  "work.break_nudge": "%s sans pause. Lève-toi un peu.",
+  "work.goal.daily.met": "Tu as dépassé ton objectif quotidien (%s).",
+  "work.goal.daily.progress": "Objectif quotidien %[1]s, %[2]d%% atteint — il reste %[3]s.",
+  "work.goal.weekly.met": "Tu as dépassé ton objectif hebdomadaire (%s).",
+  "work.goal.weekly.progress": "Objectif hebdomadaire %[1]s, %[2]d%% atteint — il reste %[3]s.",
+  "work.today.nothing": "Tu n'as passé de temps dans aucune application suivie aujourd'hui.",
+  "work.today.single": "Aujourd'hui : %[2]s dans %[1]s.",
+  "work.today.total": "Aujourd'hui, %[1]s au total : %[2]s.",
+  "work.week.nothing": "Tu n'as passé de temps dans aucune application suivie ces 7 derniers jours.",
+  "work.week.single": "Ces 7 derniers jours : %[2]s dans %[1]s.",
+  "work.week.total": "Ces 7 derniers jours, %[1]s au total : %[2]s."
 }

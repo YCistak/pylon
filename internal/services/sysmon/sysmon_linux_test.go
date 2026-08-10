@@ -39,7 +39,7 @@ func TestExecuteStatsSpeaks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out, "CPU yükü") {
+	if !strings.Contains(out, "CPU load") {
 		t.Errorf("stats summary missing load: %q", out)
 	}
 }

@@ -24,14 +24,14 @@ func TestUnreadCountReply(t *testing.T) {
 	if err != nil {
 		t.Fatalf("execute: %v", err)
 	}
-	if !strings.Contains(got, "5 okunmamış") {
+	if !strings.Contains(got, "5 unread articles") {
 		t.Fatalf("reply = %q", got)
 	}
 }
 
 func TestUnreadCountZero(t *testing.T) {
 	got, _ := testFreshRSS(&fakeFever{count: 0}).Execute(context.Background(), ActionUnreadCount, nil)
-	if !strings.Contains(got, "yok") {
+	if !strings.Contains(got, "no unread articles") {
 		t.Fatalf("zero reply = %q", got)
 	}
 }
