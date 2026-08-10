@@ -28,6 +28,7 @@ import (
 	"github.com/YCistak/pylon/internal/daemon"
 	"github.com/YCistak/pylon/internal/db"
 	"github.com/YCistak/pylon/internal/hotkey"
+	"github.com/YCistak/pylon/internal/i18n"
 	"github.com/YCistak/pylon/internal/intent"
 	"github.com/YCistak/pylon/internal/ipc"
 	"github.com/YCistak/pylon/internal/profile"
@@ -52,6 +53,26 @@ import (
 
 // version is set at build time via -ldflags "-X main.version=...".
 var version = "dev"
+
+// loadConfig reads the configuration and puts the process into the language it
+// names, before anything has had a chance to speak. Every entry point goes
+// through it rather than config.Load directly: a CLI command that skipped it
+// would answer in English while the daemon answered in Turkish.
+//
+// An empty language follows the desktop locale, so a fresh install needs no
+// configuration to speak the right language.
+func loadConfig() (config.Config, error) {
+	cfg, err := config.Load(configPath())
+	if err != nil {
+		return cfg, err
+	}
+	lang := strings.TrimSpace(cfg.Language)
+	if lang == "" {
+		lang = i18n.FromEnv()
+	}
+	i18n.SetLanguage(lang)
+	return cfg, nil
+}
 
 // configPath finds pylon.yaml, in order: $PYLON_CONFIG, ./pylon.yaml, then
 // ~/.config/pylon/pylon.yaml.
@@ -151,7 +172,7 @@ func cmdStart() error {
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	slog.SetDefault(log)
 
-	cfg, err := config.Load(configPath())
+	cfg, err := loadConfig()
 	if err != nil {
 		return fmt.Errorf("config: %w", err)
 	}
@@ -1204,7 +1225,7 @@ func parseHM(s string) (hour, min int, ok bool) {
 
 // socketPath resolves the daemon socket from config, falling back to the default.
 func socketPath() string {
-	cfg, err := config.Load(configPath())
+	cfg, err := loadConfig()
 	if err != nil {
 		return ipc.DefaultSocketPath()
 	}
@@ -1312,7 +1333,7 @@ func briefingRequest(args []string) (ipc.Request, time.Duration, error) {
 // send the text through the daemon's intent engine, and speak the reply. Bind
 // this to a hotkey in your DE/OS (hyprland, AutoHotkey, Hammerspoon, ...).
 func cmdListen() error {
-	cfg, err := config.Load(configPath())
+	cfg, err := loadConfig()
 	if err != nil {
 		return fmt.Errorf("config: %w", err)
 	}
@@ -1366,7 +1387,7 @@ func cmdAuth(args []string) error {
 	if len(args) == 0 {
 		return errors.New("usage: pylon auth <google|spotify> [logout]")
 	}
-	cfg, err := config.Load(configPath())
+	cfg, err := loadConfig()
 	if err != nil {
 		return fmt.Errorf("config: %w", err)
 	}
