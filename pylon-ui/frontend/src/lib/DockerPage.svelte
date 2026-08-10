@@ -1,4 +1,5 @@
 <script>
+  import { t } from './i18n.js'
   import { onMount, onDestroy } from 'svelte'
   import { slide } from 'svelte/transition'
   import { Do } from '../../wailsjs/go/main/App.js'
@@ -9,7 +10,7 @@
   // Page preferences persist so the view/filter/refresh stick between visits.
   const PREF_KEY = 'pylon.dockerpage.v1'
   const REFRESH_OPTIONS = [
-    { sec: 0,  label: 'Kapalı' },
+    { sec: 0,  label: 'ui.off' },
     { sec: 5,  label: '5sn' },
     { sec: 15, label: '15sn' },
     { sec: 30, label: '30sn' },
@@ -45,8 +46,8 @@
 
   function friendly(e) {
     const m = (e && e.message) ? e.message : String(e)
-    if (/servissiz aksiyon|bilinmeyen aksiyon/i.test(m)) return 'Docker bağlı değil'
-    return 'Şu an ulaşılamıyor'
+    if (/unknown or unregistered action|unknown action/i.test(m)) return $t('ui.docker.not_connected')
+    return $t('ui.widget.unreachable')
   }
 
   async function load() {
@@ -112,7 +113,7 @@
     <span class="tile" style="--wa: {accent}">{@html iconDocker}</span>
     <div class="titles">
       <h2>Docker</h2>
-      <p class="sub">{runningCount} / {containers.length} konteyner çalışıyor</p>
+      <p class="sub">{$t('ui.docker.running_count', runningCount, containers.length)}</p>
     </div>
   </header>
 
@@ -123,7 +124,7 @@
     </div>
     <div class="seg">
       <button class:active={filter === 'all'}     on:click={() => (filter = 'all')}>Hepsi</button>
-      <button class:active={filter === 'running'} on:click={() => (filter = 'running')}>Çalışanlar</button>
+      <button class:active={filter === 'running'} on:click={() => (filter = 'running')}>{$t('ui.docker.filter_running')}</button>
     </div>
 
     <div class="spacer"></div>
@@ -137,15 +138,15 @@
         <span class="caret">▾</span>
       </div>
     </label>
-    <button class="refresh-btn" on:click={load} title="şimdi yenile" aria-label="şimdi yenile">⟳</button>
+    <button class="refresh-btn" on:click={load} title={$t('ui.refresh')} aria-label={$t('ui.refresh')}>⟳</button>
   </div>
 
   {#if state === 'loading'}
-    <div class="msg">Yükleniyor…</div>
+    <div class="msg">{$t('ui.loading')}</div>
   {:else if state === 'error'}
     <div class="msg err">{errText}</div>
   {:else if shown.length === 0}
-    <div class="msg">{filter === 'running' ? 'Çalışan konteyner yok.' : 'Konteyner yok.'}</div>
+    <div class="msg">{filter === 'running' ? $t('ui.docker.none_running') : $t('ui.docker.none')}</div>
   {:else}
     <div class="items {view}">
       {#each shown as c (c.name)}
@@ -164,12 +165,12 @@
               <button class="ctl" disabled={!!busy[c.name]} on:click={() => control(c.name, 'stop')}>
                 {busy[c.name] === 'stop' ? '…' : '■ Durdur'}
               </button>
-              <button class="ctl" disabled={!!busy[c.name]} on:click={() => control(c.name, 'restart')} title="yeniden başlat">
+              <button class="ctl" disabled={!!busy[c.name]} on:click={() => control(c.name, 'restart')} title={$t('ui.docker.restart')}>
                 {busy[c.name] === 'restart' ? '…' : '⟲'}
               </button>
             {:else}
               <button class="ctl start" disabled={!!busy[c.name]} on:click={() => control(c.name, 'start')}>
-                {busy[c.name] === 'start' ? '…' : '▶ Başlat'}
+                {busy[c.name] === 'start' ? '…' : '▶ ' + $t('ui.docker.start')}
               </button>
             {/if}
             <button class="chev" class:up={expanded === c.name} on:click={() => toggle(c.name)} aria-label="detay">›</button>
@@ -178,7 +179,7 @@
           {#if expanded === c.name}
             <div class="detail" transition:slide={{ duration: 200 }}>
               {#if detail[c.name]?.loading}
-                <span class="muted">Yükleniyor…</span>
+                <span class="muted">{$t('ui.loading')}</span>
               {:else}
                 {#if detail[c.name]?.stats}
                   <div class="stats">{detail[c.name].stats}</div>

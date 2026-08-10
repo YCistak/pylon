@@ -1,5 +1,7 @@
 <script>
+  import { onMount } from 'svelte'
   import { fade } from 'svelte/transition'
+  import { t, syncLanguage } from './lib/i18n.js'
   import Sidebar from './lib/Sidebar.svelte'
   import Widget from './lib/Widget.svelte'
   import DockerWidget from './lib/DockerWidget.svelte'
@@ -9,6 +11,9 @@
   import DockerPage from './lib/DockerPage.svelte'
   import { widgets, catalogEntry, modeOf } from './lib/widgets.js'
   import { sidebarPages } from './lib/sidebarPages.js'
+
+  // The interface follows the daemon's language, asked for once at startup.
+  onMount(syncLanguage)
 
   // A Docker "container" widget gets the rich interactive card; everything else
   // uses the generic text card.
@@ -69,7 +74,7 @@
         <VoiceBar />
         {#if empty}
           <p class="hint" in:fade>
-            Henüz widget yok — <button class="link" on:click={toggleSettings}>Ayarlar</button>'dan ekle.
+            {$t('ui.home.empty')} <button class="link" on:click={toggleSettings}>{$t('ui.settings.title')}</button>
           </p>
         {/if}
       </section>

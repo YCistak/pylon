@@ -94,7 +94,7 @@ func (g *GitHub) Execute(ctx context.Context, action intent.Action, _ map[string
 	case ActionListIssues:
 		return g.listIssues(ctx, api)
 	default:
-		return "", fmt.Errorf("github: bilinmeyen aksiyon %q", action)
+		return "", fmt.Errorf("github: unknown action %q", action)
 	}
 }
 

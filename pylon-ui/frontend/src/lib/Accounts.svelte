@@ -1,4 +1,5 @@
 <script>
+  import { t } from './i18n.js'
   // Connected accounts. Signing in lets Pylon reach the service on your behalf:
   // Google for calendar and Drive, Spotify for playback control. The OAuth
   // consent runs in the daemon (the same flow as `pylon auth <service>`); when
@@ -11,7 +12,7 @@
   // new integration only needs a row here.
   const ACCOUNTS = [
     { id: 'google', name: 'Google', sub: 'Takvim · Mail · Drive', logo: 'G' },
-    { id: 'spotify', name: 'Spotify', sub: 'Müzik çalma denetimi', logo: '♪' },
+    { id: 'spotify', name: 'Spotify', sub: 'ui.accounts.spotify_sub', logo: '♪' },
   ]
 
   // Per-service state, keyed by id: 'connected' | 'ready' | 'unavailable' | 'offline'
@@ -87,7 +88,7 @@
 
 <section class="card">
   <div class="card-head">
-    <div class="card-title"><h3>Bağlı Hesaplar</h3></div>
+    <div class="card-title"><h3>{$t('ui.accounts.title')}</h3></div>
   </div>
 
   {#each ACCOUNTS as acct (acct.id)}
@@ -100,40 +101,40 @@
 
       {#if confirming === acct.id}
         <div class="confirm">
-          <span class="ask">Çıkış yapılsın mı?</span>
+          <span class="ask">{$t('ui.accounts.signout_ask')}</span>
           <button class="danger" on:click={() => logout(acct.id)} disabled={busy[acct.id]}>Evet</button>
-          <button class="signin" on:click={() => (confirming = '')}>Vazgeç</button>
+          <button class="signin" on:click={() => (confirming = '')}>{$t('ui.cancel')}</button>
         </div>
       {:else if status[acct.id] === 'connected'}
-        <span class="badge">Bağlı ✓</span>
+        <span class="badge">{$t('ui.accounts.connected')}</span>
         <button
           class="link"
           on:click={() => (confirming = acct.id)}
           disabled={busy[acct.id]}
-          title="{acct.name} bağlantısını kaldır"
+          title={$t('ui.accounts.disconnect_title', acct.name)}
         >
-          {busy[acct.id] ? 'Çıkılıyor…' : 'Çıkış yap'}
+          {busy[acct.id] ? $t('ui.accounts.signing_out') : $t('ui.accounts.sign_out')}
         </button>
       {:else if status[acct.id] === 'ready'}
         <button class="signin" on:click={() => login(acct.id)} disabled={busy[acct.id]}>
-          {busy[acct.id] ? 'Tarayıcı açıldı…' : 'Bağlan'}
+          {busy[acct.id] ? $t('ui.accounts.browser_opened') : $t('ui.accounts.connect')}
         </button>
       {:else if status[acct.id] === 'offline'}
-        <button class="signin" disabled title="Pylon bağlantısı bekleniyor">Bağlanılıyor…</button>
+        <button class="signin" disabled title={$t('ui.accounts.waiting')}>{$t('ui.status.connecting')}</button>
       {:else}
-        <button class="signin" disabled title="Bu sürümde henüz aktif değil">Bağlan</button>
+        <button class="signin" disabled title={$t('ui.accounts.unavailable_title')}>{$t('ui.accounts.connect')}</button>
       {/if}
     </div>
 
     {#if error[acct.id]}
       <p class="note err">{error[acct.id]}</p>
     {:else if status[acct.id] === 'unavailable'}
-      <p class="note">{acct.name} bağlantısı bu sürümde henüz aktif değil — yakında.</p>
+      <p class="note">{$t('ui.accounts.unavailable', acct.name)}</p>
     {/if}
   {/each}
 
   {#if $daemonOnline === false}
-    <p class="note">Pylon başlatılıyor — bağlanınca durum güncellenecek.</p>
+    <p class="note">{$t('ui.accounts.starting')}</p>
   {/if}
 </section>
 

@@ -72,7 +72,7 @@ func (s *Service) Execute(_ context.Context, action intent.Action, _ map[string]
 		}
 		return st.summary(), nil
 	default:
-		return "", fmt.Errorf("sysmon: bilinmeyen aksiyon %q", action)
+		return "", fmt.Errorf("sysmon: unknown action %q", action)
 	}
 }
 

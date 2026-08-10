@@ -1,4 +1,5 @@
 <script>
+  import { t } from './i18n.js'
   import { onDestroy } from 'svelte'
   import { fly } from 'svelte/transition'
   import { Do } from '../../wailsjs/go/main/App.js'
@@ -20,8 +21,8 @@
   // Never surface daemon internals to the user. An unconfigured/unauthorized
   // service reports "servissiz/bilinmeyen aksiyon"; show plain language instead.
   function friendlyError(msg) {
-    if (/servissiz aksiyon|bilinmeyen aksiyon/i.test(msg)) return 'Bağlı değil'
-    return 'Şu an ulaşılamıyor'
+    if (/unknown or unregistered action|unknown action/i.test(msg)) return $t('ui.widget.not_connected')
+    return $t('ui.widget.unreachable')
   }
 
   async function load() {
@@ -37,7 +38,7 @@
       const msg = (e && e.message) ? e.message : String(e)
       // A dial failure means the daemon went away — treat as connecting, not a
       // service error, so it recovers on its own when the socket comes back.
-      if (/daemon çalışmıyor/i.test(msg)) { state = 'connecting'; return }
+      if (/daemon is not running/i.test(msg)) { state = 'connecting'; return }
       text = friendlyError(msg)
       state = 'error'
     } finally {
@@ -70,7 +71,7 @@
     <span class="tile">{@html icon}</span>
     <span class="title">{title}</span>
     {#if onEdit}
-      <button class="edit" on:click={onEdit} title="düzenle" aria-label="düzenle">✎</button>
+      <button class="edit" on:click={onEdit} title={$t('ui.edit')} aria-label={$t('ui.edit')}>✎</button>
     {/if}
     <button class="refresh" class:spinning on:click={load} title="yenile" aria-label="yenile">⟳</button>
   </header>
@@ -79,7 +80,7 @@
     {#if state === 'loading'}
       <span class="skeleton"></span>
     {:else if state === 'connecting'}
-      <span class="connecting">Bağlanıyor…</span>
+      <span class="connecting">{$t('ui.status.connecting')}</span>
     {:else}
       <span class="value">{text}</span>
     {/if}

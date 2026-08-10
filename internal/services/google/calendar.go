@@ -84,7 +84,7 @@ func (c *Calendar) Execute(ctx context.Context, action intent.Action, args map[s
 	case ActionAddEvent:
 		return c.addEvent(ctx, api, args)
 	default:
-		return "", fmt.Errorf("calendar: bilinmeyen aksiyon %q", action)
+		return "", fmt.Errorf("calendar: unknown action %q", action)
 	}
 }
 

@@ -121,7 +121,7 @@ func (s *Spotify) Execute(ctx context.Context, action intent.Action, args map[st
 	case ActionNowPlaying:
 		return s.currentlyPlaying(ctx, api)
 	default:
-		return "", fmt.Errorf("spotify: bilinmeyen aksiyon %q", action)
+		return "", fmt.Errorf("spotify: unknown action %q", action)
 	}
 }
 
