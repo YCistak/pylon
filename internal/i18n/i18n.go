@@ -155,6 +155,26 @@ func EnglishName(lang string) string {
 	return lang
 }
 
+// FormFloat is Form for an amount that may be fractional. Money needs it:
+// "0.87 dollars" is plural in English and "0,87 euro" is singular in French,
+// because the French rule looks at the integer part and English does not.
+func FormFloat(key string, v float64) string {
+	if v < 0 {
+		v = -v
+	}
+	whole := int(v) // integer part; the fraction is handled per language below
+	if v != float64(whole) {
+		switch Language() {
+		case "fr", "pt":
+			// 0 and 1 are singular, and a fraction below 2 keeps the integer part.
+		default:
+			// Everywhere else a fraction is plural: "0.87 dollars", "1,5 Stunden".
+			return Form(key, 2)
+		}
+	}
+	return Form(key, whole)
+}
+
 // Form picks the plural form that agrees with n but does not print n — for
 // names that stand next to a number the sentence states in its own way: "1
 // dollar" and "34.12 dollars" share one amount but not one form, and the amount

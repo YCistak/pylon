@@ -237,3 +237,28 @@ func sorted(in []string) []string {
 	}
 	return out
 }
+
+// Money is where fractional plurals actually bite: "0.87 dollars" is plural in
+// English, "0,87 euro" singular in French, and the difference is a rule about
+// the integer part, not about the fraction.
+func TestFormFloatFollowsTheLanguagesRule(t *testing.T) {
+	restore(t)
+
+	cases := []struct {
+		lang string
+		v    float64
+		want string
+	}{
+		{"en", 1, "dollar"}, {"en", 0.87, "dollars"}, {"en", 34.12, "dollars"},
+		{"fr", 1, "dollar"}, {"fr", 0.87, "dollar"}, {"fr", 2.5, "dollars"},
+		{"pt", 0.5, "dólar"}, {"pt", 3.2, "dólares"},
+		{"tr", 1, "dolar"}, {"tr", 34.12, "dolar"},
+		{"ru", 1, "доллар"}, {"ru", 3, "доллара"}, {"ru", 7, "долларов"},
+	}
+	for _, c := range cases {
+		SetLanguage(c.lang)
+		if got := FormFloat("currency.USD", c.v); got != c.want {
+			t.Errorf("%s FormFloat(%v) = %q, want %q", c.lang, c.v, got, c.want)
+		}
+	}
+}
