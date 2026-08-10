@@ -134,6 +134,9 @@ briefing:
   # the briefing is only printed (and spoken, when tts_cmd is set).
   # scripts/briefing_banner.py draws a Wayland layer-shell overlay:
   #   banner_cmd: ["python3", "/path/scripts/briefing_banner.py"]
+  # It dismisses itself after 5 seconds; PYLON_BANNER_SECONDS changes that (0
+  # keeps it up until clicked):
+  #   banner_cmd: ["env", "PYLON_BANNER_SECONDS=10", "python3", "/path/scripts/briefing_banner.py"]
   # `pylon briefing` composes one on demand; `pylon briefing --speak` reads it out.
 
 # Work sessions. Pylon records how long each tracked app is open and answers
