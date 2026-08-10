@@ -8,6 +8,9 @@
 ![Platforms](https://img.shields.io/badge/platforms-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey)
 ![Go](https://img.shields.io/badge/Go-1.26-00ADD8?logo=go&logoColor=white)
 
+**[pylon website](https://ycistak.github.io/pylon/)** ·
+[privacy policy](https://ycistak.github.io/pylon/privacy.html)
+
 Pylon watches what you do — when work ends, when a game closes, when the day
 starts — and acts on it. You talk to it; it carries the context. Everything runs
 locally: a Go daemon owns the state, and the GUI is just one of its clients.
