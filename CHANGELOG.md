@@ -11,6 +11,26 @@ Cutting a release: [docs/RELEASE.md](docs/RELEASE.md).
 
 ### Added
 
+- **The briefing now opens with the weather.** The slot had been left empty
+  since the briefing was written. It reads the raw forecast from the same
+  `weather` service the spoken action uses and phrases its own short clause —
+  condition, current temperature, today's high — rather than quoting weather's
+  full sentence. Rain is mentioned only from 30% up, and a failed fetch drops
+  the clause instead of announcing that the weather is unavailable.
+
+- **A text box in the GUI.** Under the mic button, and it goes to the same
+  place: `Ask()` → the daemon's `say` → the intent engine. Until now the only
+  way in from the GUI was the microphone, which is no use in a quiet room or
+  when a container name is easier to type than to pronounce. Enter sends, the
+  answer lands in the same bubble the mic uses, and the two cannot run at once.
+
+- **A stand-up nudge** (`work.break_after_hours`, default 2, `0` disables).
+  Once a tracked app has been open that long with no gap, the briefing banner
+  says how long it has been and suggests a break, repeating every 30 minutes
+  while the stretch lasts. Closing every tracked app is what counts as the
+  break — it measures how long the app was open, not how long you were at the
+  keyboard, which errs toward reminding you too often rather than too late.
+
 - **A systemd user unit** (`packaging/user/pylon.service`), installed by
   `make install-user`. Installed but not enabled: `WantedBy=graphical-session
   .target` starts nothing on the bare Wayland sessions Pylon is developed on,
@@ -25,6 +45,11 @@ Cutting a release: [docs/RELEASE.md](docs/RELEASE.md).
   start before that disk is mounted and fail for no visible reason.
 
 ### Fixed
+
+- **The briefing banner gets out of the way on its own.** It sat on screen for
+  30 seconds, long enough to read as "stuck until you hit the ×". It now
+  dismisses itself after 5; `PYLON_BANNER_SECONDS` in the `banner_cmd`
+  environment picks another value (0 keeps the old click-to-close behaviour).
 
 - **Service action arguments now reach the service.** The LLM schema hard-coded
   four argument fields — `process`, `content`, `reply`, `datetime` — so an
