@@ -5,6 +5,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 )
@@ -64,6 +65,14 @@ func (r *recorder) add(req request) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.reqs = append(r.reqs, req)
+}
+
+// all returns every request the fake daemon saw, for the cases where "how many"
+// is the point — a blank ask must send none at all.
+func (r *recorder) all() []request {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]request(nil), r.reqs...)
 }
 
 func (r *recorder) last() request {
@@ -138,5 +147,56 @@ func TestDeleteSecretReportsRefusal(t *testing.T) {
 	}
 	if got := rec.last().Args; len(got) != 2 || got[0] != "rm" || got[1] != "gemini" {
 		t.Fatalf("args = %v", got)
+	}
+}
+
+// A typed question goes out as the daemon's "say" — the same command the CLI
+// and the microphone end up at — with the text as a single argument, so spaces
+// don't split it into several.
+func TestAskSendsSayWithTheWholeText(t *testing.T) {
+	rec := fakeDaemon(t, response{OK: true, Text: "84 eder."})
+	app := NewApp()
+
+	got, err := app.Ask("  12 çarpı 7 kaç eder  ")
+	if err != nil {
+		t.Fatalf("ask: %v", err)
+	}
+	if got != "84 eder." {
+		t.Errorf("reply = %q", got)
+	}
+	reqs := rec.all()
+	if len(reqs) != 1 {
+		t.Fatalf("expected one request, got %d", len(reqs))
+	}
+	if reqs[0].Cmd != "say" {
+		t.Errorf("cmd = %q, want say", reqs[0].Cmd)
+	}
+	if len(reqs[0].Args) != 1 || reqs[0].Args[0] != "12 çarpı 7 kaç eder" {
+		t.Errorf("args = %q, want the trimmed text as one argument", reqs[0].Args)
+	}
+}
+
+// Blank input never reaches the daemon: the button is disabled for it, and an
+// empty "say" would come back as an error the user did not cause.
+func TestAskIgnoresBlankInput(t *testing.T) {
+	rec := fakeDaemon(t, response{OK: true, Text: "should not be asked"})
+	app := NewApp()
+
+	got, err := app.Ask("   ")
+	if err != nil || got != "" {
+		t.Fatalf("blank ask = %q, %v", got, err)
+	}
+	if n := len(rec.all()); n != 0 {
+		t.Errorf("blank input sent %d request(s)", n)
+	}
+}
+
+// A refusal from the daemon surfaces as an error, not as an answer.
+func TestAskSurfacesDaemonRefusal(t *testing.T) {
+	fakeDaemon(t, response{OK: false, Error: "LLM yapılandırılmadı"})
+
+	if _, err := NewApp().Ask("brifing ver"); err == nil ||
+		!strings.Contains(err.Error(), "LLM yapılandırılmadı") {
+		t.Fatalf("error = %v, want the daemon's message", err)
 	}
 }

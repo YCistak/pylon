@@ -132,6 +132,29 @@ func (a *App) Listen() (string, error) {
 	return resp.Text, nil
 }
 
+// Ask runs one typed command through the same intent engine the microphone
+// feeds — the daemon's "say", which is what `pylon say` uses. It exists so the
+// GUI stays usable with the mic off: in a quiet room, with the headset
+// unplugged, or when a container name is easier to type than to pronounce.
+//
+// The deadline is Listen's minus the recording: an LLM round trip plus whatever
+// service it resolves to can take a while, and cutting it short would look like
+// the daemon had died.
+func (a *App) Ask(text string) (string, error) {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return "", nil
+	}
+	resp, err := sendTimeout(request{Cmd: "say", Args: []string{text}}, 60*time.Second)
+	if err != nil {
+		return "", err
+	}
+	if !resp.OK {
+		return "", fmt.Errorf("%s", resp.Error)
+	}
+	return resp.Text, nil
+}
+
 // Platform reports the desktop the GUI is running on, so the settings UI can
 // show the right way to bind the push-to-talk key. Returns one of: "hyprland",
 // "sway", "gnome", "kde", "linux" (other), "macos", "windows".

@@ -1,23 +1,33 @@
 <script>
   import { fade, fly } from 'svelte/transition'
-  import { Listen } from '../../wailsjs/go/main/App.js'
+  import { Ask, Listen } from '../../wailsjs/go/main/App.js'
   import { daemonOnline } from './daemon.js'
 
-  // Push-to-talk: hold the daemon for one record→answer cycle. Everything else
-  // (the daily briefing included) is asked for by voice — e.g. "brifing ver".
+  // Two ways into the same intent engine: push-to-talk, and typing. The mic is
+  // the primary one, but it is useless in a quiet room or with the headset
+  // unplugged, so the same questions can be typed — including "brifing ver".
   let listening = false
-  let heard = '' // what the mic transcribed (shown dimmer, above the reply)
+  let asking = false
+  let typed = '' // what is in the box right now
+  let heard = '' // what was transcribed or typed (shown dimmer, above the reply)
   let reply = '' // Pylon's answer
   let error = ''
 
   $: offline = $daemonOnline !== true
+  $: busy = listening || asking
 
-  async function talk() {
-    if (listening || offline) return
-    listening = true
+  // Clear the last exchange before starting a new one, so a stale answer never
+  // sits under a fresh question.
+  function reset() {
     heard = ''
     reply = ''
     error = ''
+  }
+
+  async function talk() {
+    if (busy || offline) return
+    listening = true
+    reset()
     try {
       const out = await Listen()
       // The daemon returns "» <heard>\n<reply>"; split so we can style them.
@@ -34,6 +44,24 @@
       listening = false
     }
   }
+
+  async function ask() {
+    const question = typed.trim()
+    if (busy || offline || !question) return
+    asking = true
+    reset()
+    // Echoed straight away: the answer can take seconds, and the question
+    // staying visible is what makes the wait read as progress.
+    heard = question
+    typed = ''
+    try {
+      reply = await Ask(question)
+    } catch (e) {
+      error = String(e?.message || e)
+    } finally {
+      asking = false
+    }
+  }
 </script>
 
 <div class="voicebar">
@@ -42,13 +70,31 @@
       class="btn talk"
       class:listening
       on:click={talk}
-      disabled={listening || offline}
-      title="Konuşarak sor — örn. “brifing ver”"
+      disabled={busy || offline}
     >
       <span class="ic" aria-hidden="true">🎤</span>
       {listening ? 'Dinliyorum…' : 'Konuş'}
     </button>
   </div>
+
+  <form class="askbar" on:submit|preventDefault={ask}>
+    <input
+      class="field"
+      type="text"
+      bind:value={typed}
+      disabled={busy || offline}
+      placeholder={offline ? 'Daemon kapalı' : 'Ya da yaz…'}
+      aria-label="Pylon'a yaz"
+    />
+    <button
+      class="btn send"
+      type="submit"
+      disabled={busy || offline || !typed.trim()}
+    >
+      <span class="ic" aria-hidden="true">↵</span>
+      {asking ? 'Soruyorum…' : 'Gönder'}
+    </button>
+  </form>
 
   {#if error}
     <p class="line err" in:fade>{error}</p>
@@ -66,8 +112,11 @@
     flex-direction: column;
     align-items: center;
     gap: 14px;
-    width: 100%;
-    max-width: 460px;
+    /* A concrete width, not 100%: the stage centres its children, so it is
+       shrink-to-fit and a percentage would resolve against the orb's 220px —
+       leaving the ask box a sliver. */
+    width: 420px;
+    max-width: 100%;
   }
   .buttons { display: flex; gap: 12px; }
 
@@ -103,6 +152,32 @@
     0%, 100% { box-shadow: 0 0 0 0 var(--accent-glow); }
     50%      { box-shadow: 0 0 0 10px rgba(124, 140, 248, 0); }
   }
+
+  .askbar {
+    display: flex;
+    gap: 8px;
+    width: 100%;
+  }
+  .field {
+    flex: 1;
+    min-width: 0;
+    padding: 10px 14px;
+    border-radius: 12px;
+    font: inherit;
+    font-size: 14px;
+    color: var(--text-1);
+    background: var(--surface-2);
+    border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+    transition: border-color 160ms, box-shadow 160ms;
+  }
+  .field::placeholder { color: var(--text-2); }
+  .field:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+  }
+  .field:disabled { opacity: 0.5; }
+  .send { padding: 10px 16px; }
 
   .bubble {
     width: 100%;

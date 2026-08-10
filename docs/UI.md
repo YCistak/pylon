@@ -49,6 +49,7 @@ settings, or a pinned page filling the rest.
 │    │   ┌──────────┐      ╰──────╯    ┌──────────┐ │
 │    │   │ FreshRSS │       Pylon      │ Sistem   │ │
 │    │   └──────────┘   [ 🎤 Konuş ]   └──────────┘ │
+│    │                  [___] [Gönder]              │
 │ ●  │                                              │
 │ ⚙  │        sol sütun          sağ sütun          │
 └────┴──────────────────────────────────────────────┘
@@ -62,9 +63,12 @@ a daemon status dot, and settings.
 it and widget instances in a left and a right column. Empty on first launch;
 widgets are added from Settings.
 
-**VoiceBar** — push-to-talk. Calls `Listen()`, which runs the daemon's whole
-voice pipeline (record → transcribe → intent → speak) and answers with
-`» <heard>\n<reply>`; the bar splits that into what it heard and what it said.
+**VoiceBar** — two ways into one intent engine. The mic button calls `Listen()`,
+which runs the daemon's whole voice pipeline (record → transcribe → intent →
+speak) and answers with `» <heard>\n<reply>`; the bar splits that into what it
+heard and what it said. The box under it calls `Ask()` — the daemon's `say`, the
+same command the CLI sends — so the GUI still works with the mic off. Both land
+in the same answer bubble, and only one can run at a time.
 
 **Docker page** (`DockerPage.svelte`) — a full-screen container manager, shown
 when the Docker page is pinned to the dock. List or grid, all/running filter,
@@ -159,8 +163,6 @@ Named because the absence is deliberate, not forgotten:
 
 - **Push updates.** Still polling (see above).
 - **Conversation history.** The voice bar shows one turn and forgets it.
-- **A text box.** Typing to Pylon goes through the CLI (`pylon say`); the GUI
-  went straight to the microphone.
 - **Service toggles.** A service is on when it is configured; there is no switch
   in Settings, and the screen says so.
 - **Characters.** An early plan had a sidebar of secondary assistants. It was
