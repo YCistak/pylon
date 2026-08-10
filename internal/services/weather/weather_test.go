@@ -23,7 +23,7 @@ func withAPI(place string, api forecaster) *Service {
 
 func TestSpeakFullForecast(t *testing.T) {
 	s := withAPI("İstanbul", fakeForecaster{f: Forecast{
-		TempNow: 24, Code: 1, High: 27, Low: 18, RainPct: 40, haveDay: true,
+		TempNow: 24, Code: 1, High: 27, Low: 18, RainPct: 40, HaveDay: true,
 	}})
 	out, err := s.Execute(context.Background(), ActionToday, nil)
 	if err != nil {
@@ -40,7 +40,7 @@ func TestSpeakFullForecast(t *testing.T) {
 // a dry outlook.
 func TestSpeakDropsZeroRain(t *testing.T) {
 	s := withAPI("Ankara", fakeForecaster{})
-	out := s.speak(Forecast{TempNow: 10, Code: 0, High: 12, Low: 3, RainPct: 0, haveDay: true})
+	out := s.speak(Forecast{TempNow: 10, Code: 0, High: 12, Low: 3, RainPct: 0, HaveDay: true})
 	if strings.Contains(out, "Yağış") {
 		t.Errorf("spoke a zero rain chance: %q", out)
 	}
@@ -61,11 +61,11 @@ func TestExecuteErrorIsGraceful(t *testing.T) {
 }
 
 func TestDescribeKnownAndUnknown(t *testing.T) {
-	if describe(0) != "açık" || describe(65) != "yağmurlu" || describe(75) != "karlı" {
+	if Describe(0) != "açık" || Describe(65) != "yağmurlu" || Describe(75) != "karlı" {
 		t.Error("known WMO codes mis-described")
 	}
-	if describe(1234) != "değişken" {
-		t.Errorf("unknown code should fall back, got %q", describe(1234))
+	if Describe(1234) != "değişken" {
+		t.Errorf("unknown code should fall back, got %q", Describe(1234))
 	}
 }
 
@@ -84,7 +84,7 @@ func TestHTTPForecasterParsesResponse(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if f.TempNow != 24 || f.Code != 3 || f.High != 27.5 || f.Low != 18.1 || f.RainPct != 55 || !f.haveDay {
+	if f.TempNow != 24 || f.Code != 3 || f.High != 27.5 || f.Low != 18.1 || f.RainPct != 55 || !f.HaveDay {
 		t.Errorf("parsed forecast wrong: %+v", f)
 	}
 }
