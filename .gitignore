@@ -10,6 +10,10 @@
 pylon-linux-*
 pylon-windows-*
 pylon-darwin-*
+# FUSE leaves these behind when a file is deleted while still open — which is
+# what `make build` does to ./pylon. One of them (an unstripped 31 MB binary
+# carrying absolute build paths) reached this repository once; never again.
+.fuse_hidden*
 
 # ---- Go ----
 # Test binaries / coverage
@@ -37,6 +41,10 @@ go.work.sum
 # ---- Local config / secrets ----
 pylon.local.yaml
 *.local.yaml
+# ...and the copies an editor or `cp` leaves next to them. A *.local.yaml.bak
+# carries the same absolute paths and hostnames the original does, and the bare
+# pattern above does not match it — one `git add -A` away from being published.
+*.local.yaml.*
 .env
 .env.*
 !.env.example

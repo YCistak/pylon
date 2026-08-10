@@ -21,10 +21,18 @@ import (
 
 	"github.com/YCistak/pylon/internal/banner"
 	"github.com/YCistak/pylon/internal/intent"
+	"github.com/YCistak/pylon/internal/services/weather"
 )
 
 // ActionToday builds and returns the full briefing text.
 const ActionToday intent.Action = "briefing.today"
+
+// WeatherSource reports today's raw forecast. *weather.Service satisfies it;
+// tests pass a fake. The briefing takes the numbers, not weather's own sentence,
+// so the clause stays short enough for a banner.
+type WeatherSource interface {
+	Today(ctx context.Context) (weather.Forecast, error)
+}
 
 // CalendarSource reports how many events today holds. *google.Calendar
 // satisfies it; tests pass a fake.
@@ -43,8 +51,9 @@ type NewsSource interface {
 // on what the user has configured.
 type Service struct {
 	now  func() time.Time  // injectable clock; defaults to time.Now
+	wx   WeatherSource     // nil only in tests; weather needs no configuration
 	cal  CalendarSource    // nil when calendar isn't authorized
-	news NewsSource         // nil when no RSS is configured
+	news NewsSource        // nil when no RSS is configured
 	pres *banner.Presenter // desktop banner; nil (or disabled) shows nothing
 }
 
@@ -56,7 +65,8 @@ func New() *Service {
 
 // SetSources wires the data sources the briefing reads. Pass nil for any source
 // that isn't configured — its clause is then skipped.
-func (s *Service) SetSources(cal CalendarSource, news NewsSource) {
+func (s *Service) SetSources(wx WeatherSource, cal CalendarSource, news NewsSource) {
+	s.wx = wx
 	s.cal = cal
 	s.news = news
 }
@@ -105,7 +115,9 @@ func (s *Service) compose(ctx context.Context) string {
 	t := s.clock()
 	parts := []string{fmt.Sprintf("%s! Bugün %d %s %s.", helloWord(t), t.Day(), trMonths[t.Month()], trDays[t.Weekday()])}
 
-	// Weather slots in here once its source is wired.
+	if line := s.weatherLine(ctx); line != "" {
+		parts = append(parts, line)
+	}
 	if line := s.calendarLine(ctx); line != "" {
 		parts = append(parts, line)
 	}
@@ -113,6 +125,36 @@ func (s *Service) compose(ctx context.Context) string {
 		parts = append(parts, line)
 	}
 	return strings.Join(parts, " ")
+}
+
+// rainWorthSaying is the precipitation probability below which the briefing
+// keeps quiet: a 15% chance is noise in a line meant to be read in one breath,
+// and the full number is always a "hava nasıl" away.
+const rainWorthSaying = 30
+
+// weatherLine phrases the forecast in one short clause: condition and current
+// temperature, today's high when the daily fields came through, and rain only
+// when it is likely enough to change what you wear. Dropped when the fetch
+// fails, like every other source.
+func (s *Service) weatherLine(ctx context.Context) string {
+	if s.wx == nil {
+		return ""
+	}
+	f, err := s.wx.Today(ctx)
+	if err != nil {
+		return ""
+	}
+	// "derece" lands once, at the end, so the clause reads as one phrase whether
+	// or not the daily block came through.
+	line := fmt.Sprintf("Hava %s, şu an %.0f", weather.Describe(f.Code), f.TempNow)
+	if f.HaveDay {
+		line += fmt.Sprintf(", en yüksek %.0f", f.High)
+	}
+	line += " derece."
+	if f.HaveDay && f.RainPct >= rainWorthSaying {
+		line += fmt.Sprintf(" Yağış ihtimali %%%d.", f.RainPct)
+	}
+	return line
 }
 
 // calendarLine phrases today's event count, or an empty-day note. It is dropped

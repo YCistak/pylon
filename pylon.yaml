@@ -134,6 +134,9 @@ briefing:
   # the briefing is only printed (and spoken, when tts_cmd is set).
   # scripts/briefing_banner.py draws a Wayland layer-shell overlay:
   #   banner_cmd: ["python3", "/path/scripts/briefing_banner.py"]
+  # It dismisses itself after 5 seconds; PYLON_BANNER_SECONDS changes that (0
+  # keeps it up until clicked):
+  #   banner_cmd: ["env", "PYLON_BANNER_SECONDS=10", "python3", "/path/scripts/briefing_banner.py"]
   # `pylon briefing` composes one on demand; `pylon briefing --speak` reads it out.
 
 # Work sessions. Pylon records how long each tracked app is open and answers
@@ -143,6 +146,11 @@ briefing:
 # sentence from the answer. A day starts at midnight in briefing.timezone.
 work:
   daily_goal_hours: 4
+  # Stand-up nudge: a banner once a tracked app has been open this long with no
+  # gap, repeated every 30 minutes while it lasts. 0 turns it off. It measures
+  # how long the app was open, not how long you were at the keyboard — an editor
+  # left open over lunch keeps the stretch running.
+  break_after_hours: 2
   tracked_apps:
     - code
     - cs2

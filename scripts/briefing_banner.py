@@ -7,14 +7,15 @@ by the compositor via the wlr layer-shell protocol (Hyprland, Sway, ...). It
 reads the briefing text from argv[1] or, if absent, from stdin, so the daemon
 can pipe it in.
 
-The banner dismisses itself after DURATION seconds, or immediately on a click,
-the × button, or Escape. It never grabs keyboard focus, so it won't interrupt
-whatever you are doing.
+The banner dismisses itself after a few seconds (DURATION below, overridable
+with PYLON_BANNER_SECONDS), or immediately on a click, the × button, or Escape.
+It never grabs keyboard focus, so it won't interrupt whatever you are doing.
 
 Requires: python-gobject, gtk3, gtk-layer-shell. Invoked from config as
     briefing.banner_cmd: ["python3", "scripts/briefing_banner.py"]
 """
 
+import os
 import sys
 
 import gi
@@ -24,8 +25,20 @@ gi.require_version("Gdk", "3.0")
 gi.require_version("GtkLayerShell", "0.1")
 from gi.repository import Gdk, GLib, Gtk, GtkLayerShell  # noqa: E402
 
-# Seconds the banner stays before it fades itself out. 0 keeps it until dismissed.
-DURATION = 30
+DEFAULT_DURATION = 5
+
+
+def duration() -> int:
+    """Seconds the banner stays before dismissing itself; 0 keeps it forever.
+
+    PYLON_BANNER_SECONDS overrides the default. Garbage in the environment
+    falls back rather than killing the banner — a briefing you cannot read is
+    worse than one that lingers a little.
+    """
+    try:
+        return max(0, int(os.environ.get("PYLON_BANNER_SECONDS", "")))
+    except ValueError:
+        return DEFAULT_DURATION
 
 CSS = b"""
 .banner {
@@ -148,8 +161,9 @@ def main() -> int:
         lambda _w, e: dismiss() if e.keyval == Gdk.KEY_Escape else None,
     )
 
-    if DURATION > 0:
-        GLib.timeout_add_seconds(DURATION, dismiss)
+    secs = duration()
+    if secs > 0:
+        GLib.timeout_add_seconds(secs, dismiss)
 
     win.show_all()
     Gtk.main()

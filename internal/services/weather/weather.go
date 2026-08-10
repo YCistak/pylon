@@ -19,14 +19,16 @@ import (
 // ActionToday reports the current conditions and today's outlook.
 const ActionToday intent.Action = "weather.today"
 
-// Forecast is the slice of an Open-Meteo response Pylon speaks.
+// Forecast is the slice of an Open-Meteo response Pylon speaks. It is exported
+// whole because the briefing reads the raw numbers and phrases its own, shorter
+// clause from them (see internal/services/briefing).
 type Forecast struct {
-	TempNow  float64 // current temperature, °C
-	Code     int     // WMO weather code
-	High     float64 // today's max, °C
-	Low      float64 // today's min, °C
-	RainPct  int     // today's max precipitation probability, %
-	haveDay  bool    // whether the daily fields were present
+	TempNow float64 // current temperature, °C
+	Code    int     // WMO weather code
+	High    float64 // today's max, °C
+	Low     float64 // today's min, °C
+	RainPct int     // today's max precipitation probability, %
+	HaveDay bool    // whether the daily fields were present
 }
 
 // forecaster fetches a forecast for a location; the HTTP implementation is
@@ -68,10 +70,17 @@ func (s *Service) Actions() []intent.ActionSpec {
 	}
 }
 
+// Today fetches the raw forecast for the configured location. The spoken action
+// goes through it too; it exists separately so the briefing can read the numbers
+// and word its own clause instead of quoting a whole sentence.
+func (s *Service) Today(ctx context.Context) (Forecast, error) {
+	return s.api.forecast(ctx, s.lat, s.lon)
+}
+
 func (s *Service) Execute(ctx context.Context, action intent.Action, _ map[string]string) (string, error) {
 	switch action {
 	case ActionToday:
-		f, err := s.api.forecast(ctx, s.lat, s.lon)
+		f, err := s.Today(ctx)
 		if err != nil {
 			return "Hava durumuna şu an ulaşamadım.", nil
 		}
@@ -83,8 +92,8 @@ func (s *Service) Execute(ctx context.Context, action intent.Action, _ map[strin
 
 // speak renders a forecast as one Turkish line.
 func (s *Service) speak(f Forecast) string {
-	out := fmt.Sprintf("%s'da hava %s, şu an %.0f derece.", s.place, describe(f.Code), f.TempNow)
-	if f.haveDay {
+	out := fmt.Sprintf("%s'da hava %s, şu an %.0f derece.", s.place, Describe(f.Code), f.TempNow)
+	if f.HaveDay {
 		out += fmt.Sprintf(" Bugün en yüksek %.0f, en düşük %.0f derece.", f.High, f.Low)
 		if f.RainPct > 0 {
 			out += fmt.Sprintf(" Yağış ihtimali %%%d.", f.RainPct)
@@ -93,10 +102,10 @@ func (s *Service) speak(f Forecast) string {
 	return out
 }
 
-// describe maps a WMO weather code to a Turkish phrase. Codes group naturally
+// Describe maps a WMO weather code to a Turkish phrase. Codes group naturally
 // (drizzle 51-57, rain 61-67, snow 71-77, showers 80-82); unknown codes get a
 // neutral fallback rather than an empty string.
-func describe(code int) string {
+func Describe(code int) string {
 	switch code {
 	case 0:
 		return "açık"
@@ -183,7 +192,7 @@ func parseForecast(body []byte) (Forecast, error) {
 	if len(raw.Daily.Max) > 0 && len(raw.Daily.Min) > 0 {
 		f.High = raw.Daily.Max[0]
 		f.Low = raw.Daily.Min[0]
-		f.haveDay = true
+		f.HaveDay = true
 		if len(raw.Daily.Rain) > 0 {
 			f.RainPct = raw.Daily.Rain[0]
 		}

@@ -212,6 +212,9 @@ type Briefing struct {
 type Work struct {
 	DailyGoalHours float64  `yaml:"daily_goal_hours"`
 	TrackedApps    []string `yaml:"tracked_apps"`
+	// BreakAfterHours nudges you with a banner once a tracked app has been open
+	// this long without a gap. Zero disables the nudge.
+	BreakAfterHours float64 `yaml:"break_after_hours"`
 }
 
 // WatchProcess is a single watched process entry.
@@ -273,8 +276,9 @@ func Default() Config {
 			Timezone: "Europe/Istanbul",
 		},
 		Work: Work{
-			DailyGoalHours: 4,
-			TrackedApps:    []string{"code", "cs2", "steam"},
+			DailyGoalHours:  4,
+			TrackedApps:     []string{"code", "cs2", "steam"},
+			BreakAfterHours: 2,
 		},
 		WatchProcesses: []WatchProcess{
 			{Name: "code", TasksOnExit: true},

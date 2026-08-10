@@ -699,7 +699,7 @@ func registerIntent(d *daemon.Daemon, cfg config.Config, database *db.DB, regist
 func buildServiceRegistry(cfg config.Config, database *db.DB, log *slog.Logger) *services.Registry {
 	var svcs []services.Service
 
-	// The briefing reads these two directly (typed), so capture the concrete
+	// The briefing reads these directly (typed), so capture the concrete
 	// instances as they're built; each stays nil when its service is off.
 	var calSrc briefing.CalendarSource
 	var newsSrc briefing.NewsSource
@@ -748,7 +748,9 @@ func buildServiceRegistry(cfg config.Config, database *db.DB, log *slog.Logger) 
 	svcs = append(svcs, exchange.New())
 
 	// Weather uses Open-Meteo (no key). Always available; defaults to İstanbul.
-	svcs = append(svcs, weather.New(cfg.Services.Weather.Latitude, cfg.Services.Weather.Longitude, cfg.Services.Weather.Name))
+	// The briefing reads the same instance, so both speak the same location.
+	wx := weather.New(cfg.Services.Weather.Latitude, cfg.Services.Weather.Longitude, cfg.Services.Weather.Name)
+	svcs = append(svcs, wx)
 
 	// System vitals read /proc and /sys — no configuration, always available.
 	svcs = append(svcs, sysmon.New(""))
@@ -771,11 +773,11 @@ func buildServiceRegistry(cfg config.Config, database *db.DB, log *slog.Logger) 
 		log.Info("services: work sessions enabled", "tracked", cfg.Work.TrackedApps)
 	}
 
-	// The briefing reads the calendar/news sources directly and phrases its own
-	// clauses; running its action also shows the desktop banner, so every trigger
-	// (voice, scheduler, CLI) presents it the same way.
+	// The briefing reads the weather/calendar/news sources directly and phrases
+	// its own clauses; running its action also shows the desktop banner, so every
+	// trigger (voice, scheduler, CLI) presents it the same way.
 	brief := briefing.New()
-	brief.SetSources(calSrc, newsSrc)
+	brief.SetSources(wx, calSrc, newsSrc)
 	brief.SetPresenter(briefingPresenter(cfg))
 	svcs = append(svcs, brief)
 	return services.NewRegistry(svcs...)
@@ -1022,10 +1024,20 @@ func registerWatcher(d *daemon.Daemon, cfg config.Config, database *db.DB, track
 // and for how long. It returns the tracker so the watcher can feed it, and nil
 // when `work.tracked_apps` is empty — nothing is recorded unless asked for.
 func registerSessions(d *daemon.Daemon, cfg config.Config, database *db.DB, log *slog.Logger) *work.Tracker {
+	// The break nudge reuses the briefing's banner: it is the one channel the
+	// user already agreed to be interrupted on, and an unconfigured banner_cmd
+	// makes Show a no-op, so this stays silent rather than half-working.
+	pres := briefingPresenter(cfg)
 	tracker := work.NewTracker(work.TrackerOptions{
-		Store:  database,
-		Apps:   cfg.Work.TrackedApps,
-		Logger: log,
+		Store:      database,
+		Apps:       cfg.Work.TrackedApps,
+		Logger:     log,
+		BreakAfter: time.Duration(cfg.Work.BreakAfterHours * float64(time.Hour)),
+		Nudge: func(text string) {
+			if err := pres.Show(context.Background(), text); err != nil {
+				log.Warn("sessions: break nudge failed", "err", err)
+			}
+		},
 	})
 	if tracker == nil {
 		return nil
