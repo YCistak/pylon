@@ -3,6 +3,7 @@ package github
 import (
 	"context"
 	"fmt"
+	"github.com/YCistak/pylon/internal/i18n"
 	"os/exec"
 	"strings"
 	"time"
@@ -42,9 +43,9 @@ func (c *CommitReminder) Check(ctx context.Context) (msg string, ok bool) {
 	case 0:
 		return "", false
 	case 1:
-		return fmt.Sprintf("Bugün %s için henüz commit atmadın.", missing[0]), true
+		return i18n.T("github.no_commits_one", missing[0]), true
 	default:
-		return fmt.Sprintf("Bugün şu repolarda commit yok: %s.", strings.Join(missing, ", ")), true
+		return i18n.T("github.no_commits_many", strings.Join(missing, ", ")), true
 	}
 }
 

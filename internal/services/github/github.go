@@ -7,6 +7,7 @@ package github
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/YCistak/pylon/internal/i18n"
 	"github.com/YCistak/pylon/internal/intent"
 )
 
@@ -124,9 +126,9 @@ func (g *GitHub) listIssues(ctx context.Context, api ghAPI) (string, error) {
 		return "", err
 	}
 	if n == 0 {
-		return "Sana atanmış açık issue yok.", nil
+		return i18n.T("github.no_issues"), nil
 	}
-	return fmt.Sprintf("Sana atanmış %d issue: %s.", n, summarize(items)), nil
+	return i18n.N("github.issues", n, summarize(items)), nil
 }
 
 // summarize renders the first few items as "owner/repo#123 başlık", capping the
@@ -150,7 +152,7 @@ func (g *GitHub) client() (ghAPI, error) {
 		return g.api, nil
 	}
 	if !Configured(g.cfg) {
-		return nil, fmt.Errorf("github: token tanımlı değil (services.github.token)")
+		return nil, errors.New("github: no token configured (services.github.token)")
 	}
 	return &realGH{token: g.cfg.Token, base: g.cfg.BaseURL, hc: &http.Client{Timeout: 10 * time.Second}}, nil
 }

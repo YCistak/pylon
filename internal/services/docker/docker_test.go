@@ -83,17 +83,17 @@ func TestPS(t *testing.T) {
 				{Name: "freshrss", State: "running"},
 				{Name: "old", State: "exited"},
 			},
-			want: "2 konteyner çalışıyor: freshrss, grafana. (1 tanesi durdurulmuş)",
+			want: "2 containers running: freshrss, grafana. (1 is stopped)",
 		},
 		{
 			name: "none running",
 			cs:   []Container{{Name: "old", State: "exited"}},
-			want: "Çalışan konteyner yok.",
+			want: "No containers are running.",
 		},
 		{
 			name: "empty host",
 			cs:   nil,
-			want: "Hiç konteyner yok.",
+			want: "There are no containers.",
 		},
 	}
 	for _, tt := range tests {
@@ -120,18 +120,18 @@ func TestStatus(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got != "freshrss çalışıyor (Up 2 hours)." {
+	if got != "freshrss is running (Up 2 hours)." {
 		t.Errorf("running: got %q", got)
 	}
 
 	got, _ = d.Execute(context.Background(), ActionStatus, map[string]string{"container": "grafana"})
-	if !strings.Contains(got, "çalışmıyor") {
+	if !strings.Contains(got, "is not running") {
 		t.Errorf("stopped: got %q", got)
 	}
 
 	// Case-insensitive + leading-slash tolerance.
 	got, err = d.Execute(context.Background(), ActionStatus, map[string]string{"container": "/FreshRSS"})
-	if err != nil || !strings.Contains(got, "çalışıyor") {
+	if err != nil || !strings.Contains(got, "is running") {
 		t.Errorf("normalize: got %q err %v", got, err)
 	}
 
@@ -165,7 +165,7 @@ func TestStats(t *testing.T) {
 	if err != nil {
 		t.Fatalf("stopped stats errored: %v", err)
 	}
-	if got != "old çalışmıyor." {
+	if got != "old is not running." {
 		t.Errorf("stopped: got %q", got)
 	}
 }
@@ -186,7 +186,7 @@ func TestControl(t *testing.T) {
 	}
 
 	got, _ = d.Execute(context.Background(), ActionRestart, map[string]string{"container": "freshrss"})
-	if got != "freshrss yeniden başlatıldı." {
+	if got != "freshrss restarted." {
 		t.Errorf("restart: got %q", got)
 	}
 
@@ -229,7 +229,7 @@ func TestLogs(t *testing.T) {
 	// Empty logs → plain reply.
 	api.logText = ""
 	got, _ = d.Execute(context.Background(), ActionLogs, map[string]string{"container": "freshrss"})
-	if got != "freshrss için log yok." {
+	if got != "No logs for freshrss." {
 		t.Errorf("empty: got %q", got)
 	}
 

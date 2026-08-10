@@ -2,12 +2,14 @@ package google
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
 	drive "google.golang.org/api/drive/v3"
 	"google.golang.org/api/option"
 
+	"github.com/YCistak/pylon/internal/i18n"
 	"github.com/YCistak/pylon/internal/intent"
 )
 
@@ -77,7 +79,7 @@ func (d *Drive) Execute(ctx context.Context, action intent.Action, args map[stri
 func (d *Drive) find(ctx context.Context, args map[string]string) (string, error) {
 	query := strings.TrimSpace(args["query"])
 	if query == "" {
-		return "", fmt.Errorf("aranacak dosya adı gerekli")
+		return "", errors.New("drive: a file name to search for is required")
 	}
 	api, err := d.client(ctx)
 	if err != nil {
@@ -88,7 +90,7 @@ func (d *Drive) find(ctx context.Context, args map[string]string) (string, error
 		return "", err
 	}
 	if len(files) == 0 {
-		return fmt.Sprintf("Drive'da %q ile eşleşen dosya yok.", query), nil
+		return i18n.T("drive.no_match", query), nil
 	}
 	return fmt.Sprintf("Drive'da %d dosya bulundu: %s", len(files), formatFileList(files)), nil
 }

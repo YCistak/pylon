@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/YCistak/pylon/internal/db"
+	"github.com/YCistak/pylon/internal/i18n"
 )
 
 func testStore(t *testing.T) *db.DB {
@@ -234,7 +235,7 @@ func TestServiceTodayReportsPerAppAndGoal(t *testing.T) {
 	if err != nil {
 		t.Fatalf("execute: %v", err)
 	}
-	for _, want := range []string{"Bugün toplam 3 saat 30 dakika", "code 3 saat", "cs2 30 dakika", "Günlük hedef 4 saat", "%87", "30 dakika kaldı"} {
+	for _, want := range []string{"Today: 3 hours 30 minutes in total", "code 3 hours", "cs2 30 minutes", "Daily goal 4 hours", "87%", "30 minutes to go"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("summary %q missing %q", got, want)
 		}
@@ -257,7 +258,7 @@ func TestServiceTodayWhenGoalIsMet(t *testing.T) {
 	if err != nil {
 		t.Fatalf("execute: %v", err)
 	}
-	if !strings.Contains(got, "geçtin") {
+	if !strings.Contains(got, "passed your daily goal") {
 		t.Fatalf("summary = %q, expected it to say the goal was passed", got)
 	}
 }
@@ -270,7 +271,7 @@ func TestServiceTodayWithNothingRecorded(t *testing.T) {
 	if err != nil {
 		t.Fatalf("execute: %v", err)
 	}
-	if !strings.Contains(got, "zaman geçirmemişsin") {
+	if !strings.Contains(got, "haven't spent any time") {
 		t.Fatalf("summary = %q", got)
 	}
 }
@@ -321,7 +322,7 @@ func TestServiceDayBoundaryUsesConfiguredTimezone(t *testing.T) {
 	if err != nil {
 		t.Fatalf("execute: %v", err)
 	}
-	if !strings.Contains(got, "1 saat") {
+	if !strings.Contains(got, "1 hour") {
 		t.Fatalf("work at 01:00 local was not counted as today: %q", got)
 	}
 }
@@ -346,7 +347,7 @@ func TestServiceWeekJudgesAgainstAWeeksGoal(t *testing.T) {
 	if err != nil {
 		t.Fatalf("execute: %v", err)
 	}
-	for _, want := range []string{"Son 7 günde code ile 6 saat", "Haftalık hedef 28 saat"} {
+	for _, want := range []string{"In the last 7 days: 6 hours in code", "Weekly goal 28 hours"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("summary %q missing %q", got, want)
 		}
@@ -361,22 +362,22 @@ func TestServiceRejectsUnknownAction(t *testing.T) {
 
 func TestHumanDuration(t *testing.T) {
 	cases := map[time.Duration]string{
-		0:                            "bir dakikadan az",
-		30 * time.Second:             "bir dakikadan az",
-		45 * time.Minute:             "45 dakika",
-		time.Hour:                    "1 saat",
-		2*time.Hour + time.Minute:    "2 saat 1 dakika",
-		3*time.Hour + 29*time.Second: "3 saat",
+		0:                            "less than a minute",
+		30 * time.Second:             "less than a minute",
+		45 * time.Minute:             "45 minutes",
+		time.Hour:                    "1 hour",
+		2*time.Hour + time.Minute:    "2 hours 1 minute",
+		3*time.Hour + 29*time.Second: "3 hours",
 	}
 	for d, want := range cases {
-		if got := humanDuration(d); got != want {
-			t.Errorf("humanDuration(%v) = %q, want %q", d, got, want)
+		if got := i18n.Duration(d); got != want {
+			t.Errorf("Duration(%v) = %q, want %q", d, got, want)
 		}
 	}
 }
 
-// With one app the breakdown is the total, and saying both ("Bugün 1 saat:
-// code 1 saat") sounds broken read aloud.
+// With one app the breakdown is the total, and saying both ("Today 1 hour:
+// code 1 hour") sounds broken read aloud.
 func TestServiceSingleAppDoesNotRepeatTheTotal(t *testing.T) {
 	store := testStore(t)
 	ist, _ := time.LoadLocation("Europe/Istanbul")
@@ -393,7 +394,7 @@ func TestServiceSingleAppDoesNotRepeatTheTotal(t *testing.T) {
 	if err != nil {
 		t.Fatalf("execute: %v", err)
 	}
-	if got != "Bugün code ile 1 saat 30 dakika." {
+	if got != "Today: 1 hour 30 minutes in code." {
 		t.Fatalf("summary = %q", got)
 	}
 }
@@ -431,7 +432,7 @@ func TestBreakNudgeFiresOnceThenRepeats(t *testing.T) {
 
 	c.advance(time.Minute) // exactly 2h
 	tr.checkBreak()
-	if len(got) != 1 || !strings.Contains(got[0], "Aralıksız 2 saat oldu") {
+	if len(got) != 1 || !strings.Contains(got[0], "2 hours without a break") {
 		t.Fatalf("first nudge = %v", got)
 	}
 
@@ -444,7 +445,7 @@ func TestBreakNudgeFiresOnceThenRepeats(t *testing.T) {
 
 	c.advance(time.Minute) // 30 minutes since the last nudge
 	tr.checkBreak()
-	if len(got) != 2 || !strings.Contains(got[1], "2 saat 30 dakika") {
+	if len(got) != 2 || !strings.Contains(got[1], "2 hours 30 minutes") {
 		t.Fatalf("repeat nudge = %v", got)
 	}
 }
@@ -471,7 +472,7 @@ func TestBreakNudgeResetsWhenEverythingCloses(t *testing.T) {
 
 	c.advance(90 * time.Minute) // 2h into the new stretch
 	tr.checkBreak()
-	if len(got) != 1 || !strings.Contains(got[0], "2 saat") {
+	if len(got) != 1 || !strings.Contains(got[0], "2 hours") {
 		t.Fatalf("nudge after the new stretch = %v", got)
 	}
 }

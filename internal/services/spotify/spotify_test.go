@@ -17,10 +17,10 @@ type fakeSp struct {
 	err       error
 }
 
-func (f *fakeSp) resume(context.Context) error   { f.calls = append(f.calls, "resume"); return f.err }
-func (f *fakeSp) pause(context.Context) error    { f.calls = append(f.calls, "pause"); return f.err }
-func (f *fakeSp) next(context.Context) error     { f.calls = append(f.calls, "next"); return f.err }
-func (f *fakeSp) previous(context.Context) error { f.calls = append(f.calls, "previous"); return f.err }
+func (f *fakeSp) resume(context.Context) error                 { f.calls = append(f.calls, "resume"); return f.err }
+func (f *fakeSp) pause(context.Context) error                  { f.calls = append(f.calls, "pause"); return f.err }
+func (f *fakeSp) next(context.Context) error                   { f.calls = append(f.calls, "next"); return f.err }
+func (f *fakeSp) previous(context.Context) error               { f.calls = append(f.calls, "previous"); return f.err }
 func (f *fakeSp) nowPlaying(context.Context) (Playback, error) { return f.pb, f.err }
 func (f *fakeSp) setVolume(_ context.Context, p int) error {
 	f.volSet = p
@@ -109,7 +109,7 @@ func TestPlayTrackNoQuery(t *testing.T) {
 func TestPlayTrackNoMatch(t *testing.T) {
 	f := &fakeSp{playLabel: ""}
 	out := runAction(t, f, ActionPlayTrack, map[string]string{"query": "zzzz"})
-	if !strings.Contains(out, "bulamadım") {
+	if !strings.Contains(out, "found nothing matching") {
 		t.Errorf("expected no-match reply, got %q", out)
 	}
 }
@@ -120,7 +120,7 @@ func TestNowPlaying(t *testing.T) {
 		t.Errorf("now_playing reply %q missing track", playing)
 	}
 	idle := runAction(t, &fakeSp{pb: Playback{HasDevice: false}}, ActionNowPlaying, nil)
-	if !strings.Contains(idle, "çalmıyor") {
+	if !strings.Contains(idle, "Nothing is playing") {
 		t.Errorf("idle reply %q unexpected", idle)
 	}
 }

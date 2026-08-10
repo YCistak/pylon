@@ -43,7 +43,7 @@ func TestCurrencyDefaultsToTRY(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "1 dolar 34,12 Türk lirası."
+	want := "1 dollar is 34,12 Turkish lira."
 	if got != want {
 		t.Fatalf("got %q want %q", got, want)
 	}
@@ -52,7 +52,7 @@ func TestCurrencyDefaultsToTRY(t *testing.T) {
 func TestCurrencyExplicitQuote(t *testing.T) {
 	e := withAPI(fakeRates{fiat: map[string]float64{"GBP/USD": 1.27}})
 	got, _ := e.Execute(context.Background(), ActionCurrency, map[string]string{"base": "GBP", "quote": "usd"})
-	if got != "1 sterlin 1,27 dolar." {
+	if got != "1 pound is 1,27 dollars." {
 		t.Fatalf("got %q", got)
 	}
 }
@@ -60,27 +60,27 @@ func TestCurrencyExplicitQuote(t *testing.T) {
 func TestCryptoGrouping(t *testing.T) {
 	e := withAPI(fakeRates{crypto: map[string]float64{"bitcoin/TRY": 2850000.5}})
 	got, _ := e.Execute(context.Background(), ActionCrypto, map[string]string{"coin": "Bitcoin"})
-	if got != "Bitcoin 2.850.000,50 Türk lirası." {
+	if got != "Bitcoin is at 2.850.000,50 Turkish lira." {
 		t.Fatalf("got %q", got)
 	}
 }
 
 func TestMissingArgsPrompt(t *testing.T) {
 	e := withAPI(fakeRates{})
-	if got, _ := e.Execute(context.Background(), ActionCurrency, nil); got != "Hangi para birimini soruyorsun?" {
+	if got, _ := e.Execute(context.Background(), ActionCurrency, nil); got != "Which currency do you mean?" {
 		t.Errorf("currency missing base: %q", got)
 	}
-	if got, _ := e.Execute(context.Background(), ActionCrypto, nil); got != "Hangi kripto parayı soruyorsun?" {
+	if got, _ := e.Execute(context.Background(), ActionCrypto, nil); got != "Which cryptocurrency do you mean?" {
 		t.Errorf("crypto missing coin: %q", got)
 	}
 }
 
 func TestAPIErrorIsGraceful(t *testing.T) {
 	e := withAPI(fakeRates{err: errors.New("network down")})
-	if got, err := e.Execute(context.Background(), ActionCurrency, map[string]string{"base": "USD"}); err != nil || got != "Kur bilgisini şu an alamadım." {
+	if got, err := e.Execute(context.Background(), ActionCurrency, map[string]string{"base": "USD"}); err != nil || got != "I can't get exchange rates right now." {
 		t.Fatalf("currency err path: %q err=%v", got, err)
 	}
-	if got, err := e.Execute(context.Background(), ActionCrypto, map[string]string{"coin": "bitcoin"}); err != nil || got != "Fiyatı şu an alamadım." {
+	if got, err := e.Execute(context.Background(), ActionCrypto, map[string]string{"coin": "bitcoin"}); err != nil || got != "I can't get the price right now." {
 		t.Fatalf("crypto err path: %q err=%v", got, err)
 	}
 }

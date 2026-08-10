@@ -102,7 +102,7 @@ func TestListIssues(t *testing.T) {
 		"assignee:@me": res(1, Item{Title: "Crash on start", Repo: "me/app", Number: 7}),
 	}}
 	got, _ := testGitHub(f).Execute(context.Background(), ActionListIssues, nil)
-	for _, want := range []string{"atanmış 1 issue", "me/app#7 Crash on start"} {
+	for _, want := range []string{"1 issue assigned to you", "me/app#7 Crash on start"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("missing %q in %q", want, got)
 		}
@@ -111,7 +111,7 @@ func TestListIssues(t *testing.T) {
 
 func TestListIssuesEmpty(t *testing.T) {
 	got, _ := testGitHub(&fakeGH{}).Execute(context.Background(), ActionListIssues, nil)
-	if !strings.Contains(got, "atanmış açık issue yok") {
+	if !strings.Contains(got, "no open issues assigned") {
 		t.Fatalf("empty = %q", got)
 	}
 }

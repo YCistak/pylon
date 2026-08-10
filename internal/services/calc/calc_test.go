@@ -80,7 +80,7 @@ func TestExecute(t *testing.T) {
 	if err != nil {
 		t.Fatalf("malformed Execute error: %v", err)
 	}
-	if out != "İşlemi çözemedim." {
+	if out != "I couldn't work that out." {
 		t.Fatalf("malformed output %q", out)
 	}
 
