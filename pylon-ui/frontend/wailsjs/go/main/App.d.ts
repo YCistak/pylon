@@ -21,7 +21,7 @@ export function Hotkey():Promise<string>;
 
 export function Language():Promise<string>;
 
-export function LanguagePref():Promise<string>;
+export function LanguageState():Promise<string>;
 
 export function Languages():Promise<string>;
 

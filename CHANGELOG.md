@@ -17,8 +17,9 @@ Cutting a release: [docs/RELEASE.md](docs/RELEASE.md).
   choice belongs to the daemon, not to the GUI — the interface asks it to switch
   and follows, so the buttons around an answer are never in a different language
   from the answer, and the CLI agrees with both. It applies immediately: nothing
-  restarts, and the next reply is already in the new language. "System language"
-  forgets the choice and follows `pylon.yaml` or `$LANG` again. The choice is
+  restarts, and the next reply is already in the new language. **Otomatik**
+  forgets the choice and says which of `pylon.yaml` or the desktop locale it
+  fell back to, rather than calling both of them "the system". The choice is
   remembered in a one-line `language` file beside the config it overrides —
   rewriting the YAML would strip the comments that make it readable, and the
   database is only ever opened by the daemon, so every CLI process would have

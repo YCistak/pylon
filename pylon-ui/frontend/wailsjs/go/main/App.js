@@ -42,8 +42,8 @@ export function Language() {
   return window['go']['main']['App']['Language']();
 }
 
-export function LanguagePref() {
-  return window['go']['main']['App']['LanguagePref']();
+export function LanguageState() {
+  return window['go']['main']['App']['LanguageState']();
 }
 
 export function Languages() {

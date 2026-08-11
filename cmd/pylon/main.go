@@ -72,20 +72,56 @@ func loadConfig() (config.Config, error) {
 	if err != nil {
 		return cfg, err
 	}
-	i18n.SetLanguage(resolveLanguage(cfg))
+	i18n.SetLanguage(languageState(cfg).Lang)
 	return cfg, nil
 }
 
-// resolveLanguage applies that order. Split out so `pylon lang auto` can report
-// what clearing the preference actually lands on.
-func resolveLanguage(cfg config.Config) string {
-	if lang := i18n.LoadPref(prefDir()); lang != "" {
-		return lang
+// Where the active language came from. A settings screen offering "follow the
+// machine" has to be able to say what the machine actually said — "system
+// language" over a value that came out of pylon.yaml is a plain lie, and the
+// user is the one who notices.
+const (
+	langFromPref    = "pref"    // chosen in Settings or `pylon lang`
+	langFromConfig  = "config"  // language: in pylon.yaml
+	langFromEnv     = "env"     // $LANG / $LC_ALL / $LC_MESSAGES
+	langFromDefault = "default" // nothing said anything; English
+)
+
+// langState is everything needed to explain the active language, rather than
+// just state it.
+type langState struct {
+	Lang   string // what is being spoken
+	Pref   string // the explicit choice; "" when nothing was chosen
+	Source string // which of the four decided
+	Detail string // the file or variable to go change, when there is one
+}
+
+// languageState applies the resolution order and records which step decided.
+// Split out so `pylon lang auto` can report what clearing the preference lands
+// on, and so the daemon can hand the whole story to a settings screen.
+func languageState(cfg config.Config) langState {
+	if l := i18n.LoadPref(prefDir()); l != "" {
+		return langState{Lang: l, Pref: l, Source: langFromPref}
 	}
-	if lang := strings.TrimSpace(cfg.Language); lang != "" {
-		return lang
+	if l := strings.TrimSpace(cfg.Language); l != "" {
+		return langState{Lang: l, Source: langFromConfig, Detail: configPath()}
 	}
-	return i18n.FromEnv()
+	if l := i18n.FromEnv(); l != "" {
+		return langState{Lang: l, Source: langFromEnv, Detail: envLocale()}
+	}
+	return langState{Lang: i18n.Default, Source: langFromDefault}
+}
+
+// envLocale names the variable that decided and its value, so a user told
+// "the environment" knows which one to change. POSIX precedence, matching
+// i18n.FromEnv.
+func envLocale() string {
+	for _, key := range []string{"LC_ALL", "LC_MESSAGES", "LANG"} {
+		if v := os.Getenv(key); i18n.Normalize(v) != "" {
+			return key + "=" + v
+		}
+	}
+	return ""
 }
 
 // prefDir is where a language picked in the interface is remembered: beside the
@@ -645,7 +681,7 @@ func registerIntent(d *daemon.Daemon, cfg config.Config, database *db.DB, regist
 	// answers inside them are Turkish looks broken.
 	//
 	//	lang | lang get   the language now being spoken
-	//	lang pref         the language explicitly chosen, "" if none was
+	//	lang state        "<speaking>\t<chosen, or empty>\t<what decided>"
 	//	lang list         every shipped language, "<code>\t<its own name>"
 	//	lang set <code>   switch, and remember it; "auto" forgets and follows
 	//	                  the config file or the desktop locale again
@@ -660,11 +696,19 @@ func registerIntent(d *daemon.Daemon, cfg config.Config, database *db.DB, regist
 		case "get":
 			return ipc.Response{OK: true, Text: i18n.Language()}
 
-		case "pref":
-			// "Turkish" and "Turkish because that is this desktop's language"
-			// are different states, and a settings screen has to show which one
-			// it is in — otherwise "follow the system" can never look selected.
-			return ipc.Response{OK: true, Text: i18n.LoadPref(prefDir())}
+		case "state":
+			// Three things a settings screen cannot work out for itself: which
+			// language is being spoken, whether anyone chose it, and — if not —
+			// which of pylon.yaml, the environment or the built-in default
+			// decided. Without the third it can only guess, and a screen that
+			// says "system language" over a value that came out of pylon.yaml
+			// is telling the user something untrue about their own machine.
+			st := languageState(cfg)
+			// i18n.Language() rather than st.Lang: they agree, because every
+			// runtime change goes through "set" below, and reporting what is
+			// actually loaded is the claim that cannot drift.
+			return ipc.Response{OK: true, Text: strings.Join(
+				[]string{i18n.Language(), st.Pref, st.Source, st.Detail}, "\t")}
 
 		case "list":
 			var b strings.Builder
@@ -693,7 +737,7 @@ func registerIntent(d *daemon.Daemon, cfg config.Config, database *db.DB, regist
 				return ipc.Response{OK: false, Error: err.Error()}
 			}
 			if want == "" {
-				want = resolveLanguage(cfg)
+				want = languageState(cfg).Lang
 			}
 			lang := i18n.SetLanguage(want)
 			log.Info("language: changed", "lang", lang)
@@ -1633,12 +1677,26 @@ func cmdLang(args []string) error {
 
 	// No argument, or "list": report only.
 	if len(args) == 0 || args[0] == "list" {
-		current := i18n.Language()
-		if text, ok := ask("get"); ok {
-			current = text
+		// The daemon's answer wins over this process's own, and both fields
+		// come from the same answer. They can genuinely differ: the CLI run
+		// from a checkout finds ./pylon.yaml while the daemon reads the one in
+		// ~/.config, and reporting the daemon's language beside this process's
+		// reason produced a line that contradicted itself.
+		st := languageState(cfg)
+		if text, ok := ask("state"); ok {
+			f := strings.SplitN(text, "\t", 4)
+			for len(f) < 4 {
+				f = append(f, "")
+			}
+			st = langState{Lang: f[0], Pref: f[1], Source: f[2], Detail: f[3]}
 		}
+		current := st.Lang
 		if len(args) == 0 {
+			// The code alone on stdout keeps `pylon lang` usable in a pipe;
+			// where it came from goes to stderr, where it answers the question
+			// people actually have when the language surprises them.
 			fmt.Println(current)
+			fmt.Fprintln(os.Stderr, explain(st))
 			return nil
 		}
 		for _, l := range i18n.Supported {
@@ -1678,10 +1736,26 @@ func cmdLang(args []string) error {
 		return err
 	}
 	if want == "" {
-		want = resolveLanguage(cfg)
+		want = languageState(cfg).Lang
 	}
 	fmt.Println(i18n.SetLanguage(want))
 	return nil
+}
+
+// explain turns a language state into the one line worth reading when the
+// language is not what you expected: not that it is Turkish, but what to change
+// so that it is not.
+func explain(st langState) string {
+	switch st.Source {
+	case langFromPref:
+		return "chosen here; `pylon lang auto` forgets it"
+	case langFromConfig:
+		return "from language: in " + st.Detail
+	case langFromEnv:
+		return "from the environment (" + st.Detail + ")"
+	default:
+		return "nothing configured, and the environment says nothing; the built-in default"
+	}
 }
 
 // langWasSet decides whether a daemon's reply to "lang set" reflects a change

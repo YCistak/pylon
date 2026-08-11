@@ -96,10 +96,19 @@ focus back on close.
 
 The GUI has no language setting of its own. `Language.svelte` calls the daemon
 (`App.SetLanguage` → `lang set`), which switches immediately and remembers the
-choice; `App.LanguagePref` is what lets "system language" show as selected,
-since `Language()` alone cannot tell a chosen Turkish from one that merely
-followed `$LANG`. One setting, so the buttons around an answer are never in a
-different language from the answer.
+choice. One setting, so the buttons around an answer are never in a different
+language from the answer.
+
+`App.LanguageState` (→ `lang state`) returns
+`<speaking>\t<chosen>\t<source>\t<detail>`, and the card needs every field.
+`Language()` alone cannot tell a chosen Turkish from one that merely followed
+something else, so **Otomatik** could never show as selected. And knowing only
+that nothing was chosen is not enough either: the fallback may be `language:`
+in `pylon.yaml` or the desktop locale, and the card names which — a button
+reading "system language" above a value that came out of `pylon.yaml` is untrue
+on exactly the machines whose owner will spot it. `detail` carries the config
+path or the winning `LC_ALL`/`LC_MESSAGES`/`LANG` assignment, which is what
+`pylon lang` prints to stderr.
 
 Interface strings live in `src/lib/locales/*.json`, separate from the daemon's
 catalogs — the GUI is its own Go module and cannot import `internal/i18n`, and

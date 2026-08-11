@@ -171,15 +171,18 @@ func (a *App) Language() string {
 	return resp.Text
 }
 
-// LanguagePref reports the language explicitly chosen, or "" when none was and
-// Pylon is following pylon.yaml or the desktop's locale. Settings needs the
-// difference: Language() alone cannot tell a chosen Turkish from a Turkish that
-// simply followed the system, so "follow the system" could never show as the
-// selected option.
+// LanguageState reports "<speaking>\t<chosen, or empty>\t<what decided>", where
+// the last field is one of "pref", "config", "env" or "default".
 //
-// "" is also what an unreachable daemon gives, which lands on the same default.
-func (a *App) LanguagePref() string {
-	resp, err := send(request{Cmd: "lang", Args: []string{"pref"}})
+// Settings needs all three. Language() alone cannot tell a chosen Turkish from
+// one that merely followed something else, so the "automatic" option could
+// never show as selected; and without knowing *what* it followed, the screen
+// can only guess between pylon.yaml and the desktop locale — a guess it will
+// sometimes get wrong in front of the one person who knows the answer.
+//
+// "" from an unreachable daemon, which the caller treats as "ask again later".
+func (a *App) LanguageState() string {
+	resp, err := send(request{Cmd: "lang", Args: []string{"state"}})
 	if err != nil || !resp.OK {
 		return ""
 	}

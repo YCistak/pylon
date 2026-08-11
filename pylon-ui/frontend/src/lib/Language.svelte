@@ -6,14 +6,26 @@
   // Every option is written in its own language and script. Someone who has
   // ended up in a language they cannot read has to be able to find their way
   // back out, and a list of names in the *current* language would not let them.
-  import { LanguagePref } from '../../wailsjs/go/main/App.js'
-  import { availableLanguages, lang, setLanguage, t } from './i18n.js'
+  import { LanguageState } from '../../wailsjs/go/main/App.js'
+  import { availableLanguages, setLanguage, t } from './i18n.js'
   import { daemonOnline } from './daemon.js'
 
   let options = []   // [{ code, name }] from the daemon
-  let chosen = ''    // the explicit choice; '' means "follow the system"
+  let chosen = ''    // the explicit choice; '' means "let something else decide"
+  let speaking = ''  // the language actually in use
+  let source = ''    // what decided it: 'pref' | 'config' | 'env' | 'default'
   let busy = ''      // code being applied, so only that button shows the wait
   let error = ''
+
+  // What the automatic option is currently following, said plainly. Anything
+  // vaguer — "system language" over a value that came out of pylon.yaml — is
+  // wrong on exactly the machines whose owner will notice.
+  $: speakingName = options.find((o) => o.code === speaking)?.name ?? speaking
+  $: followsLabel =
+      source === 'config' ? $t('ui.language.from_config', speakingName)
+    : source === 'env'    ? $t('ui.language.from_system', speakingName)
+    : source === 'default' ? $t('ui.language.from_default', speakingName)
+    : ''
 
   // An empty list has two very different causes and they need different words:
   // Pylon is not up yet (wait), or the Pylon that is up predates the language
@@ -23,16 +35,19 @@
   async function refresh() {
     options = await availableLanguages()
     if (options.length === 0) {
-      // An old daemon answers "lang pref" with its current language, which
-      // would light up a button that changes nothing. Trust nothing from a
-      // daemon that could not list its languages.
-      chosen = ''
+      // An old daemon answers any "lang" request with its current language,
+      // which would light up a button that changes nothing. Trust nothing from
+      // a daemon that could not list its languages.
+      chosen = speaking = source = ''
       return
     }
     try {
-      chosen = await LanguagePref()
+      const [now = '', pref = '', from = ''] = (await LanguageState()).split('\t')
+      speaking = now
+      chosen = pref
+      source = from
     } catch {
-      chosen = ''
+      chosen = speaking = source = ''
     }
   }
 
@@ -54,7 +69,10 @@
     error = ''
     try {
       await setLanguage(code)
-      chosen = code
+      // Re-ask rather than assume: picking the automatic option lands on
+      // whatever pylon.yaml or the environment says, and only the daemon knows
+      // which of them answered.
+      await refresh()
     } catch (e) {
       // Say which language failed rather than only that something did: the
       // window is still in the old language, so without this the click just
@@ -84,8 +102,8 @@
         disabled={!!busy}
         on:click={() => pick('')}
       >
-        {$t('ui.language.system')}
-        {#if chosen === ''}<span class="current">· {$lang}</span>{/if}
+        {$t('ui.language.auto')}
+        {#if chosen === '' && followsLabel}<span class="current">· {followsLabel}</span>{/if}
       </button>
 
       {#each options as o (o.code)}
