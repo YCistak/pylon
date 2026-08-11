@@ -78,11 +78,17 @@ func (s *Service) Execute(_ context.Context, action intent.Action, _ map[string]
 
 // summary renders the snapshot as one line, dropping any part whose sensor was
 // unavailable.
+//
+// The fractional readings are formatted before they reach the catalog: a `%.2f`
+// in a catalog string is Go's punctuation, not the language's, so a Turkish
+// window said "CPU yükü 0.18". The whole-number readings (disk, temperature)
+// still carry their verb — there is no decimal mark in "177", so nothing about
+// them is language-specific.
 func (st Stats) summary() string {
 	var parts []string
-	parts = append(parts, i18n.T("sysmon.load", st.Load1))
+	parts = append(parts, i18n.T("sysmon.load", i18n.Decimal(st.Load1, 2)))
 	if st.MemTotGB > 0 {
-		parts = append(parts, i18n.T("sysmon.ram", st.MemPct, st.MemUsedGB, st.MemTotGB))
+		parts = append(parts, i18n.T("sysmon.ram", st.MemPct, i18n.Decimal(st.MemUsedGB, 1), i18n.Decimal(st.MemTotGB, 1)))
 	}
 	if st.DiskTotG > 0 {
 		parts = append(parts, i18n.T("sysmon.disk", st.DiskFreeG))

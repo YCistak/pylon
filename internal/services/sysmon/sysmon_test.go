@@ -88,3 +88,25 @@ func TestSummaryDropsMissingSensors(t *testing.T) {
 		t.Errorf("summary missing the parts it does have: %q", got)
 	}
 }
+
+// The fractional readings used to come out of a `%.2f` in the catalog, so a
+// Turkish window said "CPU yükü 0.18" — Go's decimal mark inside a Turkish
+// sentence. The whole-number readings are deliberately not part of this: "177 GB"
+// has no decimal mark to get wrong.
+func TestSummaryPunctuatesReadingsByLanguage(t *testing.T) {
+	st := Stats{Load1: 0.5, MemTotGB: 31.1, MemUsedGB: 8.4, MemPct: 27}
+	for lang, want := range map[string][]string{
+		"en": {"CPU load 0.50", "8.4/31.1 GB"},
+		"tr": {"CPU yükü 0,50", "8,4/31,1 GB"},
+		"de": {"CPU-Last 0,50", "8,4/31,1 GB"},
+	} {
+		i18n.SetLanguage(lang)
+		got := st.summary()
+		for _, part := range want {
+			if !strings.Contains(got, part) {
+				t.Errorf("summary in %s = %q, want it to contain %q", lang, got, part)
+			}
+		}
+	}
+	i18n.SetLanguage(i18n.Default)
+}
