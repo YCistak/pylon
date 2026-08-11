@@ -291,6 +291,27 @@ func TestComputeCPU(t *testing.T) {
 	}
 }
 
+// Docker's own address format is "tcp://", and net/http refuses that scheme
+// outright — so a host copied from DOCKER_HOST used to fail with "unsupported
+// protocol scheme" on every call, which reads as Pylon being broken.
+func TestHostAddressesGoTheEngineUnderstands(t *testing.T) {
+	for in, want := range map[string]string{
+		"tcp://localhost:2375":    "http://localhost:2375",
+		"tcp://10.0.0.5:2375/":    "http://10.0.0.5:2375",
+		"http://10.0.0.5:2375":    "http://10.0.0.5:2375",
+		"https://docker.internal": "https://docker.internal",
+		"localhost:2375":          "http://localhost:2375",
+		"  tcp://host:2375  ":     "http://host:2375",
+	} {
+		if got := httpBase(in); got != want {
+			t.Errorf("httpBase(%q) = %q, want %q", in, got, want)
+		}
+		if base := newEngine(Config{Host: in}).base; base != want {
+			t.Errorf("newEngine(Host: %q).base = %q, want %q", in, base, want)
+		}
+	}
+}
+
 func TestConfigured(t *testing.T) {
 	if !Configured(Config{Host: "http://remote:2375"}) {
 		t.Error("remote host should be configured")

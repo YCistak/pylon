@@ -81,6 +81,17 @@ Cutting a release: [docs/RELEASE.md](docs/RELEASE.md).
   from one language, a key that does not exist, and a catalog key rendered
   without `$t()` — and `npm run build` runs it, so CI does.
 
+- **Docker's own address format now works.** `services.docker.host` was
+  documented as taking `tcp://…` — the way Docker writes it everywhere, from
+  `DOCKER_HOST` to its own `--host` flag — but the value went straight to Go's
+  HTTP client, which rejects that scheme outright. Every call failed with
+  `unsupported protocol scheme "tcp"`, which reads as Pylon being broken rather
+  than the address being in the wrong dialect. It is the same plain HTTP either
+  way, so `tcp://` is translated instead of refused, and a bare `host:port`
+  gets `http://`. This is the only route to Docker on Windows, where the Engine
+  listens on a named pipe Go cannot dial; the README now says so, along with the
+  macOS socket path Docker Desktop stopped creating.
+
 - **Arrow keys in Settings moved the wrong tab.** The tablist's `findIndex`
   predicate ignored its own parameter and closed over `tab` from the markup, so
   it always matched the last-rendered tab; both arrows stepped from the same

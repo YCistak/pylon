@@ -81,7 +81,7 @@ that touches the OS. Tested on real runners for each platform:
 | GUI ↔ daemon | ✅ | ✅ | ✅ |
 | calc, exchange, github, freshrss | ✅ | ✅ | ✅ |
 | Google, Spotify | ✅ | ✅ | ✅ |
-| Docker | ✅ | ✅ | ❌ needs npipe |
+| Docker | ✅ | ✅ ¹ | ⚠️ ² |
 | Voice (STT/TTS) | ✅ | ✅ | ✅ (`scripts/tts.ps1`) |
 | Screen lock, volume, media keys | ✅ | ❌ | ❌ |
 | Process watching | ✅ | ✅ | ✅ |
@@ -90,6 +90,34 @@ Process watching uses `/proc` on Linux, `ps` on macOS and `tasklist` on
 Windows. Machine control still shells out to `loginctl`/`pactl`/`playerctl`, so
 it is Linux-only for now; it degrades with a message rather than crashing — the
 rest of Pylon works.
+
+**¹ Docker on macOS** works over the Unix socket, but recent Docker Desktop
+versions no longer create `/var/run/docker.sock` unless you tick *Settings →
+Advanced → Allow the default Docker socket to be used*. Otherwise point Pylon at
+the real one — `~/.docker/run/docker.sock` for Docker Desktop, something else
+for Colima or OrbStack (`docker context ls` prints it):
+
+```yaml
+services:
+  docker:
+    socket: /Users/you/.docker/run/docker.sock
+```
+
+**² Docker on Windows** has no socket to dial: the Engine listens on the named
+pipe `\\.\pipe\docker_engine`, which Go's `net` package cannot open. It works
+over HTTP instead — tick *Settings → General → Expose daemon on
+tcp://localhost:2375 without TLS*, then:
+
+```yaml
+services:
+  docker:
+    host: "tcp://localhost:2375"
+```
+
+That switch is exactly as blunt as it sounds: the port has no authentication,
+so any program running as you can drive Docker through it. Fine on a machine you
+alone use, not on a shared one. `token:` adds a Bearer header if you put an
+authenticating proxy in front instead.
 
 ---
 

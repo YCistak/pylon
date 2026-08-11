@@ -128,12 +128,17 @@ services:
     # longitude: 28.9784
     # name: "İstanbul"
 
-  # Docker. Empty socket → the per-OS default (/var/run/docker.sock on Unix).
-  # Set host for a remote daemon (tcp://…), with token for an authenticating
-  # proxy in front of it.
+  # Docker. Empty socket → /var/run/docker.sock. Recent Docker Desktop on macOS
+  # does not create that path; use ~/.docker/run/docker.sock (`docker context
+  # ls` prints the real one).
+  #
+  # host is for a daemon reached over the network — and the only way in on
+  # Windows, where the Engine listens on a named pipe Pylon cannot dial. Write
+  # it as Docker does; tcp:// is understood and means plain HTTP. token adds a
+  # Bearer header, for an authenticating proxy in front of the Engine.
   docker:
     # socket: /var/run/docker.sock
-    # host: ""
+    # host: "tcp://localhost:2375"
     # token: secret:docker
 
 briefing:
