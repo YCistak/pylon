@@ -39,6 +39,8 @@ func defaultIntents() []intentSpec {
 		{ActionMediaPause, []string{"durdur", "duraklat", "müziği durdur", "pause", "stop music"}},
 		{ActionMediaNext, []string{"sonraki şarkı", "sonraki parça", "geç", "next", "next song", "skip"}},
 		{ActionMediaPrev, []string{"önceki şarkı", "önceki parça", "previous", "previous song"}},
+		{ActionNowPlaying, []string{"ne çalıyor", "şu an ne çalıyor", "ne dinliyorum", "hangi şarkı çalıyor",
+			"what's playing", "whats playing", "now playing", "what song is this"}},
 		{ActionVolumeUp, []string{"sesi aç", "sesi yükselt", "sesi artır", "volume up", "louder"}},
 		{ActionVolumeDown, []string{"sesi kıs", "sesi azalt", "sesi düşür", "volume down", "quieter"}},
 		{ActionMute, []string{"sesi kapat", "sustur", "mute"}},

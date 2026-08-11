@@ -23,6 +23,12 @@ const (
 	ActionVolumeDown Action = "media.volume_down"
 	ActionMute       Action = "media.mute"
 
+	// ActionNowPlaying asks what is playing on this machine. Named with the
+	// other media actions and not after any one player, because the answer
+	// comes from whatever is running — the local router resolves it, so it
+	// costs no model call.
+	ActionNowPlaying Action = "media.now_playing"
+
 	// ActionRemindOnExit schedules a reminder fired when a process exits.
 	// Args: "process" = process name, "content" = reminder text.
 	ActionRemindOnExit Action = "task.remind_on_exit"

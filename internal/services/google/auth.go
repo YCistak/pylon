@@ -215,8 +215,8 @@ func Authorize(ctx context.Context, c Config) error {
 		}
 		if e := q.Get("error"); e != "" {
 			desc := q.Get("error_description")
-			http.Error(w, "Pylon: yetki reddedildi — "+e, http.StatusBadRequest)
-			once.Do(func() { errCh <- fmt.Errorf("oauth reddedildi: %s %s", e, desc) })
+			http.Error(w, i18n.T("auth.denied", e), http.StatusBadRequest)
+			once.Do(func() { errCh <- fmt.Errorf("authorization denied: %s %s", e, desc) })
 			return
 		}
 		if q.Get("state") != state {
@@ -230,7 +230,7 @@ func Authorize(ctx context.Context, c Config) error {
 	go srv.Serve(ln)
 	defer srv.Close()
 
-	fmt.Println("Tarayıcıda Google izni açılıyor. Açılmazsa şu adrese git:")
+	fmt.Println(i18n.T("auth.browser_fallback"))
 	fmt.Println(" ", authURL)
 	openBrowser(authURL)
 

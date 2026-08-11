@@ -126,7 +126,7 @@ func warmUp(ctx context.Context, addr string) {
 
 	st := &serverTranscriber{addr: addr, lang: "auto", client: &http.Client{Timeout: sttWarmUpTimeout}}
 	if _, err := st.post(ctx, f.Name()); err != nil {
-		log.Printf("voice: STT sunucusu ısıtılamadı: %v", err)
+		log.Printf("voice: could not warm up the STT server: %v", err)
 	}
 }
 

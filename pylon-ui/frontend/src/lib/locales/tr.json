@@ -148,6 +148,8 @@
   "ui.widget.freshrss.unread": "Okunmamış sayısı",
   "ui.widget.github.issues": "Issue'lar",
   "ui.widget.github.prs": "PR'lar",
+  "ui.widget.media": "Çalan",
+  "ui.widget.media.now": "Ne çalıyor",
   "ui.widget.not_connected": "Bağlı değil",
   "ui.widget.spotify.now": "Şu an çalan",
   "ui.widget.sysmon": "Sistem",

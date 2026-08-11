@@ -36,7 +36,7 @@ func (m *daemonManager) ensureRunning() {
 
 	bin, err := locatePylonBinary()
 	if err != nil {
-		log.Printf("pylon: daemon otomatik başlatılamadı: %v", err)
+		log.Printf("pylon: could not auto-start the daemon: %v", err)
 		return
 	}
 
@@ -51,12 +51,12 @@ func (m *daemonManager) ensureRunning() {
 	killOnParentDeath(cmd) // die with the GUI on a crash (see procattr_*.go)
 
 	if err := cmd.Start(); err != nil {
-		log.Printf("pylon: daemon başlatılamadı (%s): %v", bin, err)
+		log.Printf("pylon: could not start the daemon (%s): %v", bin, err)
 		return
 	}
 	m.cmd = cmd
 	m.owned = true
-	log.Printf("pylon: daemon başlatıldı (%s, pid %d)", bin, cmd.Process.Pid)
+	log.Printf("pylon: daemon started (%s, pid %d)", bin, cmd.Process.Pid)
 
 	// Wait (bounded) for the socket so the first status poll already sees it up.
 	waitForDaemon(6 * time.Second)
@@ -151,7 +151,7 @@ func locatePylonBinary() (string, error) {
 	if p, err := exec.LookPath("pylon"); err == nil {
 		return p, nil
 	}
-	return "", fmt.Errorf("pylon binary bulunamadı (PYLON_BIN ile yol verebilirsin)")
+	return "", fmt.Errorf("cannot find the pylon binary (set PYLON_BIN to its path)")
 }
 
 // pylonConfigPath picks the config the daemon should load: $PYLON_CONFIG, else a

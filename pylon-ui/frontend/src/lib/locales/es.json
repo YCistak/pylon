@@ -148,6 +148,8 @@
   "ui.widget.freshrss.unread": "Sin leer",
   "ui.widget.github.issues": "Issues",
   "ui.widget.github.prs": "PRs",
+  "ui.widget.media": "Sonando",
+  "ui.widget.media.now": "Qué está sonando",
   "ui.widget.not_connected": "No conectado",
   "ui.widget.spotify.now": "Sonando ahora",
   "ui.widget.sysmon": "Sistema",

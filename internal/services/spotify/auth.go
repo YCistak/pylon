@@ -146,8 +146,8 @@ func Authorize(ctx context.Context, c Config) error {
 			return
 		}
 		if e := q.Get("error"); e != "" {
-			http.Error(w, "Pylon: yetki reddedildi — "+e, http.StatusBadRequest)
-			once.Do(func() { errCh <- fmt.Errorf("oauth reddedildi: %s", e) })
+			http.Error(w, i18n.T("auth.denied", e), http.StatusBadRequest)
+			once.Do(func() { errCh <- fmt.Errorf("authorization denied: %s", e) })
 			return
 		}
 		if q.Get("state") != state {
@@ -161,8 +161,8 @@ func Authorize(ctx context.Context, c Config) error {
 	go srv.Serve(ln)
 	defer srv.Close()
 
-	fmt.Printf("Spotify uygulamanın Redirect URI'sine şunu eklemiş ol: %s\n", RedirectURI(c))
-	fmt.Println("Tarayıcıda Spotify izni açılıyor. Açılmazsa şu adrese git:")
+	fmt.Println(i18n.T("auth.redirect_reminder", RedirectURI(c)))
+	fmt.Println(i18n.T("auth.browser_fallback"))
 	fmt.Println(" ", authURL)
 	openBrowser(authURL)
 

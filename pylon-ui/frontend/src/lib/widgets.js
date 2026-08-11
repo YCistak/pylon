@@ -9,6 +9,7 @@ import {
   iconDocker,
   iconWeather,
   iconSysmon,
+  iconMedia,
 } from './icons.js'
 
 // Registry of widget TYPES the user can add. Titles and labels are catalog
@@ -52,6 +53,15 @@ export const CATALOG = [
     type: 'weather', icon: iconWeather, title: 'ui.widget.weather', accent: '#38bdf8',
     modes: [
       { id: 'today', label: 'ui.widget.weather.today', action: 'weather.today', params: [] },
+    ],
+  },
+  {
+    // Needs nothing configured: it reads whatever player is running on this
+    // machine. The Spotify card below answers the same question for an account,
+    // including a phone in another room, and costs an OAuth app to set up.
+    type: 'media', icon: iconMedia, title: 'ui.widget.media', accent: '#f472b6',
+    modes: [
+      { id: 'now_playing', label: 'ui.widget.media.now', action: 'media.now_playing', params: [] },
     ],
   },
   {
