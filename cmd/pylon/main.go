@@ -656,7 +656,7 @@ func registerIntent(d *daemon.Daemon, cfg config.Config, database *db.DB, regist
 		source := "local"
 		if !cmd.Resolved() {
 			if !chain.Configured() {
-				return ipc.Response{OK: true, Text: i18n.T("intent.no_model", cmd.Confidence)}
+				return ipc.Response{OK: true, Text: i18n.T("intent.no_model", i18n.Decimal(cmd.Confidence, 2))}
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 			defer cancel()

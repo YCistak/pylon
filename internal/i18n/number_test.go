@@ -1,6 +1,10 @@
 package i18n
 
-import "testing"
+import (
+	"encoding/json"
+	"regexp"
+	"testing"
+)
 
 func TestDecimal(t *testing.T) {
 	cases := []struct {
@@ -94,6 +98,34 @@ func TestEverySupportedLanguageHasSeparators(t *testing.T) {
 	for _, lang := range Supported {
 		if _, ok := separators[lang]; !ok {
 			t.Errorf("no number separators for %q, which is in Supported", lang)
+		}
+	}
+}
+
+// A catalog must not punctuate a number itself. `%.2f` and friends write the
+// decimal mark Go was built with, not the one the language uses, which is how a
+// Turkish window came to say "CPU yükü 0.18" and an English one "47,71" for a
+// dollar rate. Whole-number verbs (`%.0f`) are allowed: there is no decimal
+// mark in "177", so nothing about them belongs to a language.
+//
+// The fix is always the same — format at the call site with Decimal or Money
+// and take a %s here — so this test exists to make the wrong thing loud rather
+// than to explain itself in review.
+func TestNoCatalogFormatsItsOwnDecimals(t *testing.T) {
+	fractional := regexp.MustCompile(`%[-+ #0]*\.[1-9][0-9]*(\[[0-9]+\])?f`)
+	for _, lang := range Supported {
+		data, err := catalogs.ReadFile("locales/" + lang + ".json")
+		if err != nil {
+			t.Fatalf("read %s: %v", lang, err)
+		}
+		var raw map[string]json.RawMessage
+		if err := json.Unmarshal(data, &raw); err != nil {
+			t.Fatalf("parse %s: %v", lang, err)
+		}
+		for key, msg := range raw {
+			if hit := fractional.FindString(string(msg)); hit != "" {
+				t.Errorf("%s.json: %q formats its own decimals (%s) — format the value with Decimal or Money at the call site and take a %%s", lang, key, hit)
+			}
 		}
 	}
 }

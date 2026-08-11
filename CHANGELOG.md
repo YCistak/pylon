@@ -98,6 +98,17 @@ Cutting a release: [docs/RELEASE.md](docs/RELEASE.md).
   The two services no longer format numbers themselves, and the case that used
   to be frozen into their tests as correct is now the case that fails.
 
+  The same mark was hiding in the catalogs themselves, where it was harder to
+  see: `"CPU load %.2f"` looks like a translated string but the `%.2f` is Go's
+  punctuation, so a fully translated Turkish window still said "CPU yükü 0.18",
+  and the machine-vitals line disagreed with itself in six languages out of
+  seven. The fractional readings — load average and the RAM figures — and the
+  local-match confidence score are formatted at the call site now. Whole-number
+  verbs (`%.0f`, for disk and temperature) stay as they are: there is no decimal
+  mark in "177 GB" to get wrong. A test walks every catalog and fails on any
+  message that punctuates its own decimals, because this is the second time the
+  same mistake was invisible in review.
+
 - **The interface is actually translated now.** Adding the language picker
   turned up text the seven-language work had missed, because nothing checked
   for it: the voice bar said "Konuş" inside a Russian window, the API-key hints
