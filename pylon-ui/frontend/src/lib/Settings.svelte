@@ -6,14 +6,20 @@
   import DockerWidget from './DockerWidget.svelte'
   import Accounts from './Accounts.svelte'
   import ApiKeys from './ApiKeys.svelte'
+  import Language from './Language.svelte'
   import VoiceSettings from './VoiceSettings.svelte'
 
   export let editing = null // widget instance handed in from App (pen icon)
 
   // Settings grew card by card into one long column. Grouping them keeps each
-  // screen to a single question — what's on the home, which accounts, how voice
-  // behaves — instead of making you scroll past all three to reach one.
+  // screen to a single question — which language, what's on the home, which
+  // accounts, how voice behaves — instead of making you scroll past all of them
+  // to reach one.
+  //
+  // Language comes first, and not because it is used most: it is the one
+  // setting you go looking for when you cannot read any of the others.
   const TABS = [
+    { id: 'genel', label: 'ui.settings.general', hint: 'ui.settings.general_hint' },
     { id: 'gorunum', label: 'ui.settings.appearance', hint: 'ui.settings.appearance_hint' },
     { id: 'hesaplar', label: 'ui.settings.accounts', hint: 'ui.settings.accounts_hint' },
     { id: 'ses', label: 'ui.settings.voice', hint: 'ui.settings.voice_hint' },
@@ -22,13 +28,18 @@
   $: activeHint = TABS.find((tab) => tab.id === activeTab)?.hint ?? ''
 
   // Left/right arrows move between tabs, which is what a tablist is expected to
-  // do once the buttons carry tab roles.
+  // do once the buttons carry tab roles. The predicate reads its own parameter:
+  // it used to close over `tab` from the markup's {#each}, so findIndex matched
+  // on the last-rendered tab and both arrows always stepped from the same place.
   function onTabKeydown(e) {
-    const i = TABS.findIndex((t) => tab.id === activeTab)
+    const i = TABS.findIndex((tab) => tab.id === activeTab)
     if (e.key === 'ArrowRight') activeTab = TABS[(i + 1) % TABS.length].id
     else if (e.key === 'ArrowLeft') activeTab = TABS[(i - 1 + TABS.length) % TABS.length].id
     else return
     e.preventDefault()
+    // Roving tabindex: the newly selected tab is the only tab stop, so focus has
+    // to move with the selection or the next arrow key goes to the old button.
+    document.getElementById(`tab-${activeTab}`)?.focus()
   }
 
   let showPicker = false
@@ -49,9 +60,11 @@
     const mode = entry.modes[0]
     returnFocus = document.activeElement
     draft = {
-      // The instance keeps a plain title, not a key: it is editable text from
-      // here on, and the user may rename it to anything.
-      id: null, type, title: $t(entry.title), column: 'left',
+      // No title: an empty one means "call it whatever this type is called in
+      // the current language", resolved wherever it is drawn. Putting the
+      // resolved text here is what used to freeze a widget into the language it
+      // was added in. Typing a name makes it text, permanently.
+      id: null, type, title: '', column: 'left',
       mode: mode.id, params: {}, refresh: 0, accent: entry.accent,
     }
     isNew = true
@@ -103,7 +116,9 @@
 
   function save() {
     const { id, type, title, column, mode, params, refresh } = draft
-    const patch = { title, column, mode, params, refresh }
+    // Trimmed, so that clearing the field — or leaving only spaces in it — goes
+    // back to the default name instead of saving a blank-looking title.
+    const patch = { title: (title || '').trim(), column, mode, params, refresh }
     if (isNew) widgets.add(type, patch)
     else widgets.update(id, patch)
     closeModal()
@@ -133,7 +148,7 @@
 
 <div class="settings">
   <header class="head">
-    <h2>Ayarlar</h2>
+    <h2>{$t('ui.settings.title')}</h2>
   </header>
 
   <!-- tabindex="-1": the tablist itself is never a tab stop — focus lands on the
@@ -152,7 +167,10 @@
       >{$t(tab.label)}</button>
     {/each}
   </div>
-  <p class="sub">{activeHint}</p>
+  <!-- Translated here, not in the reactive statement: TABS holds catalog keys,
+       and this printed the key itself ("ui.settings.appearance_hint") in every
+       language. -->
+  <p class="sub">{activeHint ? $t(activeHint) : ''}</p>
 
   <!-- One flex column so every card is spaced the same, whether it lives in
        this file or comes from a child component. A `.card + .card` rule cannot
@@ -163,20 +181,22 @@
        aria-controls points at it, and aria-labelledby names whichever tab is
        currently showing, so the pairing stays valid as the content swaps. -->
   <div class="panel" id="settings-panel" role="tabpanel" aria-labelledby="tab-{activeTab}">
-  {#if activeTab === 'gorunum'}
+  {#if activeTab === 'genel'}
+  <Language />
+  {:else if activeTab === 'gorunum'}
   <section class="card">
     <div class="card-head">
       <div class="card-title">
-        <h3>Widget'lar</h3>
+        <h3>{$t('ui.settings.widgets')}</h3>
         <span class="count">{$widgets.length}</span>
       </div>
       <div class="add-wrap">
         <button class="add-btn" class:open={showPicker} on:click={() => (showPicker = !showPicker)}>
-          <span class="plus">+</span> Widget Ekle
+          <span class="plus">+</span> {$t('ui.settings.add_widget_btn')}
         </button>
         {#if showPicker}
           <div class="picker">
-            <p class="picker-title">Hangi widget?</p>
+            <p class="picker-title">{$t('ui.settings.which_widget')}</p>
             {#each CATALOG as c}
               <button class="picker-item" on:click={() => openCreate(c.type)}>
                 <span class="tile" style="--wa: {c.accent}">{@html c.icon}</span>
@@ -201,15 +221,17 @@
           <li>
             <span class="tile" style="--wa: {entry.accent}">{@html entry.icon}</span>
             <div class="info">
-              <span class="name">{w.title}</span>
+              <!-- i18n-raw: what the user typed, if anything; an untouched
+                   widget has no title of its own and takes its type's. -->
+              <span class="name">{w.title || $t(entry.title)}</span>
               <span class="meta">
                 <span class="chip">{w.column === 'left' ? $t('ui.left') : $t('ui.right')}</span>
                 <span class="mode">{$t(modeOf(w.type, w.mode)?.label ?? '')}</span>
-                {#if w.refresh > 0}<span class="chip refresh">⟳ {w.refresh} dk</span>{/if}
+                {#if w.refresh > 0}<span class="chip refresh">⟳ {$t('ui.settings.minutes_short', w.refresh)}</span>{/if}
               </span>
             </div>
             <button class="pen" on:click={() => openEdit(w)} title={$t('ui.edit')} aria-label={$t('ui.edit')}>✎</button>
-            <button class="del" on:click={() => widgets.remove(w.id)} title="sil" aria-label="sil">✕</button>
+            <button class="del" on:click={() => widgets.remove(w.id)} title={$t('ui.delete_short')} aria-label={$t('ui.delete_short')}>✕</button>
           </li>
         {/each}
       </ul>
@@ -277,20 +299,22 @@
       <header class="modal-head">
         <span class="tile" style="--wa: {draftEntry.accent}">{@html draftEntry.icon}</span>
         <h3 id="widget-modal-title">{isNew ? $t('ui.settings.add_widget', $t(draftEntry.title)) : $t('ui.settings.edit_widget', $t(draftEntry.title))}</h3>
-        <button class="x" on:click={closeModal} aria-label="kapat">×</button>
+        <button class="x" on:click={closeModal} aria-label={$t('ui.close')}>×</button>
       </header>
 
       <div class="preview">
         {#if draft.type === 'docker' && draft.mode === 'container'}
+          <!-- i18n-raw: free text once typed; empty falls back to the default -->
           <DockerWidget
-            title={draft.title}
+            title={draft.title || $t(draftEntry.title)}
             params={draft.params}
             accent={draftEntry.accent}
           />
         {:else}
+          <!-- i18n-raw: same, in the non-Docker preview -->
           <Widget
             icon={draftEntry.icon}
-            title={draft.title}
+            title={draft.title || $t(draftEntry.title)}
             action={draftMode.action}
             params={draft.params}
             accent={draftEntry.accent}
@@ -300,7 +324,9 @@
 
       <label class="field">
         <span>{$t('ui.settings.title_field')}</span>
-        <input type="text" bind:value={draft.title} />
+        <!-- Empty is a real choice, not a missing one: the placeholder shows
+             what the widget will be called, and it follows the language. -->
+        <input type="text" bind:value={draft.title} placeholder={$t(draftEntry.title)} />
       </label>
 
       {#if draftEntry.modes.length > 1}
@@ -331,13 +357,13 @@
         <label class="field">
           <span>{$t('ui.settings.column')}</span>
           <div class="radios">
-            <button class="radio" class:active={draft.column === 'left'}  on:click={() => (draft.column = 'left')}>Sol</button>
+            <button class="radio" class:active={draft.column === 'left'}  on:click={() => (draft.column = 'left')}>{$t('ui.left')}</button>
             <button class="radio" class:active={draft.column === 'right'} on:click={() => (draft.column = 'right')}>{$t('ui.right')}</button>
           </div>
         </label>
 
         <label class="field">
-          <span>Otomatik yenile</span>
+          <span>{$t('ui.settings.auto_refresh')}</span>
           <div class="radios">
             {#each REFRESH_OPTIONS as r}
               <button class="radio" class:active={draft.refresh === r.value} on:click={() => (draft.refresh = r.value)}>
@@ -350,11 +376,11 @@
 
       <footer class="modal-foot">
         {#if !isNew}
-          <button class="danger" on:click={remove}>Sil</button>
+          <button class="danger" on:click={remove}>{$t('ui.delete')}</button>
         {/if}
         <span class="spacer"></span>
         <button class="ghost" on:click={closeModal}>{$t('ui.cancel')}</button>
-        <button class="primary" on:click={save}>{isNew ? 'Ekle' : 'Kaydet'}</button>
+        <button class="primary" on:click={save}>{isNew ? $t('ui.add') : $t('ui.save')}</button>
       </footer>
     </div>
   </div>

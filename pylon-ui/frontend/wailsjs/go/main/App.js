@@ -42,6 +42,14 @@ export function Language() {
   return window['go']['main']['App']['Language']();
 }
 
+export function LanguageState() {
+  return window['go']['main']['App']['LanguageState']();
+}
+
+export function Languages() {
+  return window['go']['main']['App']['Languages']();
+}
+
 export function Listen() {
   return window['go']['main']['App']['Listen']();
 }
@@ -56,6 +64,10 @@ export function RestartDaemon() {
 
 export function SetHotkey(arg1) {
   return window['go']['main']['App']['SetHotkey'](arg1);
+}
+
+export function SetLanguage(arg1) {
+  return window['go']['main']['App']['SetLanguage'](arg1);
 }
 
 export function SetSecret(arg1, arg2) {

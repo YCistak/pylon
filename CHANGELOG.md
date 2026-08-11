@@ -11,6 +11,20 @@ Cutting a release: [docs/RELEASE.md](docs/RELEASE.md).
 
 ### Added
 
+- **A language picker in Settings** (Genel), and `pylon lang <code>` on the
+  command line. Until now the seven languages could only be reached by editing
+  `pylon.yaml`, which is invisible to anyone who has just installed Pylon. The
+  choice belongs to the daemon, not to the GUI — the interface asks it to switch
+  and follows, so the buttons around an answer are never in a different language
+  from the answer, and the CLI agrees with both. It applies immediately: nothing
+  restarts, and the next reply is already in the new language. **Otomatik**
+  forgets the choice and says which of `pylon.yaml` or the desktop locale it
+  fell back to, rather than calling both of them "the system". The choice is
+  remembered in a one-line `language` file beside the config it overrides —
+  rewriting the YAML would strip the comments that make it readable, and the
+  database is only ever opened by the daemon, so every CLI process would have
+  disagreed with the window.
+
 - **Pylon speaks seven languages** (`language:` in `pylon.yaml`; empty follows
   the desktop locale). English, German, Spanish, French, Portuguese, Russian
   and Turkish, covering every reply, the CLI, and the GUI — including weekday
@@ -56,6 +70,32 @@ Cutting a release: [docs/RELEASE.md](docs/RELEASE.md).
   start before that disk is mounted and fail for no visible reason.
 
 ### Fixed
+
+- **The interface is actually translated now.** Adding the language picker
+  turned up text the seven-language work had missed, because nothing checked
+  for it: the voice bar said "Konuş" inside a Russian window, the API-key hints
+  printed their own catalog keys (`ui.keys.gemini_hint`) because the key never
+  reached `$t()`, and the settings tab hint did the same. The sidebar, the
+  Docker page and widget, and the widget editor were partly hard-coded too.
+  `npm run check:i18n` now fails the build on all three causes — a key missing
+  from one language, a key that does not exist, and a catalog key rendered
+  without `$t()` — and `npm run build` runs it, so CI does.
+
+- **Docker's own address format now works.** `services.docker.host` was
+  documented as taking `tcp://…` — the way Docker writes it everywhere, from
+  `DOCKER_HOST` to its own `--host` flag — but the value went straight to Go's
+  HTTP client, which rejects that scheme outright. Every call failed with
+  `unsupported protocol scheme "tcp"`, which reads as Pylon being broken rather
+  than the address being in the wrong dialect. It is the same plain HTTP either
+  way, so `tcp://` is translated instead of refused, and a bare `host:port`
+  gets `http://`. This is the only route to Docker on Windows, where the Engine
+  listens on a named pipe Go cannot dial; the README now says so, along with the
+  macOS socket path Docker Desktop stopped creating.
+
+- **Arrow keys in Settings moved the wrong tab.** The tablist's `findIndex`
+  predicate ignored its own parameter and closed over `tab` from the markup, so
+  it always matched the last-rendered tab; both arrows stepped from the same
+  place. Focus now follows the selection too, as a roving tabindex requires.
 
 - **The briefing banner gets out of the way on its own.** It sat on screen for
   30 seconds, long enough to read as "stuck until you hit the ×". It now

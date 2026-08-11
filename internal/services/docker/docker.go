@@ -52,9 +52,13 @@ const (
 const DefaultSocket = "/var/run/docker.sock"
 
 // Config selects how to reach the Docker Engine. Socket is the local Unix
-// socket (default). Host overrides it with an http(s) base URL for a remote
-// Engine (e.g. "http://10.0.0.5:2375"); Token, if set, is sent as a Bearer
-// header — for a proxy that fronts the Engine with auth.
+// socket (default). Host overrides it with the Engine's HTTP address (e.g.
+// "http://10.0.0.5:2375", or "tcp://…" as Docker's own DOCKER_HOST spells it);
+// Token, if set, is sent as a Bearer header — for a proxy that fronts the
+// Engine with auth.
+//
+// Host is also the only way to reach Docker from Windows, where the Engine
+// listens on a named pipe that Go's net package cannot dial.
 type Config struct {
 	Socket string
 	Host   string
@@ -367,6 +371,27 @@ func (d *Docker) client() (dockerAPI, error) {
 	return newEngine(d.cfg), nil
 }
 
+// httpBase turns a configured host into something net/http will dial.
+//
+// Docker spells its address "tcp://host:2375" everywhere — DOCKER_HOST, the
+// daemon's own --host flag, every guide — so that is what people write here.
+// Go's HTTP client rejects it outright ("unsupported protocol scheme \"tcp\""),
+// which reads like Pylon is broken rather than like the scheme is wrong. It is
+// the same plain HTTP either way, so translate it instead of refusing it.
+//
+// An address with no scheme gets http://, for the same reason.
+func httpBase(host string) string {
+	host = strings.TrimRight(strings.TrimSpace(host), "/")
+	switch {
+	case strings.HasPrefix(host, "tcp://"):
+		return "http://" + strings.TrimPrefix(host, "tcp://")
+	case strings.HasPrefix(host, "http://"), strings.HasPrefix(host, "https://"):
+		return host
+	default:
+		return "http://" + host
+	}
+}
+
 // engine calls the Docker Engine API over HTTP — the Unix socket by default, or
 // a remote Host if configured.
 type engine struct {
@@ -378,7 +403,7 @@ type engine struct {
 func newEngine(cfg Config) *engine {
 	if host := strings.TrimSpace(cfg.Host); host != "" {
 		return &engine{
-			base:  strings.TrimRight(host, "/"),
+			base:  httpBase(host),
 			token: cfg.Token,
 			hc:    &http.Client{Timeout: 15 * time.Second},
 		}

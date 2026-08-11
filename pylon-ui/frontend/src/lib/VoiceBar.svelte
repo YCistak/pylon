@@ -2,6 +2,7 @@
   import { fade, fly } from 'svelte/transition'
   import { Ask, Listen } from '../../wailsjs/go/main/App.js'
   import { daemonOnline } from './daemon.js'
+  import { t } from './i18n.js'
 
   // Two ways into the same intent engine: push-to-talk, and typing. The mic is
   // the primary one, but it is useless in a quiet room or with the headset
@@ -73,7 +74,7 @@
       disabled={busy || offline}
     >
       <span class="ic" aria-hidden="true">🎤</span>
-      {listening ? 'Dinliyorum…' : 'Konuş'}
+      {listening ? $t('ui.voicebar.listening') : $t('ui.voicebar.talk')}
     </button>
   </div>
 
@@ -83,8 +84,8 @@
       type="text"
       bind:value={typed}
       disabled={busy || offline}
-      placeholder={offline ? 'Daemon kapalı' : 'Ya da yaz…'}
-      aria-label="Pylon'a yaz"
+      placeholder={offline ? $t('ui.voicebar.offline') : $t('ui.voicebar.placeholder')}
+      aria-label={$t('ui.voicebar.write')}
     />
     <button
       class="btn send"
@@ -92,7 +93,7 @@
       disabled={busy || offline || !typed.trim()}
     >
       <span class="ic" aria-hidden="true">↵</span>
-      {asking ? 'Soruyorum…' : 'Gönder'}
+      {asking ? $t('ui.voicebar.asking') : $t('ui.voicebar.send')}
     </button>
   </form>
 

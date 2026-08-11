@@ -11,7 +11,7 @@
   // One entry per signable service. The daemon side is service-agnostic, so a
   // new integration only needs a row here.
   const ACCOUNTS = [
-    { id: 'google', name: 'Google', sub: 'Takvim · Mail · Drive', logo: 'G' },
+    { id: 'google', name: 'Google', sub: 'ui.accounts.google_sub', logo: 'G' },
     { id: 'spotify', name: 'Spotify', sub: 'ui.accounts.spotify_sub', logo: '♪' },
   ]
 
@@ -96,13 +96,13 @@
       <span class="logo" aria-hidden="true">{acct.logo}</span>
       <div class="info">
         <span class="name">{acct.name}</span>
-        <span class="sub">{acct.sub}</span>
+        <span class="sub">{$t(acct.sub)}</span>
       </div>
 
       {#if confirming === acct.id}
         <div class="confirm">
           <span class="ask">{$t('ui.accounts.signout_ask')}</span>
-          <button class="danger" on:click={() => logout(acct.id)} disabled={busy[acct.id]}>Evet</button>
+          <button class="danger" on:click={() => logout(acct.id)} disabled={busy[acct.id]}>{$t('ui.yes')}</button>
           <button class="signin" on:click={() => (confirming = '')}>{$t('ui.cancel')}</button>
         </div>
       {:else if status[acct.id] === 'connected'}

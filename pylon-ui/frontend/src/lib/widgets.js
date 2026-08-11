@@ -1,4 +1,5 @@
 import { writable } from 'svelte/store'
+import { saidInAnyLanguage } from './i18n.js'
 import {
   iconGoogleCalendar,
   iconGoogleDrive,
@@ -110,7 +111,11 @@ function defaultInstance(type, column = 'left') {
   return {
     id: uid(),
     type,
-    title: entry.title,
+    // Empty means "whatever this type is called in the current language",
+    // resolved at render time. Storing the resolved text instead froze the
+    // language a widget was added in: one added in Turkish still said "Sistem"
+    // in a Russian window. A title the user types is stored as typed.
+    title: '',
     column,
     mode: mode.id,
     params: {},
@@ -137,13 +142,37 @@ function migrateFromV1() {
   }
 }
 
+// Titles were saved as resolved text until the language became switchable, so
+// a layout built in one language kept those words in every other. A stored
+// title that matches the type's default in *any* language was almost certainly
+// never chosen by the user: blank it, and it follows the language from now on.
+// A renamed widget matches nothing and keeps its name.
+//
+// "Almost certainly" is the honest word: someone who renamed a widget to
+// exactly its own default in some language loses that rename once. Old data
+// carries no record of whether a title was typed or inherited, so this is a
+// guess — and it is the guess that is right far more often. Nothing added from
+// here on is ambiguous, because a default is now stored as no title at all.
+//
+// This runs on load rather than as a one-shot migration on purpose — the same
+// layout can be opened by an older build that writes resolved titles again.
+function unfreezeDefaultTitles(list) {
+  return list.map((w) => {
+    if (!w.title) return w
+    const key = catalogEntry(w.type).title
+    // `w.title === key` catches the older default, which stored the key itself.
+    if (w.title === key || saidInAnyLanguage(key, w.title)) return { ...w, title: '' }
+    return w
+  })
+}
+
 function load() {
   try {
     const raw = localStorage.getItem(KEY)
     // Drop instances whose type is no longer in the catalog. A saved layout
     // outlives the catalog, so a type that disappears would otherwise reach
     // withAction() with no entry and take the whole home render down.
-    if (raw) return JSON.parse(raw).filter((w) => catalogEntry(w.type))
+    if (raw) return unfreezeDefaultTitles(JSON.parse(raw).filter((w) => catalogEntry(w.type)))
   } catch {
     // fall through to migration/empty
   }

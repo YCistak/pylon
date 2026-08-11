@@ -75,18 +75,50 @@ when the Docker page is pinned to the dock. List or grid, all/running filter,
 optional auto-refresh; preferences in `localStorage` under
 `pylon.dockerpage.v1`.
 
-**Settings** (`Settings.svelte`) — three tabs, so each screen answers one
+**Settings** (`Settings.svelte`) — four tabs, so each screen answers one
 question:
 
 | Tab | Holds |
 | --- | --- |
+| **Genel** | `Language.svelte` — the language Pylon speaks |
 | **Görünüm** | Widget instances (add/edit/remove via a dialog) and which pages are pinned to the dock |
 | **Hesaplar** | `Accounts.svelte` (OAuth sign-in) and `ApiKeys.svelte` (vault keys) |
 | **Ses** | `VoiceSettings.svelte` — the push-to-talk shortcut |
 
+Language is the first tab because it is the one setting you go looking for when
+you cannot read any of the others.
+
 The tablist is keyboard-navigable (arrow keys, roving tabindex) and the widget
 editor is a real dialog: it takes focus, traps Tab, closes on Escape, and hands
 focus back on close.
+
+### Language
+
+The GUI has no language setting of its own. `Language.svelte` calls the daemon
+(`App.SetLanguage` → `lang set`), which switches immediately and remembers the
+choice. One setting, so the buttons around an answer are never in a different
+language from the answer.
+
+`App.LanguageState` (→ `lang state`) returns
+`<speaking>\t<chosen>\t<source>\t<detail>`, and the card needs every field.
+`Language()` alone cannot tell a chosen Turkish from one that merely followed
+something else, so **Otomatik** could never show as selected. And knowing only
+that nothing was chosen is not enough either: the fallback may be `language:`
+in `pylon.yaml` or the desktop locale, and the card names which — a button
+reading "system language" above a value that came out of `pylon.yaml` is untrue
+on exactly the machines whose owner will spot it. `detail` carries the config
+path or the winning `LC_ALL`/`LC_MESSAGES`/`LANG` assignment, which is what
+`pylon lang` prints to stderr.
+
+Interface strings live in `src/lib/locales/*.json`, separate from the daemon's
+catalogs — the GUI is its own Go module and cannot import `internal/i18n`, and
+the vocabularies barely overlap ("Cancel" vs. "3 events in your calendar").
+
+`npm run check:i18n` (also part of `npm run build`, so CI runs it) guards three
+things that nothing else catches: every language carries the same keys with the
+same `{0}` placeholders; every `ui.*` name in the code exists; and no catalog
+key is rendered without `$t()`. A line that is deliberately not translatable —
+a widget the user renamed, a product name — says `i18n-raw` above it.
 
 ## Widgets
 

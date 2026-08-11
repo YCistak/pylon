@@ -5,12 +5,13 @@
 // barely overlap anyway — the daemon speaks sentences ("3 events in your
 // calendar"), this speaks labels ("Appearance", "Cancel").
 //
-// What it must not have is its own language *setting*. The language comes from
-// the daemon (App.Language), so the buttons around an answer are always in the
-// same language as the answer.
+// What it must not have is its own language *setting*. The language belongs to
+// the daemon: Settings changes it there (App.SetLanguage) and reads it back, so
+// the buttons around an answer are always in the same language as the answer,
+// and the CLI agrees with both.
 
 import { derived, writable } from 'svelte/store'
-import { Language } from '../../wailsjs/go/main/App.js'
+import { Language, Languages, SetLanguage } from '../../wailsjs/go/main/App.js'
 
 import de from './locales/de.json'
 import en from './locales/en.json'
@@ -25,6 +26,20 @@ const FALLBACK = 'en'
 
 export const lang = writable(FALLBACK)
 
+/**
+ * Does any language word `key` exactly as `text`?
+ *
+ * For recognising a default that was frozen into saved data before it could be
+ * resolved at render time: a widget added while Pylon spoke Turkish was stored
+ * as "Sistem", and there is otherwise no way to tell that from a name the user
+ * typed. Matching against every language rather than the current one is the
+ * point — the widget was named in whatever language was active then.
+ */
+export function saidInAnyLanguage(key, text) {
+  const wanted = String(text).trim()
+  return Object.values(catalogs).some((c) => c[key] === wanted)
+}
+
 /** Ask the daemon which language it speaks. Unknown or unreachable keeps English. */
 export async function syncLanguage() {
   try {
@@ -34,6 +49,49 @@ export async function syncLanguage() {
     // No daemon yet — the sidebar's status dot already says so, and English is
     // a working default until one appears.
   }
+}
+
+/**
+ * The languages Settings can offer: [{ code, name }], each name written in its
+ * own language and script. The list comes from the daemon, filtered to the ones
+ * this GUI also has labels for — a daemon that speaks a language the interface
+ * cannot label would produce a half-translated window.
+ *
+ * Every line must carry a tab. A daemon older than the language picker answers
+ * "lang" without reading its arguments, so it replies to "lang list" with the
+ * single word "tr" — which parsed as one nameless language and drew a picker
+ * offering the language you were already in. Requiring the shape the daemon
+ * documents turns that into an empty list, which the caller can report as what
+ * it is.
+ *
+ * [] therefore means "no daemon, or one too old to ask" — never a real answer.
+ */
+export async function availableLanguages() {
+  try {
+    const raw = await Languages()
+    return raw
+      .split('\n')
+      .filter((line) => line.includes('\t'))
+      .map((line) => line.split('\t'))
+      .filter(([code, name]) => catalogs[code] && name.trim())
+      .map(([code, name]) => ({ code, name: name.trim() }))
+  } catch {
+    return []
+  }
+}
+
+/**
+ * Switch the language Pylon speaks, and follow it here. An empty code means
+ * "follow the system": the daemon forgets the choice and falls back to
+ * pylon.yaml or the desktop locale, and returns whichever it landed on.
+ *
+ * Throws when the daemon refuses or is unreachable, so the caller can say so
+ * instead of leaving the interface claiming a language it is not in.
+ */
+export async function setLanguage(code) {
+  const applied = await SetLanguage(code || 'auto')
+  if (applied && catalogs[applied]) lang.set(applied)
+  return applied
 }
 
 /**

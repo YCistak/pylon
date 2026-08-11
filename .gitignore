@@ -48,6 +48,9 @@ pylon.local.yaml
 .env
 .env.*
 !.env.example
+# The language picked in Settings, remembered beside the config file it
+# overrides — so a daemon run from the checkout leaves it here.
+/language
 # Build-time OAuth client values (read by the Makefile via -include)
 build.env
 # Voice models (large, fetched separately)
