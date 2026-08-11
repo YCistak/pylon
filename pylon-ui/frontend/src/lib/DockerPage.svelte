@@ -11,10 +11,10 @@
   const PREF_KEY = 'pylon.dockerpage.v1'
   const REFRESH_OPTIONS = [
     { sec: 0,  label: 'ui.off' },
-    { sec: 5,  label: '5sn' },
-    { sec: 15, label: '15sn' },
-    { sec: 30, label: '30sn' },
-    { sec: 60, label: '1dk' },
+    { sec: 5,  label: 'ui.seconds.5' },
+    { sec: 15, label: 'ui.seconds.15' },
+    { sec: 30, label: 'ui.seconds.30' },
+    { sec: 60, label: 'ui.minutes.1' },
   ]
 
   let view = 'list'    // list | grid
@@ -119,21 +119,21 @@
 
   <div class="toolbar">
     <div class="seg">
-      <button class:active={view === 'list'} on:click={() => (view = 'list')} title="Liste">☰ Liste</button>
-      <button class:active={view === 'grid'} on:click={() => (view = 'grid')} title="Kare">▦ Kare</button>
+      <button class:active={view === 'list'} on:click={() => (view = 'list')} title={$t('ui.docker.view_list')}>☰ {$t('ui.docker.view_list')}</button>
+      <button class:active={view === 'grid'} on:click={() => (view = 'grid')} title={$t('ui.docker.view_grid')}>▦ {$t('ui.docker.view_grid')}</button>
     </div>
     <div class="seg">
-      <button class:active={filter === 'all'}     on:click={() => (filter = 'all')}>Hepsi</button>
+      <button class:active={filter === 'all'}     on:click={() => (filter = 'all')}>{$t('ui.docker.filter_all')}</button>
       <button class:active={filter === 'running'} on:click={() => (filter = 'running')}>{$t('ui.docker.filter_running')}</button>
     </div>
 
     <div class="spacer"></div>
 
     <label class="refresh-sel">
-      <span>Yenile</span>
+      <span>{$t('ui.refresh_every')}</span>
       <div class="select-wrap">
         <select bind:value={refreshSec}>
-          {#each REFRESH_OPTIONS as o}<option value={o.sec}>{o.label}</option>{/each}
+          {#each REFRESH_OPTIONS as o}<option value={o.sec}>{$t(o.label)}</option>{/each}
         </select>
         <span class="caret">▾</span>
       </div>
@@ -173,7 +173,7 @@
                 {busy[c.name] === 'start' ? '…' : '▶ ' + $t('ui.docker.start')}
               </button>
             {/if}
-            <button class="chev" class:up={expanded === c.name} on:click={() => toggle(c.name)} aria-label="detay">›</button>
+            <button class="chev" class:up={expanded === c.name} on:click={() => toggle(c.name)} aria-label={$t('ui.docker.details')}>›</button>
           </div>
 
           {#if expanded === c.name}
@@ -185,10 +185,10 @@
                   <div class="stats">{detail[c.name].stats}</div>
                 {/if}
                 <div class="logrow">
-                  <span class="logtitle">Loglar</span>
-                  <button class="loglink" on:click={() => loadDetail(c.name)}>⟳ yenile</button>
+                  <span class="logtitle">{$t('ui.docker.logs')}</span>
+                  <button class="loglink" on:click={() => loadDetail(c.name)}>⟳ {$t('ui.refresh_short')}</button>
                 </div>
-                <pre class="logs">{detail[c.name]?.logs || 'Log yok.'}</pre>
+                <pre class="logs">{detail[c.name]?.logs || $t('ui.docker.no_logs')}</pre>
               {/if}
             </div>
           {/if}

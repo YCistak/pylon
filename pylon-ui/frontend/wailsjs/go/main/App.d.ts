@@ -21,6 +21,10 @@ export function Hotkey():Promise<string>;
 
 export function Language():Promise<string>;
 
+export function LanguagePref():Promise<string>;
+
+export function Languages():Promise<string>;
+
 export function Listen():Promise<string>;
 
 export function Platform():Promise<string>;
@@ -28,6 +32,8 @@ export function Platform():Promise<string>;
 export function RestartDaemon():Promise<void>;
 
 export function SetHotkey(arg1:string):Promise<string>;
+
+export function SetLanguage(arg1:string):Promise<string>;
 
 export function SetSecret(arg1:string,arg2:string):Promise<void>;
 

@@ -73,7 +73,7 @@
     {#if onEdit}
       <button class="edit" on:click={onEdit} title={$t('ui.edit')} aria-label={$t('ui.edit')}>✎</button>
     {/if}
-    <button class="refresh" class:spinning on:click={load} title="yenile" aria-label="yenile">⟳</button>
+    <button class="refresh" class:spinning on:click={load} title={$t('ui.refresh_short')} aria-label={$t('ui.refresh_short')}>⟳</button>
   </header>
 
   <div class="body">

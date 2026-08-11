@@ -11,7 +11,7 @@
   const KEYS = [
     {
       name: 'gemini',
-      title: 'Yapay Zekâ (Gemini)',
+      title: 'ui.keys.gemini',
       hint: 'ui.keys.gemini_hint',
     },
     {
@@ -95,10 +95,10 @@
   {#each KEYS as k (k.name)}
     <div class="key-row">
       <div class="key-head">
-        <span class="key-title">{k.title}</span>
+        <span class="key-title">{$t(k.title)}</span>
         {#if saved[k.name]}<span class="badge">{$t('ui.keys.saved')}</span>{/if}
       </div>
-      <p class="hint">{k.hint}</p>
+      <p class="hint">{$t(k.hint)}</p>
 
       <div class="row">
         <input
@@ -111,14 +111,14 @@
           spellcheck="false"
         />
         <button class="save" on:click={() => save(k.name)} disabled={busy[k.name] || !(value[k.name] || '').trim()}>
-          {busy[k.name] ? 'Kaydediliyor…' : 'Kaydet'}
+          {busy[k.name] ? $t('ui.saving') : $t('ui.save')}
         </button>
       </div>
 
       {#if confirming === k.name}
         <p class="note confirm">
           {$t('ui.keys.delete_ask')}
-          <button class="danger" on:click={() => remove(k.name)} disabled={busy[k.name]}>Sil</button>
+          <button class="danger" on:click={() => remove(k.name)} disabled={busy[k.name]}>{$t('ui.delete')}</button>
           <button class="link" on:click={() => (confirming = '')}>{$t('ui.cancel')}</button>
         </p>
       {:else if saved[k.name]}
@@ -128,9 +128,9 @@
       {/if}
 
       {#if note[k.name] === 'ok'}
-        <p class="note ok">Kaydedildi — Pylon yenilendi.</p>
+        <p class="note ok">{$t('ui.keys.saved_reloaded')}</p>
       {:else if note[k.name] === 'silindi'}
-        <p class="note ok">Silindi — Pylon yenilendi.</p>
+        <p class="note ok">{$t('ui.keys.deleted_reloaded')}</p>
       {:else if note[k.name]}
         <p class="note err">{note[k.name]}</p>
       {/if}

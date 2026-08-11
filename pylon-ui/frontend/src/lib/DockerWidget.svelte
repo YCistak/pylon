@@ -104,7 +104,7 @@
     {#if onEdit}
       <button class="icon-btn" on:click={onEdit} title={$t('ui.edit')} aria-label={$t('ui.edit')}>✎</button>
     {/if}
-    <button class="icon-btn" on:click={load} title="yenile" aria-label="yenile">⟳</button>
+    <button class="icon-btn" on:click={load} title={$t('ui.refresh_short')} aria-label={$t('ui.refresh_short')}>⟳</button>
   </header>
 
   <div class="body">
@@ -126,17 +126,17 @@
       <div class="controls">
         {#if running}
           <button class="ctl" disabled={!!busy} on:click={() => control('stop')}>
-            {busy === 'stop' ? '…' : '■ Durdur'}
+            {busy === 'stop' ? '…' : '■ ' + $t('ui.docker.stop')}
           </button>
           <button class="ctl" disabled={!!busy} on:click={() => control('restart')}>
-            {busy === 'restart' ? '…' : '⟲ Yeniden'}
+            {busy === 'restart' ? '…' : '⟲ ' + $t('ui.docker.restart_btn')}
           </button>
         {:else}
           <button class="ctl start" disabled={!!busy} on:click={() => control('start')}>
             {busy === 'start' ? '…' : '▶ ' + $t('ui.docker.start')}
           </button>
         {/if}
-        <button class="ctl logs" class:active={showLogs} on:click={toggleLogs}>Loglar</button>
+        <button class="ctl logs" class:active={showLogs} on:click={toggleLogs}>{$t('ui.docker.logs')}</button>
       </div>
 
       {#if showLogs}
@@ -144,8 +144,8 @@
           {#if logsLoading}
             <span class="muted">{$t('ui.docker.logs_loading')}</span>
           {:else}
-            <pre class="logs">{logsText || 'Log yok.'}</pre>
-            <button class="loglink" on:click={loadLogs}>⟳ yenile</button>
+            <pre class="logs">{logsText || $t('ui.docker.no_logs')}</pre>
+            <button class="loglink" on:click={loadLogs}>⟳ {$t('ui.refresh_short')}</button>
           {/if}
         </div>
       {/if}

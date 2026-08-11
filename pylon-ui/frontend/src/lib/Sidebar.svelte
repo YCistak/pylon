@@ -28,7 +28,7 @@
 >
   <div class="row">
     <div class="icon-col">
-      <button class="brand" title="Pylon" on:click={() => onNavigate('home')} aria-label="Ana sayfa">P</button>
+      <button class="brand" title="Pylon" on:click={() => onNavigate('home')} aria-label={$t('ui.home')}>P</button>
     </div>
     <div class="info">
       <span class="name">Pylon</span>
@@ -40,6 +40,8 @@
       {#each $sidebarPages as p (p.id)}
         {@const entry = pageCatalogEntry(p.type)}
         {#if entry}
+          <!-- i18n-raw: a pinned page's title is a product name ("Docker"),
+               not a catalog key, so it is the same in every language. -->
           <div class="row">
             <div class="icon-col">
               <button
@@ -69,10 +71,10 @@
     </div>
     <div class="row">
       <div class="icon-col">
-        <button class="gear" class:active={active === 'settings'} on:click={onSettings} title="Ayarlar" aria-label="Ayarlar">⚙</button>
+        <button class="gear" class:active={active === 'settings'} on:click={onSettings} title={$t('ui.settings.nav')} aria-label={$t('ui.settings.nav')}>⚙</button>
       </div>
       <div class="info">
-        <span class="name">Ayarlar</span>
+        <span class="name">{$t('ui.settings.nav')}</span>
       </div>
     </div>
   </div>

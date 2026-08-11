@@ -5,12 +5,13 @@
 // barely overlap anyway — the daemon speaks sentences ("3 events in your
 // calendar"), this speaks labels ("Appearance", "Cancel").
 //
-// What it must not have is its own language *setting*. The language comes from
-// the daemon (App.Language), so the buttons around an answer are always in the
-// same language as the answer.
+// What it must not have is its own language *setting*. The language belongs to
+// the daemon: Settings changes it there (App.SetLanguage) and reads it back, so
+// the buttons around an answer are always in the same language as the answer,
+// and the CLI agrees with both.
 
 import { derived, writable } from 'svelte/store'
-import { Language } from '../../wailsjs/go/main/App.js'
+import { Language, Languages, SetLanguage } from '../../wailsjs/go/main/App.js'
 
 import de from './locales/de.json'
 import en from './locales/en.json'
@@ -34,6 +35,42 @@ export async function syncLanguage() {
     // No daemon yet — the sidebar's status dot already says so, and English is
     // a working default until one appears.
   }
+}
+
+/**
+ * The languages Settings can offer: [{ code, name }], each name written in its
+ * own language and script. The list comes from the daemon, filtered to the ones
+ * this GUI also has labels for — a daemon that speaks a language the interface
+ * cannot label would produce a half-translated window.
+ *
+ * An unreachable daemon yields [], which the picker shows as "not running"
+ * rather than as an empty list.
+ */
+export async function availableLanguages() {
+  try {
+    const raw = await Languages()
+    return raw
+      .split('\n')
+      .map((line) => line.split('\t'))
+      .filter(([code]) => code && catalogs[code])
+      .map(([code, name]) => ({ code, name: name || code }))
+  } catch {
+    return []
+  }
+}
+
+/**
+ * Switch the language Pylon speaks, and follow it here. An empty code means
+ * "follow the system": the daemon forgets the choice and falls back to
+ * pylon.yaml or the desktop locale, and returns whichever it landed on.
+ *
+ * Throws when the daemon refuses or is unreachable, so the caller can say so
+ * instead of leaving the interface claiming a language it is not in.
+ */
+export async function setLanguage(code) {
+  const applied = await SetLanguage(code || 'auto')
+  if (applied && catalogs[applied]) lang.set(applied)
+  return applied
 }
 
 /**

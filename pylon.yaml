@@ -6,6 +6,10 @@
 # desktop's locale ($LANG) and falls back to English. This is the reply
 # language; voice.language below is a different thing — which language the
 # microphone is transcribed as.
+#
+# Settings → Genel and `pylon lang <code>` change the same thing without editing
+# this file, and what they set wins over the line below. `pylon lang auto`
+# forgets that choice and comes back here.
 language: ""
 
 voice:

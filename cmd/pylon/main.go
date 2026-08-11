@@ -59,19 +59,42 @@ var version = "dev"
 // through it rather than config.Load directly: a CLI command that skipped it
 // would answer in English while the daemon answered in Turkish.
 //
-// An empty language follows the desktop locale, so a fresh install needs no
-// configuration to speak the right language.
+// The language is resolved in the order it was decided in: a language picked in
+// the interface beats the config file, which beats the desktop's locale, which
+// falls back to English. The picked one wins because it is the more recent and
+// more deliberate statement — someone who chooses a language in Settings does
+// not expect a line in a YAML file to override them.
+//
+// With none of the three set, a fresh install still speaks the desktop's
+// language without being configured at all.
 func loadConfig() (config.Config, error) {
 	cfg, err := config.Load(configPath())
 	if err != nil {
 		return cfg, err
 	}
-	lang := strings.TrimSpace(cfg.Language)
-	if lang == "" {
-		lang = i18n.FromEnv()
-	}
-	i18n.SetLanguage(lang)
+	i18n.SetLanguage(resolveLanguage(cfg))
 	return cfg, nil
+}
+
+// resolveLanguage applies that order. Split out so `pylon lang auto` can report
+// what clearing the preference actually lands on.
+func resolveLanguage(cfg config.Config) string {
+	if lang := i18n.LoadPref(prefDir()); lang != "" {
+		return lang
+	}
+	if lang := strings.TrimSpace(cfg.Language); lang != "" {
+		return lang
+	}
+	return i18n.FromEnv()
+}
+
+// prefDir is where a language picked in the interface is remembered: beside the
+// config file it overrides. Tying it to configPath rather than to the user's
+// config directory keeps a run under a separate PYLON_CONFIG — a test install,
+// a release tarball being tried out — from changing the language of the real
+// one.
+func prefDir() string {
+	return filepath.Dir(configPath())
 }
 
 // configPath finds pylon.yaml, in order: $PYLON_CONFIG, ./pylon.yaml, then
@@ -121,6 +144,8 @@ func main() {
 		err = cmdWork(os.Args[2:])
 	case "recall":
 		err = cmdRecall(os.Args[2:])
+	case "lang":
+		err = cmdLang(os.Args[2:])
 	case "listen":
 		err = cmdListen()
 	case "auth":
@@ -158,6 +183,8 @@ usage:
   pylon work [week]   how long the tracked apps were used today (or this week)
   pylon recall [n]    show the last n remembered turns (default 5)
   pylon listen        push-to-talk: record, transcribe, run, speak the reply
+  pylon lang [list]   show the language Pylon speaks, or every one it can
+  pylon lang <code>   speak that language from now on ("auto" follows the system)
   pylon auth <google|spotify>          one-time OAuth consent in the browser
   pylon auth <google|spotify> logout   forget the saved token
   pylon secret set <name>   save a credential to the encrypted vault (ref as secret:<name>)
@@ -611,11 +638,70 @@ func registerIntent(d *daemon.Daemon, cfg config.Config, database *db.DB, regist
 		return resp
 	}
 
-	// "lang" tells a client which language the daemon is speaking, so the GUI
-	// labels itself the same way rather than keeping its own setting that could
-	// disagree with the replies appearing next to it.
-	d.Handle("lang", func(ipc.Request) ipc.Response {
-		return ipc.Response{OK: true, Text: i18n.Language()}
+	// "lang" owns the language, for the same reason registerHotkey owns the
+	// shortcut: one setting, held by the daemon, that every client reads and any
+	// client may change. The GUI deliberately has none of its own — two settings
+	// would eventually disagree, and a window whose buttons are English while the
+	// answers inside them are Turkish looks broken.
+	//
+	//	lang | lang get   the language now being spoken
+	//	lang pref         the language explicitly chosen, "" if none was
+	//	lang list         every shipped language, "<code>\t<its own name>"
+	//	lang set <code>   switch, and remember it; "auto" forgets and follows
+	//	                  the config file or the desktop locale again
+	//
+	// Bare "lang" still answers, because that is what shipped GUIs send.
+	d.Handle("lang", func(req ipc.Request) ipc.Response {
+		op := "get"
+		if len(req.Args) > 0 {
+			op = req.Args[0]
+		}
+		switch op {
+		case "get":
+			return ipc.Response{OK: true, Text: i18n.Language()}
+
+		case "pref":
+			// "Turkish" and "Turkish because that is this desktop's language"
+			// are different states, and a settings screen has to show which one
+			// it is in — otherwise "follow the system" can never look selected.
+			return ipc.Response{OK: true, Text: i18n.LoadPref(prefDir())}
+
+		case "list":
+			var b strings.Builder
+			for _, l := range i18n.Supported {
+				b.WriteString(l + "\t" + i18n.NativeName(l) + "\n")
+			}
+			return ipc.Response{OK: true, Text: b.String()}
+
+		case "set":
+			if len(req.Args) < 2 {
+				return ipc.Response{OK: false, Error: "lang set needs a language code, or \"auto\""}
+			}
+			// "auto" is stored as the absence of a preference, so the resolution
+			// order in loadConfig decides — which is also the only way to find out
+			// what the user is about to land on.
+			want := strings.TrimSpace(req.Args[1])
+			if want == "auto" {
+				want = ""
+			} else if !i18n.IsSupported(want) {
+				// Not i18n.SetLanguage's silent fallback to English: that is the
+				// right forgiveness for a typo in a config file, and the wrong
+				// answer for a button press, which must either work or say why not.
+				return ipc.Response{OK: false, Error: "no catalog for " + want + " (have: " + strings.Join(i18n.Supported, ", ") + ")"}
+			}
+			if err := i18n.SavePref(prefDir(), want); err != nil {
+				return ipc.Response{OK: false, Error: err.Error()}
+			}
+			if want == "" {
+				want = resolveLanguage(cfg)
+			}
+			lang := i18n.SetLanguage(want)
+			log.Info("language: changed", "lang", lang)
+			return ipc.Response{OK: true, Text: lang}
+
+		default:
+			return ipc.Response{OK: false, Error: "unknown operation: " + op}
+		}
 	})
 
 	d.Handle("say", func(req ipc.Request) ipc.Response {
@@ -1516,6 +1602,97 @@ func cmdRecall(args []string) error {
 	}
 	fmt.Println(resp.Text)
 	return nil
+}
+
+// cmdLang shows or changes the language Pylon speaks.
+//
+//	pylon lang         print the current language code
+//	pylon lang list    every shipped language, current one marked
+//	pylon lang de      switch to German
+//	pylon lang auto    forget the choice; follow pylon.yaml or the desktop
+//
+// Its output is codes rather than sentences, deliberately: this is the command
+// you reach for when Pylon is speaking a language you cannot read, and it has
+// to stay legible in exactly that situation.
+//
+// A running daemon is told directly so the change lands without a restart. With
+// no daemon, writing the preference is the whole job — the next start reads it.
+func cmdLang(args []string) error {
+	cfg, err := loadConfig()
+	if err != nil {
+		return fmt.Errorf("config: %w", err)
+	}
+
+	ask := func(a ...string) (string, bool) {
+		resp, err := daemon.Send(socketPath(), ipc.Request{Cmd: "lang", Args: a})
+		if err != nil || !resp.OK {
+			return "", false
+		}
+		return resp.Text, true
+	}
+
+	// No argument, or "list": report only.
+	if len(args) == 0 || args[0] == "list" {
+		current := i18n.Language()
+		if text, ok := ask("get"); ok {
+			current = text
+		}
+		if len(args) == 0 {
+			fmt.Println(current)
+			return nil
+		}
+		for _, l := range i18n.Supported {
+			mark := " "
+			if l == current {
+				mark = "*"
+			}
+			fmt.Printf("%s %-3s %s\n", mark, l, i18n.NativeName(l))
+		}
+		return nil
+	}
+
+	want := strings.TrimSpace(args[0])
+	if want == "auto" {
+		want = ""
+	} else if !i18n.IsSupported(want) {
+		return fmt.Errorf("no catalog for %q (have: %s)", want, strings.Join(i18n.Supported, ", "))
+	}
+
+	// The daemon writes the preference itself, so going through it avoids two
+	// processes writing the same file — and it is the only way the change reaches
+	// a daemon that is already running.
+	//
+	// Its answer is checked rather than trusted. A daemon from before this
+	// command existed replies to "lang" without reading its arguments, so it
+	// reports success and changes nothing; falling through to writing the file
+	// ourselves means an upgrade in progress still leaves the language set.
+	arg := want
+	if arg == "" {
+		arg = "auto"
+	}
+	if text, ok := ask("set", arg); ok && langWasSet(want, text) {
+		fmt.Println(text)
+		return nil
+	}
+	if err := i18n.SavePref(prefDir(), want); err != nil {
+		return err
+	}
+	if want == "" {
+		want = resolveLanguage(cfg)
+	}
+	fmt.Println(i18n.SetLanguage(want))
+	return nil
+}
+
+// langWasSet decides whether a daemon's reply to "lang set" reflects a change
+// that actually happened. Asking for a language is verified against the reply;
+// asking for "auto" is verified against the file, because the reply is then the
+// language that was resolved and there is nothing to compare it to.
+func langWasSet(want, reply string) bool {
+	if want == "" {
+		return i18n.LoadPref(prefDir()) == ""
+	}
+	return reply == i18n.Normalize(want)
 }
 
 // cmdStop asks the running daemon to shut down.

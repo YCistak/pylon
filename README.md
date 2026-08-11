@@ -29,10 +29,12 @@ phrasings for free; anything it cannot place falls through to an LLM chain
 when one hits its quota.
 
 **Languages.** Pylon answers in English, German, Spanish, French, Portuguese,
-Russian or Turkish. Set `language:` in `pylon.yaml`, or leave it empty and it
-follows your desktop's locale. That covers everything it says and writes — the
-GUI included, down to the weekday names in the daily briefing. Understanding
-you is a separate matter: the LLM handles whatever language it knows, while the
+Russian or Turkish. Pick one in **Settings → Genel**, or run `pylon lang de`;
+either takes effect at once, without restarting anything. `language:` in
+`pylon.yaml` sets the starting point, and leaving it empty follows your
+desktop's locale. That covers everything Pylon says and writes — the GUI
+included, down to the weekday names in the daily briefing. Understanding you is
+a separate matter: the LLM handles whatever language it knows, while the
 key-less local router recognises Turkish and English phrasings only.
 
 > Everything beyond English and Turkish was translated by the author with

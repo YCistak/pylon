@@ -156,9 +156,11 @@ func (a *App) Ask(text string) (string, error) {
 }
 
 // Language reports the language the daemon is speaking, so the interface can
-// label itself the same way. The GUI deliberately has no language setting of
-// its own: two settings would eventually disagree, and a window whose buttons
-// are English while the answers inside them are Turkish looks broken.
+// label itself the same way. The GUI deliberately stores no language of its
+// own: two settings would eventually disagree, and a window whose buttons are
+// English while the answers inside them are Turkish looks broken. Settings
+// changes the daemon's language (SetLanguage) and then reads it back — the
+// daemon stays the single source, the interface just follows.
 //
 // With no daemon reachable it returns "" and the frontend keeps its default.
 func (a *App) Language() string {
@@ -167,6 +169,56 @@ func (a *App) Language() string {
 		return ""
 	}
 	return resp.Text
+}
+
+// LanguagePref reports the language explicitly chosen, or "" when none was and
+// Pylon is following pylon.yaml or the desktop's locale. Settings needs the
+// difference: Language() alone cannot tell a chosen Turkish from a Turkish that
+// simply followed the system, so "follow the system" could never show as the
+// selected option.
+//
+// "" is also what an unreachable daemon gives, which lands on the same default.
+func (a *App) LanguagePref() string {
+	resp, err := send(request{Cmd: "lang", Args: []string{"pref"}})
+	if err != nil || !resp.OK {
+		return ""
+	}
+	return resp.Text
+}
+
+// Languages lists what Settings can offer: one line per language, "<code>\t<its
+// own name>". The list comes from the daemon rather than being hard-coded in
+// the frontend so that adding a catalog adds a row on its own — and so a GUI
+// paired with an older daemon offers only what that daemon can actually speak.
+//
+// Tab-separated plain text, matching Hotkey, rather than a bound struct for two
+// strings.
+func (a *App) Languages() string {
+	resp, err := send(request{Cmd: "lang", Args: []string{"list"}})
+	if err != nil || !resp.OK {
+		return ""
+	}
+	return resp.Text
+}
+
+// SetLanguage switches the language Pylon speaks and remembers the choice,
+// returning the language that took effect. It applies immediately: nothing is
+// restarted, and the next reply is already in the new language.
+//
+// An empty tag (or "auto") forgets the choice and follows pylon.yaml, or the
+// desktop's locale when that says nothing.
+func (a *App) SetLanguage(tag string) (string, error) {
+	if tag == "" {
+		tag = "auto"
+	}
+	resp, err := send(request{Cmd: "lang", Args: []string{"set", tag}})
+	if err != nil {
+		return "", err
+	}
+	if !resp.OK {
+		return "", fmt.Errorf("%s", resp.Error)
+	}
+	return resp.Text, nil
 }
 
 // Platform reports the desktop the GUI is running on, so the settings UI can
