@@ -9,6 +9,27 @@ Cutting a release: [docs/RELEASE.md](docs/RELEASE.md).
 
 ## [Unreleased]
 
+### Fixed
+
+- **You can see where the keyboard is now.** The interface had five `:focus`
+  rules — the settings tablist and a few text fields — and left everything else
+  to the engine's default outline, a thin dark line that against these surfaces
+  is not visible at all. Tabbing across the sidebar, a widget's pen icon or
+  **Konuş** showed nothing whatsoever, so the keyboard path was unusable even
+  though it worked. One `:focus-visible` rule in `style.css` now draws a cyan
+  ring on anything focused, deliberately as the least specific rule in the
+  interface so a control with its own focus treatment still wins.
+
+- **Closing the widget dialog no longer drops you at the top of the page.**
+  Handing focus back needs the trigger to still exist, and the pen icon on the
+  home screen destroys itself on the way to the dialog: it switches the view to
+  Görünüm, which unmounts the page it lives on. The `isConnected` check noticed
+  and quietly gave up, so *every* close from the home screen sent a keyboard
+  user back to the start of the document — the one case the fallback was written
+  for was the rare one (a deleted widget), and the common one went unnoticed.
+  The dialog now walks a list: the trigger, then the row for the widget that was
+  being edited, then the button that adds one.
+
 ### Added
 
 - **"What's playing?" without an account.** Asking Pylon what is playing needed

@@ -52,6 +52,25 @@
 
 * { box-sizing: border-box; }
 
+/* Keyboard focus has to be visible, and on the home screen it was not. The whole
+   interface had five :focus rules — the settings tablist and a few text fields —
+   so every other control fell back to the engine's default outline, a thin dark
+   line that is effectively invisible against these surfaces. Tabbing through the
+   sidebar, a widget's pen icon or the Talk button showed nothing at all, which
+   makes the keyboard path untestable as well as unusable.
+
+   Global rather than per-button: the alternative is a rule beside every control,
+   and a missing ring on the next one added. :focus-visible rather than :focus, so
+   a mouse click does not leave a ring behind. Cyan rather than the violet accent,
+   because several focusable controls are already violet when active and a ring in
+   the same colour reads as "selected" instead of "here". The more specific rules
+   that came before this still win: the tablist's inset outline, the fields'
+   box-shadow, and the dialog's deliberate `outline: none`. */
+:focus-visible {
+    outline: 2px solid var(--accent-2);
+    outline-offset: 2px;
+}
+
 /* Strip the platform's own <select> chrome: on GTK/WebKit it ignores
    color-scheme and renders a white pill regardless. The arrow is drawn back as
    a background image so the control still reads as a dropdown. */
