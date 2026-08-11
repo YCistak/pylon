@@ -10,6 +10,8 @@ import (
 	"os/exec"
 	"strings"
 	"time"
+
+	"github.com/YCistak/pylon/internal/i18n"
 )
 
 // recordGrace is how long past the capture window a self-terminating recorder is
@@ -37,7 +39,7 @@ const wavHeaderBytes = 44
 
 // errNoSpeech reports a capture that timed out before the speaker said
 // anything — a normal outcome worth a plain message, not a subprocess error.
-var errNoSpeech = errors.New("konuşma algılanmadı")
+var errNoSpeech = errors.New("no speech detected")
 
 // Recorder captures microphone audio into a WAV file.
 type Recorder interface {
@@ -101,7 +103,7 @@ func pickRecordCmd(silenceStop bool) []string {
 		return defaultRecordCmd()
 	}
 	if _, err := exec.LookPath(cmd[0]); err != nil {
-		log.Printf("voice: %s bulunamadı, sabit süreli kayda düşüldü (susunca-dur kapalı)", cmd[0])
+		log.Printf("voice: %s not found, falling back to a fixed-length recording (silence-stop off)", cmd[0])
 		return defaultRecordCmd()
 	}
 	return cmd
@@ -149,7 +151,7 @@ func (r *cmdRecorder) Record(ctx context.Context, wavPath string) error {
 		if waitsForSpeech {
 			return errNoSpeech
 		}
-		return fmt.Errorf("%s: kayıt boş kaldı", r.cmd[0])
+		return errors.New(i18n.T("voice.recording_empty", r.cmd[0]))
 	}
 	if err != nil {
 		if msg := strings.TrimSpace(stderr.String()); msg != "" {

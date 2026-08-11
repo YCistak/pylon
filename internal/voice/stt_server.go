@@ -57,7 +57,7 @@ func (s *serverTranscriber) Transcribe(ctx context.Context, wavPath string) (str
 	// Log the reason once: a server that dies mid-session would otherwise
 	// produce one line per utterance.
 	s.warnOnce.Do(func() {
-		log.Printf("voice: STT sunucusuna ulaşılamadı (%v), whisper-cli'ye düşülüyor", err)
+		log.Printf("voice: STT server unreachable (%v), falling back to whisper-cli", err)
 	})
 	return s.fallback.Transcribe(ctx, wavPath)
 }

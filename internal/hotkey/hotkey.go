@@ -12,10 +12,12 @@ package hotkey
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"os"
 	"os/exec"
 	"strings"
+
+	"github.com/YCistak/pylon/internal/i18n"
 )
 
 // Combo is a normalized shortcut: modifiers plus one key, e.g. SUPER+P.
@@ -52,12 +54,12 @@ func Parse(s string) (Combo, error) {
 			continue
 		}
 		if c.Key != "" {
-			return Combo{}, fmt.Errorf("hotkey %q: birden fazla tuş var (%q ve %q)", s, c.Key, part)
+			return Combo{}, errors.New(i18n.T("hotkey.multiple_keys", s, c.Key, part))
 		}
 		c.Key = normalizeKey(part)
 	}
 	if c.Key == "" {
-		return Combo{}, fmt.Errorf("hotkey %q: tuş yok", s)
+		return Combo{}, errors.New(i18n.T("hotkey.no_key", s))
 	}
 	c.Mods = sortMods(c.Mods)
 	return c, nil
