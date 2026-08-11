@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"testing"
+
+	"github.com/YCistak/pylon/internal/i18n"
 )
 
 // fakeRates implements rateAPI with canned answers.
@@ -43,7 +45,7 @@ func TestCurrencyDefaultsToTRY(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "1 dollar is 34,12 Turkish lira."
+	want := "1 dollar is 34.12 Turkish lira."
 	if got != want {
 		t.Fatalf("got %q want %q", got, want)
 	}
@@ -52,17 +54,29 @@ func TestCurrencyDefaultsToTRY(t *testing.T) {
 func TestCurrencyExplicitQuote(t *testing.T) {
 	e := withAPI(fakeRates{fiat: map[string]float64{"GBP/USD": 1.27}})
 	got, _ := e.Execute(context.Background(), ActionCurrency, map[string]string{"base": "GBP", "quote": "usd"})
-	if got != "1 pound is 1,27 dollars." {
+	if got != "1 pound is 1.27 dollars." {
 		t.Fatalf("got %q", got)
 	}
 }
 
-func TestCryptoGrouping(t *testing.T) {
+// An amount is punctuated by the language of the sentence around it: the same
+// price reads "2,850,000.50" in English and "2.850.000,50" in Turkish. The
+// formatting itself lives in i18n; what this guards is that the service asks
+// for it rather than writing the number itself, which is how "1 dollar is
+// 34,12 Turkish lira" — a hundredth of the real rate, to an English reader —
+// used to get out.
+func TestAmountFollowsTheLanguage(t *testing.T) {
 	e := withAPI(fakeRates{crypto: map[string]float64{"bitcoin/TRY": 2850000.5}})
-	got, _ := e.Execute(context.Background(), ActionCrypto, map[string]string{"coin": "Bitcoin"})
-	if got != "Bitcoin is at 2.850.000,50 Turkish lira." {
-		t.Fatalf("got %q", got)
+	for lang, want := range map[string]string{
+		"en": "Bitcoin is at 2,850,000.50 Turkish lira.",
+		"tr": "Bitcoin 2.850.000,50 Türk lirası.",
+	} {
+		i18n.SetLanguage(lang)
+		if got, _ := e.Execute(context.Background(), ActionCrypto, map[string]string{"coin": "Bitcoin"}); got != want {
+			t.Errorf("crypto price in %s = %q, want %q", lang, got, want)
+		}
 	}
+	i18n.SetLanguage(i18n.Default)
 }
 
 func TestMissingArgsPrompt(t *testing.T) {
@@ -91,20 +105,5 @@ func TestUnknownAction(t *testing.T) {
 	}
 }
 
-func TestFormatMoney(t *testing.T) {
-	cases := map[float64]string{
-		34.125:     "34,13", // rounds
-		0:          "0,00",
-		999:        "999,00",
-		1000:       "1.000,00",
-		2850000.5:  "2.850.000,50",
-		1234567.89: "1.234.567,89",
-		-5.5:       "-5,50",
-		0.999:      "1,00", // frac rounds into whole
-	}
-	for in, want := range cases {
-		if got := formatMoney(in); got != want {
-			t.Errorf("formatMoney(%v) = %q, want %q", in, got, want)
-		}
-	}
-}
+// The rounding and grouping cases moved with the formatting itself:
+// internal/i18n, TestMoney.

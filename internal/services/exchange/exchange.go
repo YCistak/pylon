@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -75,7 +74,7 @@ func (e *Exchange) Execute(ctx context.Context, action intent.Action, args map[s
 		if err != nil {
 			return i18n.T("exchange.rate_unavailable"), nil
 		}
-		return i18n.T("exchange.rate", currencyName(base, 1), formatMoney(rate), currencyName(quote, rate)), nil
+		return i18n.T("exchange.rate", currencyName(base, 1), i18n.Money(rate), currencyName(quote, rate)), nil
 	case ActionCrypto:
 		coin := strings.ToLower(strings.TrimSpace(args["coin"]))
 		if coin == "" {
@@ -86,7 +85,7 @@ func (e *Exchange) Execute(ctx context.Context, action intent.Action, args map[s
 		if err != nil {
 			return i18n.T("exchange.price_unavailable"), nil
 		}
-		return i18n.T("exchange.price", coinName(coin), formatMoney(price), currencyName(vs, price)), nil
+		return i18n.T("exchange.price", coinName(coin), i18n.Money(price), currencyName(vs, price)), nil
 	default:
 		return "", fmt.Errorf("exchange: unknown action %q", action)
 	}
@@ -102,50 +101,6 @@ func codeOr(s, fallback string) string {
 	return fallback
 }
 
-// formatMoney renders a price for Turkish speech/display: thousands grouped with
-// '.', two decimals after a ',' ("2.850.000,50", "34,12").
-func formatMoney(v float64) string {
-	neg := v < 0
-	if neg {
-		v = -v
-	}
-	whole := int64(v)
-	frac := int64((v-float64(whole))*100 + 0.5)
-	if frac == 100 { // rounding carried into the integer part
-		whole++
-		frac = 0
-	}
-	s := groupThousands(strconv.FormatInt(whole, 10)) + "," + fmt.Sprintf("%02d", frac)
-	if neg {
-		return "-" + s
-	}
-	return s
-}
-
-func groupThousands(digits string) string {
-	n := len(digits)
-	if n <= 3 {
-		return digits
-	}
-	var b strings.Builder
-	lead := n % 3
-	if lead > 0 {
-		b.WriteString(digits[:lead])
-		if n > lead {
-			b.WriteByte('.')
-		}
-	}
-	for i := lead; i < n; i += 3 {
-		b.WriteString(digits[i : i+3])
-		if i+3 < n {
-			b.WriteByte('.')
-		}
-	}
-	return b.String()
-}
-
-// currencyName maps common ISO codes to a Turkish spoken name, falling back to
-// the code itself for anything unlisted.
 // currencyName speaks a code the way a person would ("USD" → "dollars",
 // "dolar", "доллара"). The names live in the catalogs rather than a table here,
 // because in the languages Pylon speaks they are ordinary nouns that decline.

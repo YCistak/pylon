@@ -81,6 +81,23 @@ Cutting a release: [docs/RELEASE.md](docs/RELEASE.md).
 
 ### Fixed
 
+- **Arithmetic and prices answer in the language they were asked in.** The
+  seven-language work translated the sentences that came from a catalog and
+  missed the two services that built their own: the calculator answered
+  `12 times 7` with "84 eder." in every language, because the wording was a
+  `fmt.Sprintf("%s eder.", …)` in the middle of the arithmetic, and nothing
+  about arithmetic looks like a place where a language would hide.
+
+  The numbers themselves were wrong in a way that is worse than untranslated
+  text. Both services punctuated them as Turkish does — a point between
+  thousands, a comma before the decimals — so an English reader was told
+  "1 dollar is 47,71 Turkish lira", which is not a foreign-looking spelling of
+  the rate but one-hundredth of it, and "2.850.000,50" for a bitcoin price.
+  Punctuation now comes from `i18n.Decimal` and `i18n.Money`, one table for all
+  seven languages, including the no-break space French and Russian group with.
+  The two services no longer format numbers themselves, and the case that used
+  to be frozen into their tests as correct is now the case that fails.
+
 - **The interface is actually translated now.** Adding the language picker
   turned up text the seven-language work had missed, because nothing checked
   for it: the voice bar said "Konuş" inside a Russian window, the API-key hints
