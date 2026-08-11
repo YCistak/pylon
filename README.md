@@ -54,7 +54,8 @@ key-less local router recognises Turkish and English phrasings only.
 | **docker** | list, inspect, start/stop/restart containers |
 | **sysmon** | CPU load, RAM, free disk, temperature, uptime (Linux) |
 | **calendar / drive** | today's events, recent files (Google) |
-| **spotify** | playback control, now playing |
+| **media** | what is playing right now, on any local player — no account needed |
+| **spotify** | playback control, now playing, play a track by name |
 | **system** | lock the screen, volume, media keys, close an app |
 | **work** | how long today's tracked apps were open, against a daily goal |
 
@@ -83,13 +84,22 @@ that touches the OS. Tested on real runners for each platform:
 | Google, Spotify | ✅ | ✅ | ✅ |
 | Docker | ✅ | ✅ ¹ | ⚠️ ² |
 | Voice (STT/TTS) | ✅ | ✅ | ✅ (`scripts/tts.ps1`) |
-| Screen lock, volume, media keys | ✅ | ❌ | ❌ |
+| Screen lock, volume, media keys, now playing | ✅ | ❌ | ❌ |
 | Process watching | ✅ | ✅ | ✅ |
 
 Process watching uses `/proc` on Linux, `ps` on macOS and `tasklist` on
 Windows. Machine control still shells out to `loginctl`/`pactl`/`playerctl`, so
 it is Linux-only for now; it degrades with a message rather than crashing — the
 rest of Pylon works.
+
+"Now playing" is in that row because it reads MPRIS, the D-Bus interface every
+Linux player publishes — which is why it answers for Spotify, a browser tab, VLC
+and mpv without knowing anything about them, and why it has nothing to read on
+the other two platforms. macOS would drive the Spotify and Music apps through
+`osascript`, Windows would read the WinRT `GlobalSystemMediaTransportControls`
+session; both are straightforward and neither is written, because neither can
+be tested here. `nowPlaying` in `internal/services/system/system.go` is where
+they would go.
 
 **¹ Docker on macOS** works over the Unix socket, but recent Docker Desktop
 versions no longer create `/var/run/docker.sock` unless you tick *Settings →

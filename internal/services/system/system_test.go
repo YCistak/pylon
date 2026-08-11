@@ -3,6 +3,7 @@ package system
 import (
 	"context"
 	"errors"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -13,6 +14,7 @@ import (
 type fakeRunner struct {
 	calls  []string
 	failIf func(name string, args []string) bool
+	out    string // what output() returns when it is not made to fail
 }
 
 func (f *fakeRunner) run(_ context.Context, name string, args ...string) error {
@@ -21,6 +23,14 @@ func (f *fakeRunner) run(_ context.Context, name string, args ...string) error {
 		return errors.New("boom")
 	}
 	return nil
+}
+
+func (f *fakeRunner) output(_ context.Context, name string, args ...string) (string, error) {
+	f.calls = append(f.calls, strings.TrimSpace(name+" "+strings.Join(args, " ")))
+	if f.failIf != nil && f.failIf(name, args) {
+		return "", errors.New("boom")
+	}
+	return f.out, nil
 }
 
 func runAction(t *testing.T, fr *fakeRunner, action intent.Action, args map[string]string) string {
@@ -157,5 +167,43 @@ func TestActionsCoverRouterIntents(t *testing.T) {
 		if !owned[a] {
 			t.Errorf("system service does not own router action %q", a)
 		}
+	}
+}
+
+// Now-playing reads whatever MPRIS player is running, so the cases that matter
+// are the shapes a player can hand back — not any one application.
+func TestNowPlaying(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("MPRIS is Linux-only; the other platforms have no backend yet")
+	}
+	cases := []struct {
+		name string
+		out  string
+		fail bool
+		want string
+	}{
+		{name: "playing", out: "Playing\tRadiohead\tWeird Fishes\n", want: "Radiohead — Weird Fishes is playing."},
+		{name: "paused", out: "Paused\tRadiohead\tWeird Fishes\n", want: "Radiohead — Weird Fishes — paused."},
+		// A browser tab or a stream often has no artist; "— Title" would read
+		// as a missing word.
+		{name: "no artist", out: "Playing\t\tSome Video\n", want: "Some Video is playing."},
+		// A title containing a dash must survive: the format is tab-separated
+		// for exactly this.
+		{name: "dash in title", out: "Playing\tX\tA - B\n", want: "X — A - B is playing."},
+		// playerctl exits non-zero when no player is running at all. That is an
+		// answer to the question, not a failure to report.
+		{name: "no player", fail: true, want: "Nothing is playing."},
+		{name: "empty metadata", out: "Stopped\t\t\n", want: "Nothing is playing."},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			fr := &fakeRunner{out: c.out}
+			if c.fail {
+				fr.failIf = func(name string, _ []string) bool { return name == "playerctl" }
+			}
+			if got := runAction(t, fr, intent.ActionNowPlaying, nil); got != c.want {
+				t.Errorf("reply %q, want %q", got, c.want)
+			}
+		})
 	}
 }

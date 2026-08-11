@@ -11,6 +11,7 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
+	"runtime"
 	"strings"
 
 	"github.com/YCistak/pylon/internal/i18n"
@@ -22,9 +23,18 @@ import (
 // dispatch straight here.
 const ActionClose intent.Action = "system.close"
 
+// This service answers intent.ActionNowPlaying — what is playing right now, on
+// whatever player is running. It is handled here rather than by the Spotify
+// service because it needs nothing: no account, no OAuth client, no Premium
+// subscription. Spotify's Web API can also answer it, and answers it for a
+// phone in another room — but asking the machine you are sitting at is the
+// common case, and it costs the user nothing to set up.
+
 // runner runs one external command; a fake implements it in tests.
 type runner interface {
 	run(ctx context.Context, name string, args ...string) error
+	// output is run for commands whose answer is the point, not their effect.
+	output(ctx context.Context, name string, args ...string) (string, error)
 }
 
 // System is the machine-control Service.
@@ -44,6 +54,10 @@ func (s *System) Actions() []intent.ActionSpec {
 		{Name: intent.ActionMediaPause},
 		{Name: intent.ActionMediaNext},
 		{Name: intent.ActionMediaPrev},
+		{
+			Name: intent.ActionNowPlaying,
+			Desc: `"media.now_playing": say what is playing on this machine right now, on any player (Spotify, a browser tab, VLC). No args. Use for "şu an ne çalıyor", "ne dinliyorum", "what's playing".`,
+		},
 		{Name: intent.ActionVolumeUp},
 		{Name: intent.ActionVolumeDown},
 		{Name: intent.ActionMute},
@@ -96,6 +110,9 @@ func (s *System) Execute(ctx context.Context, action intent.Action, args map[str
 	case intent.ActionMediaPrev:
 		return s.player(ctx, "previous", i18n.T("system.media.prev"))
 
+	case intent.ActionNowPlaying:
+		return s.nowPlaying(ctx)
+
 	case ActionClose:
 		app := strings.TrimSpace(args["app"])
 		if app == "" {
@@ -117,6 +134,52 @@ func (s *System) Execute(ctx context.Context, action intent.Action, args map[str
 	default:
 		return "", fmt.Errorf("system: unknown action %q", action)
 	}
+}
+
+// nowPlaying reports the current track, taking the player at its word.
+//
+// Only Linux is wired, over MPRIS — the D-Bus interface every Linux player
+// publishes, which is why this works for Spotify, Firefox, VLC and mpv alike
+// without knowing anything about them. The other two platforms each need their
+// own backend and neither is written: macOS would drive the Spotify and Music
+// apps through osascript, Windows would read the WinRT
+// GlobalSystemMediaTransportControls session. Both are perfectly possible; what
+// stopped them is that they cannot be tested here, and a media backend that
+// nobody has ever run is worse than an honest refusal.
+func (s *System) nowPlaying(ctx context.Context) (string, error) {
+	if runtime.GOOS != "linux" {
+		return i18n.T("system.media.unsupported_os"), nil
+	}
+
+	// Tab-separated so the fields survive titles containing anything at all —
+	// a dash in a song name would make a prettier format ambiguous.
+	const format = "{{status}}\t{{artist}}\t{{title}}"
+	out, err := s.run.output(ctx, "playerctl", "metadata", "--format", format)
+	if err != nil {
+		// playerctl exits non-zero when no player is running at all, which is
+		// an ordinary answer to the question rather than a failure.
+		return i18n.T("system.media.nothing_playing"), nil
+	}
+
+	fields := strings.SplitN(strings.TrimSpace(out), "\t", 3)
+	for len(fields) < 3 {
+		fields = append(fields, "")
+	}
+	status, artist, title := fields[0], strings.TrimSpace(fields[1]), strings.TrimSpace(fields[2])
+	if title == "" {
+		return i18n.T("system.media.nothing_playing"), nil
+	}
+
+	// An untitled stream has no artist, and neither does a video; saying
+	// "— Title" instead would read as a missing word.
+	track := title
+	if artist != "" {
+		track = i18n.T("system.media.track", artist, title)
+	}
+	if strings.EqualFold(status, "Paused") {
+		return i18n.T("system.media.paused_track", track), nil
+	}
+	return i18n.T("system.media.playing", track), nil
 }
 
 // player runs a playerctl command against the active MPRIS player.
@@ -158,4 +221,14 @@ func (execRunner) run(ctx context.Context, name string, args ...string) error {
 		return fmt.Errorf("%s: %w: %s", name, err, strings.TrimSpace(string(out)))
 	}
 	return nil
+}
+
+// output captures stdout only: stderr would otherwise end up inside a track
+// title the moment a player logs a warning.
+func (execRunner) output(ctx context.Context, name string, args ...string) (string, error) {
+	out, err := exec.CommandContext(ctx, name, args...).Output()
+	if err != nil {
+		return "", fmt.Errorf("%s: %w", name, err)
+	}
+	return string(out), nil
 }

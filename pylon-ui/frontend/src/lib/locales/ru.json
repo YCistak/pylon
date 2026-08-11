@@ -148,6 +148,8 @@
   "ui.widget.freshrss.unread": "Непрочитанные",
   "ui.widget.github.issues": "Задачи",
   "ui.widget.github.prs": "PR-ы",
+  "ui.widget.media": "Сейчас играет",
+  "ui.widget.media.now": "Что играет",
   "ui.widget.not_connected": "Не подключено",
   "ui.widget.spotify.now": "Сейчас играет",
   "ui.widget.sysmon": "Система",

@@ -11,6 +11,16 @@ Cutting a release: [docs/RELEASE.md](docs/RELEASE.md).
 
 ### Added
 
+- **"What's playing?" without an account.** Asking Pylon what is playing needed
+  a Spotify app, an OAuth client id in `pylon.yaml`, a Premium subscription and
+  a browser round-trip — for a question the machine can answer about itself. It
+  now reads MPRIS, the D-Bus interface every Linux player publishes, so it works
+  for Spotify, a browser tab, VLC or mpv with nothing configured at all. The
+  local router resolves the phrasings, so it costs no model call either, and the
+  new **Çalan** widget puts it on the home screen. Spotify's own `now_playing`
+  stays: it is the one that can answer for a phone in another room, and the only
+  one that can play a track by name.
+
 - **A language picker in Settings** (Genel), and `pylon lang <code>` on the
   command line. Until now the seven languages could only be reached by editing
   `pylon.yaml`, which is invisible to anyone who has just installed Pylon. The
