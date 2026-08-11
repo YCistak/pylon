@@ -60,9 +60,11 @@
     const mode = entry.modes[0]
     returnFocus = document.activeElement
     draft = {
-      // The instance keeps a plain title, not a key: it is editable text from
-      // here on, and the user may rename it to anything.
-      id: null, type, title: $t(entry.title), column: 'left',
+      // No title: an empty one means "call it whatever this type is called in
+      // the current language", resolved wherever it is drawn. Putting the
+      // resolved text here is what used to freeze a widget into the language it
+      // was added in. Typing a name makes it text, permanently.
+      id: null, type, title: '', column: 'left',
       mode: mode.id, params: {}, refresh: 0, accent: entry.accent,
     }
     isNew = true
@@ -114,7 +116,9 @@
 
   function save() {
     const { id, type, title, column, mode, params, refresh } = draft
-    const patch = { title, column, mode, params, refresh }
+    // Trimmed, so that clearing the field — or leaving only spaces in it — goes
+    // back to the default name instead of saving a blank-looking title.
+    const patch = { title: (title || '').trim(), column, mode, params, refresh }
     if (isNew) widgets.add(type, patch)
     else widgets.update(id, patch)
     closeModal()
@@ -217,7 +221,9 @@
           <li>
             <span class="tile" style="--wa: {entry.accent}">{@html entry.icon}</span>
             <div class="info">
-              <span class="name">{w.title}</span><!-- i18n-raw: what the user named it -->
+              <!-- i18n-raw: what the user typed, if anything; an untouched
+                   widget has no title of its own and takes its type's. -->
+              <span class="name">{w.title || $t(entry.title)}</span>
               <span class="meta">
                 <span class="chip">{w.column === 'left' ? $t('ui.left') : $t('ui.right')}</span>
                 <span class="mode">{$t(modeOf(w.type, w.mode)?.label ?? '')}</span>
@@ -298,17 +304,17 @@
 
       <div class="preview">
         {#if draft.type === 'docker' && draft.mode === 'container'}
-          <!-- i18n-raw: the draft's title is free text -->
+          <!-- i18n-raw: free text once typed; empty falls back to the default -->
           <DockerWidget
-            title={draft.title}
+            title={draft.title || $t(draftEntry.title)}
             params={draft.params}
             accent={draftEntry.accent}
           />
         {:else}
-          <!-- i18n-raw: same free text, in the non-Docker preview -->
+          <!-- i18n-raw: same, in the non-Docker preview -->
           <Widget
             icon={draftEntry.icon}
-            title={draft.title}
+            title={draft.title || $t(draftEntry.title)}
             action={draftMode.action}
             params={draft.params}
             accent={draftEntry.accent}
@@ -318,7 +324,9 @@
 
       <label class="field">
         <span>{$t('ui.settings.title_field')}</span>
-        <input type="text" bind:value={draft.title} />
+        <!-- Empty is a real choice, not a missing one: the placeholder shows
+             what the widget will be called, and it follows the language. -->
+        <input type="text" bind:value={draft.title} placeholder={$t(draftEntry.title)} />
       </label>
 
       {#if draftEntry.modes.length > 1}

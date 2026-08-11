@@ -31,13 +31,20 @@
   $: activePage = $sidebarPages.find((p) => p.id === view)
 
   // Home renders the ordered instance array, split by column. Starts empty.
-  function withAction(w) {
+  //
+  // The title is resolved here, once, for every card: an empty one means the
+  // widget still carries its type's default name, which has to follow the
+  // language. `t` is passed in rather than read inside, because Svelte only
+  // tracks the stores it can see in the reactive statements themselves — a $t
+  // hidden inside this function would leave the titles in the old language
+  // until something unrelated changed.
+  function withAction(w, t) {
     const entry = catalogEntry(w.type)
     const mode = modeOf(w.type, w.mode)
-    return { ...w, icon: entry.icon, action: mode.action }
+    return { ...w, icon: entry.icon, action: mode.action, title: w.title || t(entry.title) }
   }
-  $: left  = $widgets.filter((w) => w.column === 'left').map(withAction)
-  $: right = $widgets.filter((w) => w.column === 'right').map(withAction)
+  $: left  = $widgets.filter((w) => w.column === 'left').map((w) => withAction(w, $t))
+  $: right = $widgets.filter((w) => w.column === 'right').map((w) => withAction(w, $t))
   $: empty = $widgets.length === 0
 
   // Workspace dims while the sidebar dock is hover-expanded.

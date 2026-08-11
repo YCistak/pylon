@@ -26,6 +26,20 @@ const FALLBACK = 'en'
 
 export const lang = writable(FALLBACK)
 
+/**
+ * Does any language word `key` exactly as `text`?
+ *
+ * For recognising a default that was frozen into saved data before it could be
+ * resolved at render time: a widget added while Pylon spoke Turkish was stored
+ * as "Sistem", and there is otherwise no way to tell that from a name the user
+ * typed. Matching against every language rather than the current one is the
+ * point — the widget was named in whatever language was active then.
+ */
+export function saidInAnyLanguage(key, text) {
+  const wanted = String(text).trim()
+  return Object.values(catalogs).some((c) => c[key] === wanted)
+}
+
 /** Ask the daemon which language it speaks. Unknown or unreachable keeps English. */
 export async function syncLanguage() {
   try {
