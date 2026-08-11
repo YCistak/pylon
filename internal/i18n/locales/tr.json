@@ -25,6 +25,7 @@
   "briefing.opener": "%[1]s! Bugün %[2]d %[3]s %[4]s.",
   "briefing.weather": "Hava %[1]s, şu an %.0[2]f derece.",
   "briefing.weather_high": "Hava %[1]s, şu an %.0[2]f, en yüksek %.0[3]f derece.",
+  "calc.result": "%s eder.",
   "calc.unparsable": "İşlemi çözemedim.",
   "calendar.empty": "Bugün takvimin boş.",
   "calendar.events": {

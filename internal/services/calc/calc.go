@@ -52,20 +52,21 @@ func (c *Calc) Execute(_ context.Context, action intent.Action, args map[string]
 		if err != nil {
 			return i18n.T("calc.unparsable"), nil
 		}
-		return fmt.Sprintf("%s eder.", formatTR(v)), nil
+		return i18n.T("calc.result", formatResult(v)), nil
 	default:
 		return "", fmt.Errorf("calc: unknown action %q", action)
 	}
 }
 
-// formatTR renders a result for speech in Turkish: integers without decimals,
-// otherwise up to two decimals with a comma separator ("42,86").
-func formatTR(v float64) string {
+// formatResult renders a result for speech: a whole number plainly, anything
+// else to two decimals punctuated the way the active language punctuates them.
+// Thousands stay ungrouped, as they were — grouping is the part a listener
+// cannot hear, and "1.000.000 eder" only makes the sentence harder to read.
+func formatResult(v float64) string {
 	if v == math.Trunc(v) && math.Abs(v) < 1e15 {
 		return strconv.FormatInt(int64(v), 10)
 	}
-	s := strconv.FormatFloat(v, 'f', 2, 64)
-	return strings.Replace(s, ".", ",", 1)
+	return i18n.Decimal(v, 2)
 }
 
 // Eval parses and evaluates an arithmetic expression. Supported: + - * / %

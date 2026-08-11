@@ -27,6 +27,7 @@
   "briefing.opener": "%[1]s! Heute ist %[4]s, der %[2]d. %[3]s.",
   "briefing.weather": "Es ist %[1]s, %.0[2]f Grad.",
   "briefing.weather_high": "Es ist %[1]s, %.0[2]f Grad, heute bis %.0[3]f.",
+  "calc.result": "Das sind %s.",
   "calc.unparsable": "Das konnte ich nicht ausrechnen.",
   "calendar.empty": "Dein Kalender ist heute leer.",
   "calendar.events": {
