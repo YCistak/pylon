@@ -15,8 +15,20 @@
   let busy = ''      // code being applied, so only that button shows the wait
   let error = ''
 
+  // An empty list has two very different causes and they need different words:
+  // Pylon is not up yet (wait), or the Pylon that is up predates the language
+  // picker (restart it). Guessing wrong sends the user to the wrong fix.
+  $: stale = options.length === 0 && $daemonOnline === true
+
   async function refresh() {
     options = await availableLanguages()
+    if (options.length === 0) {
+      // An old daemon answers "lang pref" with its current language, which
+      // would light up a button that changes nothing. Trust nothing from a
+      // daemon that could not list its languages.
+      chosen = ''
+      return
+    }
     try {
       chosen = await LanguagePref()
     } catch {
@@ -60,7 +72,9 @@
   </div>
   <p class="hint">{$t('ui.language.hint')}</p>
 
-  {#if options.length === 0}
+  {#if stale}
+    <p class="note">{$t('ui.language.stale_daemon')}</p>
+  {:else if options.length === 0}
     <p class="note">{$t('ui.language.offline')}</p>
   {:else}
     <div class="langs">

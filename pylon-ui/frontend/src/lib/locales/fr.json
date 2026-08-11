@@ -62,6 +62,7 @@
   "ui.language.failed": "Impossible de changer la langue :",
   "ui.language.hint": "Ce que dit Pylon, les libellés de cette fenêtre et ce qu'affiche la commande pylon. Effet immédiat.",
   "ui.language.offline": "Pylon n'est pas encore lancé — la langue pourra être changée une fois qu'il le sera.",
+  "ui.language.stale_daemon": "Le Pylon en cours d'exécution est plus ancien que cette fenêtre et ne peut pas changer la langue. Redémarrez-le et cette liste se remplira.",
   "ui.language.system": "Langue du système",
   "ui.left": "Gauche",
   "ui.loading": "Chargement…",

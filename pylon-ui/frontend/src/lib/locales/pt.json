@@ -62,6 +62,7 @@
   "ui.language.failed": "Não foi possível alterar o idioma:",
   "ui.language.hint": "O que o Pylon diz, as etiquetas desta janela e o que o comando pylon imprime. Aplica-se de imediato.",
   "ui.language.offline": "O Pylon ainda não está a correr — o idioma pode ser alterado assim que estiver.",
+  "ui.language.stale_daemon": "O Pylon em execução é mais antigo do que esta janela e não consegue mudar o idioma. Reinicie-o e esta lista será preenchida.",
   "ui.language.system": "Idioma do sistema",
   "ui.left": "Esquerda",
   "ui.loading": "A carregar…",

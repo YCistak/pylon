@@ -43,17 +43,24 @@ export async function syncLanguage() {
  * this GUI also has labels for — a daemon that speaks a language the interface
  * cannot label would produce a half-translated window.
  *
- * An unreachable daemon yields [], which the picker shows as "not running"
- * rather than as an empty list.
+ * Every line must carry a tab. A daemon older than the language picker answers
+ * "lang" without reading its arguments, so it replies to "lang list" with the
+ * single word "tr" — which parsed as one nameless language and drew a picker
+ * offering the language you were already in. Requiring the shape the daemon
+ * documents turns that into an empty list, which the caller can report as what
+ * it is.
+ *
+ * [] therefore means "no daemon, or one too old to ask" — never a real answer.
  */
 export async function availableLanguages() {
   try {
     const raw = await Languages()
     return raw
       .split('\n')
+      .filter((line) => line.includes('\t'))
       .map((line) => line.split('\t'))
-      .filter(([code]) => code && catalogs[code])
-      .map(([code, name]) => ({ code, name: name || code }))
+      .filter(([code, name]) => catalogs[code] && name.trim())
+      .map(([code, name]) => ({ code, name: name.trim() }))
   } catch {
     return []
   }

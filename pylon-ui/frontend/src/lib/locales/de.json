@@ -62,6 +62,7 @@
   "ui.language.failed": "Die Sprache konnte nicht geändert werden:",
   "ui.language.hint": "Was Pylon sagt, wie dieses Fenster beschriftet ist und was der Befehl pylon ausgibt. Gilt sofort.",
   "ui.language.offline": "Pylon läuft noch nicht — die Sprache lässt sich ändern, sobald es läuft.",
+  "ui.language.stale_daemon": "Das laufende Pylon ist älter als dieses Fenster und kann die Sprache nicht wechseln. Nach einem Neustart füllt sich diese Liste.",
   "ui.language.system": "Systemsprache",
   "ui.left": "Links",
   "ui.loading": "Wird geladen…",
