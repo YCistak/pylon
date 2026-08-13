@@ -14,6 +14,21 @@ import (
 	"github.com/YCistak/pylon/internal/ipc"
 )
 
+// shortDir is a temp directory with a short name. t.TempDir() spends ~80 bytes
+// on /var/folders plus the test's own name on macOS, and a Unix socket path is
+// capped there at ~104 — so binding inside one fails with "invalid argument"
+// for a reason that has nothing to do with what is being tested. The same trick
+// is in daemon_test.go and pylon-ui/app_test.go, for the same reason.
+func shortDir(t *testing.T) string {
+	t.Helper()
+	dir, err := os.MkdirTemp("", "p")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	return dir
+}
+
 // The directory is the whole defence: a name inside a directory only its owner
 // can write to cannot be taken by anyone else.
 func TestSecureDirCreatesItPrivate(t *testing.T) {
@@ -64,7 +79,7 @@ func TestSecureDirIsIdempotent(t *testing.T) {
 // permission on it. It used to be whatever the umask left — 0755 with the usual
 // 022, which happens to deny others, and 0775 with 002, which does not.
 func TestSecureSocketClosesItToOthers(t *testing.T) {
-	dir := t.TempDir()
+	dir := shortDir(t)
 	path := filepath.Join(dir, "pylon.sock")
 
 	ln, err := net.Listen("unix", path)
@@ -87,7 +102,7 @@ func TestSecureSocketClosesItToOthers(t *testing.T) {
 
 // A socket this user owns is the normal case and must not be refused.
 func TestOwnedByUsAcceptsOurOwnSocket(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "pylon.sock")
+	path := filepath.Join(shortDir(t), "pylon.sock")
 	ln, err := net.Listen("unix", path)
 	if err != nil {
 		t.Fatal(err)
@@ -113,7 +128,7 @@ func TestOwnedByUsRejectsWhatIsNotThere(t *testing.T) {
 // is driven directly, and the refusal is verified where it matters: Send must
 // fail before dialling.
 func TestSendRefusesASocketThatIsNotOurs(t *testing.T) {
-	dir := t.TempDir()
+	dir := shortDir(t)
 	path := filepath.Join(dir, "pylon.sock")
 
 	// A real listener, answering happily, standing in for the squatter.
