@@ -210,6 +210,7 @@
   "update.dev_build": "Ceci est une version de développement ; les mises à jour ne concernent que les versions publiées.",
   "update.downloading": "Téléchargement et vérification de la signature...",
   "update.installed": "✔ %s installé. Redémarre Pylon pour l'appliquer.",
+  "update.none_published": "Il n'y a pas encore de version publiée vers laquelle mettre à jour.",
   "update.packaged": "Cette copie est gérée par ton gestionnaire de paquets (%s).",
   "update.packaged_hint": "Mets à jour avec lui — par exemple : pacman -Syu",
   "update.unsigned": "Les mises à jour sont désactivées dans cette version (pas de clé de signature).",

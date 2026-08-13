@@ -8,6 +8,7 @@
   import ApiKeys from './ApiKeys.svelte'
   import Language from './Language.svelte'
   import VoiceSettings from './VoiceSettings.svelte'
+  import About from './About.svelte'
 
   export let editing = null // widget instance handed in from App (pen icon)
 
@@ -23,6 +24,9 @@
     { id: 'gorunum', label: 'ui.settings.appearance', hint: 'ui.settings.appearance_hint' },
     { id: 'hesaplar', label: 'ui.settings.accounts', hint: 'ui.settings.accounts_hint' },
     { id: 'ses', label: 'ui.settings.voice', hint: 'ui.settings.voice_hint' },
+    // Last, and about the program rather than the user's choices: what is
+    // installed, and the button that replaces it.
+    { id: 'hakkinda', label: 'ui.settings.about', hint: 'ui.settings.about_hint' },
   ]
   let activeTab = TABS[0].id
   $: activeHint = TABS.find((tab) => tab.id === activeTab)?.hint ?? ''
@@ -293,6 +297,8 @@
   <ApiKeys />
   {:else if activeTab === 'ses'}
   <VoiceSettings />
+  {:else if activeTab === 'hakkinda'}
+  <About />
   {/if}
   </div>
 

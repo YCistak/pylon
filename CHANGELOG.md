@@ -9,7 +9,39 @@ Cutting a release: [docs/RELEASE.md](docs/RELEASE.md).
 
 ## [Unreleased]
 
+### Added
+
+- **Updating from the window, and a Hakkında tab to do it in.** `pylon update`
+  existed and nothing in the GUI reached it, so the only way to install a
+  release was to know there was a terminal command for it. The new tab shows
+  what is installed and offers the update in two steps — check, then install —
+  because replacing Pylon on disk is not something to do on one click without
+  saying what is about to land.
+
+  **The update now replaces the GUI too.** It never could before: the archive
+  ships both binaries, and `selfupdate` extracted only `pylon`, so every update
+  left the interface behind at the old version with nothing on screen to say
+  so. The GUI still cannot replace itself — on Windows a process cannot
+  overwrite the binary it is running from — but the daemon can, and does. macOS
+  is excluded, where the GUI is a `.app` bundle rather than a file.
+
+  Both versions are shown side by side for the window between the two: the
+  daemon is swapped first and this window keeps running the old code until it is
+  closed and opened again.
+
 ### Fixed
+
+- **"No release published yet" is no longer an HTTP error.** GitHub's "latest"
+  endpoint answers 404 when there is nothing to serve, and it skips prereleases
+  — so a project whose only tag is an alpha hits it as well. `pylon update`
+  passed that through as "check for updates: github returned 404 Not Found",
+  which reads as a fault on the user's own machine rather than as the project
+  simply not having released yet.
+
+- **The GUI now knows its own version.** The Makefile and the release workflow
+  were both passing `-X main.version=` to the GUI build, but `pylon-ui` had no
+  such variable, so the linker discarded the value in silence and the binary
+  never carried a version at all.
 
 - **A push-to-talk turn can be stopped.** Once the microphone opened there was
   no way out of it: Escape did nothing, the button went disabled and read

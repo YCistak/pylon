@@ -97,6 +97,7 @@ question:
 | **Görünüm** | Widget instances (add/edit/remove via a dialog) and which pages are pinned to the dock |
 | **Hesaplar** | `Accounts.svelte` (OAuth sign-in) and `ApiKeys.svelte` (vault keys) |
 | **Ses** | `VoiceSettings.svelte` — the push-to-talk shortcut |
+| **Hakkında** | `About.svelte` — what is installed, and the button that replaces it |
 
 Language is the first tab because it is the one setting you go looking for when
 you cannot read any of the others.
@@ -147,6 +148,39 @@ same `{0}` placeholders; every `ui.*` name in the code exists; and no catalog
 key is rendered without `$t()`. A line that is deliberately not translatable —
 a widget the user renamed, a product name — says `i18n-raw` above it.
 
+### Hakkında
+
+Two version numbers, side by side, and the button that changes them.
+
+Both are shown because they come apart. An update replaces two binaries, and
+they cannot be swapped as one operation — so the daemon is replaced first and
+this window keeps running the old code until it is closed and opened again. A
+single version number on this screen would be wrong for exactly as long as that
+lasts, with nothing to say so. When they differ, the card says which way.
+
+The update runs in the daemon, and that is not an arbitrary split: a process
+cannot overwrite the binary it is running from on Windows, and cannot restart
+into a new one without losing its state. The daemon has neither problem with the
+GUI, so it replaces both — `internal/selfupdate` looks for a `pylon-ui` sitting
+next to `pylon` and swaps it too. macOS is left out, where the GUI is a `.app`
+bundle rather than a file.
+
+Checking and installing are two calls (`update check`, `update apply`) rather
+than one button that does both, because an update is the one action Pylon takes
+that replaces itself on disk; the user is told what is about to happen first.
+`update check` answers `<available>\t<version>\t<message>`, the same shape
+`lang state` uses — the GUI has to decide whether to offer an Install button, and
+deciding that by matching on translated prose would break in six languages at
+once.
+
+Three outcomes are deliberately not errors, because all three are working
+installations: a copy owned by a package manager, a build from a checkout, and a
+build with no signing key. So is a project that has published nothing yet —
+GitHub's "latest" endpoint answers 404 for that, and skips prereleases, so a
+project whose only tag is an alpha reaches it too. Left raw, that reads as
+"github returned 404 Not Found" and sends the user looking for a fault on their
+own machine.
+
 ## Widgets
 
 A widget is an **instance**, not a toggle: you can have two GitHub cards showing
@@ -189,6 +223,8 @@ entry in the catalog so far: Docker.
 | `Do(action, params)` | run a service action, no LLM — the widget data path |
 | `Listen()` | one full push-to-talk turn |
 | `CancelListen()` | stop the turn that is running (Escape, the stop button) |
+| `Version()` / `GUIVersion()` | the daemon's version, and this window's |
+| `UpdateCheck()` / `UpdateApply()` | what an update would install, and installing it |
 | `RestartDaemon()` | bounce the daemon so new config/credentials take effect |
 | `Platform()` | which desktop this is (`hyprland`, `sway`, `gnome`, `kde`, `macos`, `windows`, …) |
 | `Hotkey()` / `SetHotkey(combo)` | read and change the push-to-talk shortcut |

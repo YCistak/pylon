@@ -11,6 +11,14 @@ import (
 //go:embed all:frontend/dist
 var assets embed.FS
 
+// version is set at build time via -ldflags "-X main.version=...", the same way
+// the daemon's is. The Makefile and the release workflow were already passing
+// that flag; with no variable to receive it the linker discarded it in silence,
+// so the GUI has never known what it was. It matters now that Hakkında shows
+// both versions — a GUI left behind by an interrupted update is exactly what
+// that screen exists to make visible.
+var version = "dev"
+
 func main() {
 	// Create an instance of the app structure
 	app := NewApp()
