@@ -172,6 +172,7 @@
   "sysmon.temp": "CPU a %.0f graus",
   "sysmon.unavailable": "Não consigo ler os dados do sistema.",
   "sysmon.uptime": "ligado há %s",
+  "system.close.bad_name": "Esse não é um nome de programa sobre o qual eu possa agir.",
   "system.close.fail": "%s não pôde ser fechado ou não estava aberto.",
   "system.close.ok": "%s fechado.",
   "system.close.self": "Não me posso fechar a mim próprio.",

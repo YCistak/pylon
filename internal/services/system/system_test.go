@@ -119,7 +119,8 @@ func TestCloseApp(t *testing.T) {
 	if got := runAction(t, fr, ActionClose, map[string]string{"app": "chrome"}); got != "chrome closed." {
 		t.Fatalf("reply %q", got)
 	}
-	if fr.calls[0] != "pkill chrome" {
+	// -x, so the pattern has to match the whole process name.
+	if fr.calls[0] != "pkill -x chrome" {
 		t.Fatalf("cmd %q", fr.calls[0])
 	}
 }
@@ -205,5 +206,78 @@ func TestNowPlaying(t *testing.T) {
 				t.Errorf("reply %q, want %q", got, c.want)
 			}
 		})
+	}
+}
+
+// pkill takes an extended regular expression, not a literal, and the name comes
+// from a language model. `pkill .` matched 479 of 480 processes on the machine
+// where this was found — the user's whole session — and `-x` alone does not
+// help, because `.*` still matches every name there is.
+func TestCloseRefusesPatternsThatAreNotNames(t *testing.T) {
+	for _, app := range []string{
+		".", "..", ".*", "^.*$", "chrome|pylon", "a b", "code;rm", "$(id)",
+		"*", "[a-z]+", "chr?me", "(chrome)", "chrome$", strings.Repeat("a", 65),
+	} {
+		fr := &fakeRunner{}
+		got := runAction(t, fr, ActionClose, map[string]string{"app": app})
+		if got != "That is not a program name I can act on." {
+			t.Errorf("%q: reply %q", app, got)
+		}
+		if len(fr.calls) != 0 {
+			t.Errorf("%q: ran %v — nothing should have been killed", app, fr.calls)
+		}
+	}
+}
+
+// Surrounding whitespace is the model's, not the user's intent, and is trimmed
+// before the name is judged.
+func TestCloseTrimsBeforeJudging(t *testing.T) {
+	fr := &fakeRunner{}
+	runAction(t, fr, ActionClose, map[string]string{"app": "  chrome  "})
+	if len(fr.calls) != 1 || fr.calls[0] != "pkill -x chrome" {
+		t.Fatalf("calls %v", fr.calls)
+	}
+}
+
+// isSelf compares literals while pkill matches patterns, so the guard against
+// Pylon killing itself was walked past by spelling the name as a pattern.
+func TestCloseSelfGuardIsNotEvadedByAPattern(t *testing.T) {
+	// Refused outright: they carry metacharacters isProcessName rejects.
+	for _, app := range []string{"pylon|x", "pylon.*", "^pylon$", "pylo?n"} {
+		fr := &fakeRunner{}
+		runAction(t, fr, ActionClose, map[string]string{"app": app})
+		if len(fr.calls) != 0 {
+			t.Errorf("%q reached pkill: %v", app, fr.calls)
+		}
+	}
+	// "pylo." looks like a name and passes every name check — the dot is the
+	// one metacharacter that survives, because real names contain it. It is
+	// defused by escaping instead: pkill -x 'pylo\.' matches a process
+	// literally called "pylo.", which is nothing.
+	fr := &fakeRunner{}
+	runAction(t, fr, ActionClose, map[string]string{"app": "pylo."})
+	if len(fr.calls) != 1 || fr.calls[0] != `pkill -x pylo\.` {
+		t.Fatalf("calls %v", fr.calls)
+	}
+}
+
+// Escaping has to leave real names intact — mount.ntfs-3g and python3.11 are on
+// an ordinary desktop.
+func TestCloseEscapesDotsInRealNames(t *testing.T) {
+	fr := &fakeRunner{}
+	runAction(t, fr, ActionClose, map[string]string{"app": "mount.ntfs-3g"})
+	if len(fr.calls) != 1 || fr.calls[0] != `pkill -x mount\.ntfs-3g` {
+		t.Fatalf("calls %v", fr.calls)
+	}
+}
+
+// Real names have to keep working, or the guard has just removed the feature.
+func TestCloseAllowsRealProcessNames(t *testing.T) {
+	for _, app := range []string{"code", "chrome", "gnome-shell", "google_chrome", "Discord", "node20", "a.out"} {
+		fr := &fakeRunner{}
+		runAction(t, fr, ActionClose, map[string]string{"app": app})
+		if len(fr.calls) != 1 || fr.calls[0] != "pkill -x "+killPattern(app) {
+			t.Errorf("%q: calls %v", app, fr.calls)
+		}
 	}
 }
