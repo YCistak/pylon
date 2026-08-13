@@ -153,6 +153,7 @@
   "sysmon.temp": "CPU sıcaklığı %.0f derece",
   "sysmon.unavailable": "Sistem bilgisine ulaşamadım.",
   "sysmon.uptime": "açık %s",
+  "system.close.bad_name": "Bu, üzerinde işlem yapabileceğim bir program adı değil.",
   "system.close.fail": "%s kapatılamadı ya da zaten kapalı.",
   "system.close.ok": "%s kapatıldı.",
   "system.close.self": "Kendimi kapatamam.",

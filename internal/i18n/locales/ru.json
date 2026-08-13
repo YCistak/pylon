@@ -210,6 +210,7 @@
   "sysmon.temp": "ЦП %.0f градусов",
   "sysmon.unavailable": "Не могу получить данные системы.",
   "sysmon.uptime": "работает %s",
+  "system.close.bad_name": "Это не имя программы, с которым я могу что-то сделать.",
   "system.close.fail": "%s не удалось закрыть или он не запущен.",
   "system.close.ok": "%s закрыт.",
   "system.close.self": "Себя закрыть не могу.",

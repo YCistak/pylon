@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -125,12 +126,16 @@ func coinName(id string) string {
 type httpRates struct{ client *http.Client }
 
 func (h *httpRates) fiatRate(ctx context.Context, base, quote string) (float64, error) {
-	url := "https://open.er-api.com/v6/latest/" + base
+	// Escaped, because base is whatever the model produced from the sentence:
+	// code() only trims and upper-cases it. The host is fixed either way, so
+	// this cannot reach another server — but a stray "?" or "../" would quietly
+	// request a different endpoint of this one.
+	endpoint := "https://open.er-api.com/v6/latest/" + url.PathEscape(base)
 	var body struct {
 		Result string             `json:"result"`
 		Rates  map[string]float64 `json:"rates"`
 	}
-	if err := h.getJSON(ctx, url, &body); err != nil {
+	if err := h.getJSON(ctx, endpoint, &body); err != nil {
 		return 0, err
 	}
 	if body.Result != "success" {
@@ -144,9 +149,14 @@ func (h *httpRates) fiatRate(ctx context.Context, base, quote string) (float64, 
 }
 
 func (h *httpRates) cryptoPrice(ctx context.Context, coin, vs string) (float64, error) {
-	url := fmt.Sprintf("https://api.coingecko.com/api/v3/simple/price?ids=%s&vs_currencies=%s", coin, strings.ToLower(vs))
+	// Same reasoning as fiatRate, in a query string: an unescaped "&" in coin
+	// would append parameters of the model's choosing.
+	q := url.Values{}
+	q.Set("ids", coin)
+	q.Set("vs_currencies", strings.ToLower(vs))
+	endpoint := "https://api.coingecko.com/api/v3/simple/price?" + q.Encode()
 	var body map[string]map[string]float64
-	if err := h.getJSON(ctx, url, &body); err != nil {
+	if err := h.getJSON(ctx, endpoint, &body); err != nil {
 		return 0, err
 	}
 	vsRates, ok := body[coin]

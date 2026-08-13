@@ -118,15 +118,20 @@ func (s *System) Execute(ctx context.Context, action intent.Action, args map[str
 		if app == "" {
 			return i18n.T("system.close.which"), nil
 		}
+		// Checked before isSelf, because isSelf compares literals and pkill
+		// matches patterns: "pylo." is not equal to "pylon" but does match it.
+		if !isProcessName(app) {
+			return i18n.T("system.close.bad_name"), nil
+		}
 		// Never let Pylon be asked to kill itself.
 		if isSelf(app) {
 			return i18n.T("system.close.self"), nil
 		}
-		// Match by process NAME (comm), not full command line: `pkill -f` matches
-		// any substring in any process's args — including the very command that
-		// invoked us — so a stray arg could kill unintended processes. Process-name
-		// matching is precise (code, chrome, spotify) and won't hit the daemon.
-		if err := s.run.run(ctx, "pkill", app); err != nil {
+		// -x so the pattern must match the whole name, and by process NAME
+		// (comm) rather than the full command line: `pkill -f` matches any
+		// substring of any process's arguments, including the command that
+		// invoked us.
+		if err := s.run.run(ctx, "pkill", "-x", killPattern(app)); err != nil {
 			return i18n.T("system.close.fail", app), nil
 		}
 		return i18n.T("system.close.ok", app), nil
@@ -204,6 +209,58 @@ func (s *System) tryFirst(ctx context.Context, cmds ...cmd) bool {
 		}
 	}
 	return false
+}
+
+// maxProcessName is longer than any real comm value (Linux caps those at 15
+// characters) and short enough that nothing resembling a sentence gets through.
+const maxProcessName = 64
+
+// isProcessName reports whether app is a plausible process name and nothing
+// else. It exists because pkill's argument is an **extended regular
+// expression**, not a literal, and app arrives from a language model:
+//
+//   - `pkill .` matches every process whose name contains any character. On the
+//     machine this was found on, that was 479 of 480 — the whole session.
+//   - `-x` alone does not save it: the pattern then has to match the entire
+//     name, but `.*` still matches every name there is.
+//   - isSelf() compares literals, so `pylo.` walks past the guard that exists
+//     to stop Pylon killing itself, and then matches `pylon`.
+//
+// Allowing only letters, digits, dot, dash and underscore leaves every real
+// name reachable (code, chrome, gnome-shell, google_chrome, a.out) while
+// removing the metacharacters that make the argument a program instead of a
+// name. The dot has to stay, because names contain it — so at least one letter
+// or digit is required as well, which is what keeps a bare "." out: with -x
+// that would match every one-character process name, and nothing is actually
+// called ".".
+func isProcessName(app string) bool {
+	if app == "" || len(app) > maxProcessName {
+		return false
+	}
+	alnum := false
+	for _, r := range app {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9':
+			alnum = true
+		case r == '.', r == '-', r == '_':
+		default:
+			return false
+		}
+	}
+	return alnum
+}
+
+// killPattern turns a validated name into a pkill pattern that matches it
+// literally. The dot is the one metacharacter isProcessName still lets through,
+// because real names contain it — mount.ntfs-3g and python3.11 are on an
+// ordinary desktop — and unescaped it means "any character". That is not
+// theoretical: `pylo.` passes every name check and then matches the running
+// `pylon`, walking straight past isSelf, which compares literals.
+//
+// With the dots escaped and -x anchoring the match, the argument is a literal
+// string wearing a regex's clothes.
+func killPattern(app string) string {
+	return strings.ReplaceAll(app, ".", `\.`)
 }
 
 // isSelf guards against closing Pylon itself.

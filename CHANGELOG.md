@@ -11,6 +11,28 @@ Cutting a release: [docs/RELEASE.md](docs/RELEASE.md).
 
 ### Security
 
+- **"Close X" passed a language model's words to `pkill` as a regular
+  expression.** `pkill` matches an extended regex against process names, and
+  the name came straight from the model with no validation: `pkill .` matches
+  every process whose name contains any character — 479 of 480 on the machine
+  this was found on, which is the user's entire session. `-x` alone does not
+  fix it, because `.*` still matches every name there is, and the guard against
+  Pylon killing itself compared literals, so `pylo.` walked past it and then
+  matched `pylon`.
+
+  The name is now validated as a name (letters, digits, dot, dash, underscore,
+  at least one alphanumeric, 64 characters), matched with `-x`, and its dots
+  are escaped — real names contain them, `mount.ntfs-3g` and `python3.11` are
+  on an ordinary desktop, and unescaped a dot is what made `pylo.` work.
+
+- **Three smaller edges from the same review.** The exchange service put the
+  model's currency and coin names into URLs unescaped — the host is fixed, so
+  this could not reach another server, but a stray `?` or `&` would quietly
+  request something else of that one. The GUI's `OpenURL` is bound to the
+  frontend and would open any scheme it was handed, including `file://`; it
+  takes http and https now. And the PID file is written 0600 rather than 0644,
+  since on Unix it sits in `/tmp` beside every other user's files.
+
 - **Four reachable vulnerabilities closed by dependency bumps**, found by
   `govulncheck`: two infinite loops (`golang.org/x/text` on invalid input,
   `golang.org/x/net`'s HTTP/2 transport on a bad `SETTINGS_MAX_FRAME_SIZE`), an

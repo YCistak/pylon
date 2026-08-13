@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -218,8 +219,27 @@ func (a *App) SendFeedback(category, body string) (string, error) {
 
 // OpenURL hands a link to the desktop's browser. The feedback fallback needs
 // it, and Wails owns the only cross-platform way to do it from this process.
-func (a *App) OpenURL(url string) {
-	wails.BrowserOpenURL(a.ctx, url)
+//
+// Only http and https. Everything this is called with today comes from the
+// daemon — a prefilled issue form, or the URL GitHub answered with — but this
+// method is bound to the frontend, and "open whatever string you are given"
+// reaches further than a browser: file:// would read the disk through the
+// desktop's default handler for whatever the path turns out to be.
+func (a *App) OpenURL(raw string) {
+	if !allowedURL(raw) {
+		return
+	}
+	wails.BrowserOpenURL(a.ctx, strings.TrimSpace(raw))
+}
+
+// allowedURL reports whether raw is a plain web link. Split out so it can be
+// tested without a running window.
+func allowedURL(raw string) bool {
+	u, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil {
+		return false
+	}
+	return (u.Scheme == "http" || u.Scheme == "https") && u.Host != ""
 }
 
 // CancelListen stops a push-to-talk turn that is already running — what Escape

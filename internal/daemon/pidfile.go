@@ -35,7 +35,9 @@ func (d *Daemon) writePIDFile() error {
 	if pid, ok := d.livePID(); ok {
 		return fmt.Errorf("%w (pid %d)", ErrAlreadyRunning, pid)
 	}
-	return os.WriteFile(d.pidPath, []byte(strconv.Itoa(os.Getpid())), 0o644)
+	// 0600: on Unix this sits in /tmp alongside every other user's files, and
+	// which PID Pylon runs as is nobody else's business.
+	return os.WriteFile(d.pidPath, []byte(strconv.Itoa(os.Getpid())), 0o600)
 }
 
 func (d *Daemon) removePIDFile() {

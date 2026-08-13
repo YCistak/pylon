@@ -200,3 +200,42 @@ func TestAskSurfacesDaemonRefusal(t *testing.T) {
 		t.Fatalf("error = %v, want the daemon's message", err)
 	}
 }
+
+// OpenURL is bound to the frontend, so "open whatever string you are given"
+// reaches further than a browser: file:// hands a path to the desktop's default
+// handler for whatever it turns out to be. Everything it is called with today
+// comes from the daemon, which makes the daemon's answers a capability — worth
+// bounding on this side too.
+func TestOpenURLRefusesAnythingButHTTP(t *testing.T) {
+	for _, raw := range []string{
+		"file:///etc/passwd",
+		"file:///home/user/.config/pylon/secrets.json",
+		"javascript:alert(1)",
+		"data:text/html,<script>1</script>",
+		"smb://server/share",
+		"",
+		"   ",
+		"not a url at all",
+		"https://",    // no host
+		"http://",     // no host
+		"/etc/passwd", // no scheme
+	} {
+		if got := allowedURL(raw); got {
+			t.Errorf("allowedURL(%q) = true", raw)
+		}
+	}
+}
+
+// The two it actually gets: a prefilled issue form, and the URL GitHub answers
+// with. Refusing those would make the feedback fallback a dead end.
+func TestOpenURLAllowsTheRealOnes(t *testing.T) {
+	for _, raw := range []string{
+		"https://github.com/YCistak/pylon/issues/59",
+		"https://github.com/YCistak/pylon/issues/new?title=x&body=y&labels=bug",
+		"http://127.0.0.1:8080/callback",
+	} {
+		if !allowedURL(raw) {
+			t.Errorf("allowedURL(%q) = false", raw)
+		}
+	}
+}
