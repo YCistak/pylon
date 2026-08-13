@@ -27,8 +27,16 @@ func TestGuiBesideFindsTheInstalledGUI(t *testing.T) {
 	write(t, exe)
 	write(t, gui)
 
-	if got := guiBeside(exe); got != gui {
-		t.Errorf("guiBeside = %q, want %q", got, gui)
+	// Compared against the resolved path, not the one just built: on Windows
+	// t.TempDir() hands back an 8.3 short path (RUNNER~1) and guiBeside
+	// canonicalises it, which is the same EvalSymlinks call that makes an
+	// install through a symlinked ~/.local/bin land on the real file.
+	want := gui
+	if resolved, err := filepath.EvalSymlinks(gui); err == nil {
+		want = resolved
+	}
+	if got := guiBeside(exe); got != want {
+		t.Errorf("guiBeside = %q, want %q", got, want)
 	}
 }
 
@@ -132,6 +140,12 @@ func buildArchive(t *testing.T, files map[string][]byte) []byte {
 	gz := gzip.NewWriter(&buf)
 	tw := tar.NewWriter(gz)
 	for name, data := range files {
+		// guiName() is empty on macOS, and callers pass it unconditionally.
+		// An empty name would write a header ending in a slash, which tar
+		// rejects — a test failing on the archive it built itself.
+		if name == "" {
+			continue
+		}
 		h := &tar.Header{
 			Name:     "pylon-v9.9.9-linux-amd64/" + name,
 			Mode:     0o755,
