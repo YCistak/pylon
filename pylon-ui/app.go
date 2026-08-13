@@ -34,7 +34,13 @@ func daemonSocket() string {
 		}
 		return filepath.Join(dir, "pylon", "pylon.sock")
 	}
-	return "/tmp/pylon.sock"
+	// Mirrors ipc/paths_unix.go, which explains why this is no longer
+	// /tmp/pylon.sock: /tmp is the one directory every other user on the machine
+	// can write to, and the daemon behind the socket authenticates nobody.
+	if d := os.Getenv("XDG_RUNTIME_DIR"); d != "" {
+		return filepath.Join(d, "pylon", "pylon.sock")
+	}
+	return filepath.Join(os.TempDir(), fmt.Sprintf("pylon-%d", os.Getuid()), "pylon.sock")
 }
 
 // request / response mirror internal/ipc.{Request,Response}. The GUI is a

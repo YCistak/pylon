@@ -177,11 +177,19 @@ watch_processes:
   - name: cs2
     tasks_on_exit: true
 
-# Runtime paths. Left unset on purpose: the defaults are platform-specific
-# (/tmp/pylon.sock on Linux/macOS, %LocalAppData%\pylon\pylon.sock on Windows,
-# DB under the user config dir). Setting them here would pin a Unix path into a
-# config that ships to every platform. Uncomment only to override.
+# Runtime paths. Left unset on purpose: the defaults are platform-specific and
+# per-user, and pinning one machine's paths into a config that ships everywhere
+# helps nobody.
+#
+#   Linux     $XDG_RUNTIME_DIR/pylon/pylon.sock   (/run/user/<uid>/…)
+#   fallback  /tmp/pylon-<uid>/pylon.sock          (macOS, or no XDG_RUNTIME_DIR)
+#   Windows   %LocalAppData%\pylon\pylon.sock
+#
+# The socket is deliberately not directly in /tmp. That is the one directory
+# every other user on the machine can write to, and anything that can reach the
+# socket can ask the daemon for a secret or to open the microphone. If you do
+# override this, put it somewhere only you can write.
 paths:
-  # socket: /tmp/pylon.sock
-  # pid: /tmp/pylon.pid
+  # socket: /run/user/1000/pylon/pylon.sock
+  # pid: /run/user/1000/pylon/pylon.pid
   # db: /home/you/.config/pylon/pylon.db

@@ -25,6 +25,13 @@ func Send(socketPath string, req ipc.Request) (ipc.Response, error) {
 // long as the briefing is, and giving up mid-sentence would leave the daemon
 // talking to an empty socket.
 func SendTimeout(socketPath string, req ipc.Request, timeout time.Duration) (ipc.Response, error) {
+	// Who owns the socket, before a word is sent down it. The daemon's own
+	// protections are no help if the thing answering is not the daemon, and
+	// what goes down here includes `secret set <name> <api-key>` in plaintext.
+	if !ownedByUs(socketPath) {
+		return ipc.Response{}, fmt.Errorf(
+			"refusing to talk to %s: it belongs to another user", socketPath)
+	}
 	conn, err := net.DialTimeout("unix", socketPath, 2*time.Second)
 	if err != nil {
 		return ipc.Response{}, fmt.Errorf("connect to daemon: %w", err)
