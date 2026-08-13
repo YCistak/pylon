@@ -68,6 +68,19 @@ Cutting a release: [docs/RELEASE.md](docs/RELEASE.md).
   reachable, not merely present. `govulncheck ./...` now reports zero for both
   modules.
 
+### Fixed
+
+- **`pylon update` spoke English whatever language you had chosen.** Resolving
+  the language happened inside `loadConfig()`, which most commands reach only by
+  accident — they call `socketPath()` on the way to the daemon, and that loads
+  the config to find the socket. `update` talks to no daemon and reads no
+  config, so it fell through both. It is now resolved once in `main()`, for
+  every command, and an unreadable config no longer silences the preference
+  file: that and the environment never depended on it.
+
+  Found while verifying the v0.1.0 release on a machine set to Turkish, after
+  the update path had already shipped.
+
 ## [0.1.0] — 2026-08-13
 
 The first stable release, and the first one `pylon update` can actually see:

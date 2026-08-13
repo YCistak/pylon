@@ -76,6 +76,26 @@ func loadConfig() (config.Config, error) {
 	return cfg, nil
 }
 
+// setLanguage resolves the language once, for every command.
+//
+// It used to happen only inside loadConfig(), which most commands reach by
+// accident: they call socketPath() on their way to the daemon, and that loads
+// the config to find the socket. `pylon update` talks to no daemon and reads no
+// config, so it fell through both and answered in English however the user had
+// set things — which is how it was found, during the v0.1.0 release check on a
+// machine set to Turkish.
+//
+// An unreadable config is not a reason to be mute in the wrong language: the
+// preference file and the environment are both independent of it, so the error
+// is dropped and the rest of the chain still decides.
+func setLanguage() {
+	cfg, err := loadConfig()
+	if err != nil {
+		cfg = config.Config{}
+	}
+	i18n.SetLanguage(languageState(cfg).Lang)
+}
+
 // Where the active language came from. A settings screen offering "follow the
 // machine" has to be able to say what the machine actually said — "system
 // language" over a value that came out of pylon.yaml is a plain lie, and the
@@ -161,6 +181,7 @@ func main() {
 		usage()
 		os.Exit(2)
 	}
+	setLanguage()
 
 	var err error
 	switch os.Args[1] {
