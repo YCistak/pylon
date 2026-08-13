@@ -243,8 +243,14 @@ func TestApplyWithoutAGUIInstalled(t *testing.T) {
 	if got := read(t, exe); got != "new daemon" {
 		t.Errorf("daemon = %q, want the new one", got)
 	}
-	if _, err := os.Stat(filepath.Join(dir, guiName())); !os.IsNotExist(err) {
-		t.Error("a GUI was installed where the user had none")
+	// Guarded, not skipped: the daemon half of this test is the part that
+	// matters on macOS too. filepath.Join(dir, "") is dir, which of course
+	// exists, so asking whether "the GUI appeared" is only a question where
+	// there is a GUI file to appear.
+	if name := guiName(); name != "" {
+		if _, err := os.Stat(filepath.Join(dir, name)); !os.IsNotExist(err) {
+			t.Error("a GUI was installed where the user had none")
+		}
 	}
 }
 
