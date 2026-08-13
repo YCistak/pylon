@@ -11,6 +11,25 @@ Cutting a release: [docs/RELEASE.md](docs/RELEASE.md).
 
 ### Added
 
+- **Feedback, from inside the window.** Saying something about Pylon meant
+  knowing the project had a tracker, finding it, and having an account — which
+  selects for contributors and against exactly the users worth hearing from.
+  Hakkında now has a category, a box and a Send button, and what comes out is
+  an issue on the project page.
+
+  Pylon has no server of its own, so there are two ways it gets there and the
+  reply says which happened: with the GitHub token already in the vault it
+  files the issue and hands back its URL, and with no token — or one that
+  cannot open issues — it opens the prefilled page in the browser instead. It
+  falls back rather than failing, because a token's permissions are not
+  something the user can fix from that screen, and it invents no identity to
+  post under.
+
+  Nothing is sent that the user has not seen: the diagnostics are one short
+  line — version, OS, desktop, language — shown under the box before Send, and
+  built once so what is on screen and what is in the issue cannot drift apart.
+  No log, no config, nothing read off disk.
+
 - **Updating from the window, and a Hakkında tab to do it in.** `pylon update`
   existed and nothing in the GUI reached it, so the only way to install a
   release was to know there was a terminal command for it. The new tab shows

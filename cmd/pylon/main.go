@@ -269,6 +269,7 @@ func cmdStart() error {
 	registerSecrets(d)
 	registerAuth(d, cfg)
 	registerUpdate(d)
+	registerFeedback(d, cfg)
 	registerHotkey(d, cfg, database, log)
 	registerSTTServer(d, cfg, log)
 

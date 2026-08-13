@@ -160,6 +160,7 @@
   "exchange.rate_unavailable": "Сейчас не могу получить курсы валют.",
   "exchange.which_coin": "Какую криптовалюту ты имеешь в виду?",
   "exchange.which_currency": "Какую валюту ты имеешь в виду?",
+  "feedback.empty": "Нечего отправлять — ничего не написано.",
   "freshrss.none": "Непрочитанных статей нет.",
   "freshrss.unread": {
     "few": "У тебя %d непрочитанные статьи.",

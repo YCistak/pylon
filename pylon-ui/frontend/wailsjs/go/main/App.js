@@ -34,6 +34,10 @@ export function Do(arg1, arg2) {
   return window['go']['main']['App']['Do'](arg1, arg2);
 }
 
+export function FeedbackEnv() {
+  return window['go']['main']['App']['FeedbackEnv']();
+}
+
 export function GUIVersion() {
   return window['go']['main']['App']['GUIVersion']();
 }
@@ -62,12 +66,20 @@ export function Listen() {
   return window['go']['main']['App']['Listen']();
 }
 
+export function OpenURL(arg1) {
+  return window['go']['main']['App']['OpenURL'](arg1);
+}
+
 export function Platform() {
   return window['go']['main']['App']['Platform']();
 }
 
 export function RestartDaemon() {
   return window['go']['main']['App']['RestartDaemon']();
+}
+
+export function SendFeedback(arg1, arg2) {
+  return window['go']['main']['App']['SendFeedback'](arg1, arg2);
 }
 
 export function SetHotkey(arg1) {

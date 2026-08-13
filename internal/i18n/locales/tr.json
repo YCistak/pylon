@@ -109,6 +109,7 @@
   "exchange.rate_unavailable": "Kur bilgisini şu an alamadım.",
   "exchange.which_coin": "Hangi kripto parayı soruyorsun?",
   "exchange.which_currency": "Hangi para birimini soruyorsun?",
+  "feedback.empty": "Gönderilecek bir şey yazılmamış.",
   "freshrss.none": "Okunmamış haberin yok.",
   "freshrss.unread": {
     "other": "%d okunmamış haberin var."

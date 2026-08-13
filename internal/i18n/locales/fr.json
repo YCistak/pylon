@@ -126,6 +126,7 @@
   "exchange.rate_unavailable": "Je n'arrive pas à obtenir les taux de change pour le moment.",
   "exchange.which_coin": "Quelle cryptomonnaie ?",
   "exchange.which_currency": "Quelle devise ?",
+  "feedback.empty": "Il n'y a rien d'écrit à envoyer.",
   "freshrss.none": "Tu n'as aucun article non lu.",
   "freshrss.unread": {
     "one": "Tu as %d article non lu.",

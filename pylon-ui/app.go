@@ -10,6 +10,9 @@ import (
 	"runtime"
 	"strings"
 	"time"
+
+	// Aliased: this file already uses Go's own runtime for GOOS.
+	wails "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // daemonSocket reports where the Pylon daemon listens. It must agree with
@@ -177,6 +180,46 @@ func (a *App) update(op string) (string, error) {
 		return "", fmt.Errorf("%s", resp.Error)
 	}
 	return resp.Text, nil
+}
+
+// FeedbackEnv is the line the form shows under the box: version, platform,
+// desktop, language. It is fetched rather than assembled here so that what is
+// displayed and what is submitted cannot come apart — the daemon builds it once
+// and both uses read the same string.
+func (a *App) FeedbackEnv() (string, error) {
+	resp, err := send(request{Cmd: "feedback", Args: []string{"env"}})
+	if err != nil {
+		return "", err
+	}
+	if !resp.OK {
+		return "", fmt.Errorf("%s", resp.Error)
+	}
+	return resp.Text, nil
+}
+
+// SendFeedback files what the user wrote and answers "<how>\t<url>": either
+// "sent" and the issue to look at, or "browser" and a prefilled page for the
+// window to open. Two outcomes rather than one because Pylon has no server —
+// it posts with the GitHub token already in the vault, and where there is none
+// (or it cannot open issues) the words are still worth delivering.
+func (a *App) SendFeedback(category, body string) (string, error) {
+	resp, err := sendTimeout(request{
+		Cmd:  "feedback",
+		Args: []string{"send", category, body},
+	}, 40*time.Second)
+	if err != nil {
+		return "", err
+	}
+	if !resp.OK {
+		return "", fmt.Errorf("%s", resp.Error)
+	}
+	return resp.Text, nil
+}
+
+// OpenURL hands a link to the desktop's browser. The feedback fallback needs
+// it, and Wails owns the only cross-platform way to do it from this process.
+func (a *App) OpenURL(url string) {
+	wails.BrowserOpenURL(a.ctx, url)
 }
 
 // CancelListen stops a push-to-talk turn that is already running — what Escape

@@ -126,6 +126,7 @@
   "exchange.rate_unavailable": "Ich komme gerade nicht an die Wechselkurse.",
   "exchange.which_coin": "Welche Kryptowährung meinst du?",
   "exchange.which_currency": "Welche Währung meinst du?",
+  "feedback.empty": "Es ist nichts geschrieben, was gesendet werden könnte.",
   "freshrss.none": "Du hast keine ungelesenen Artikel.",
   "freshrss.unread": {
     "one": "Du hast %d ungelesenen Artikel.",

@@ -9,6 +9,7 @@
   import Language from './Language.svelte'
   import VoiceSettings from './VoiceSettings.svelte'
   import About from './About.svelte'
+  import Feedback from './Feedback.svelte'
 
   export let editing = null // widget instance handed in from App (pen icon)
 
@@ -299,6 +300,7 @@
   <VoiceSettings />
   {:else if activeTab === 'hakkinda'}
   <About />
+  <Feedback />
   {/if}
   </div>
 
