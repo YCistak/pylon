@@ -133,6 +133,8 @@
   "ui.voicebar.offline": "O Pylon está desligado",
   "ui.voicebar.placeholder": "Ou escreva…",
   "ui.voicebar.send": "Enviar",
+  "ui.voicebar.stop": "Parar",
+  "ui.voicebar.stop_hint": "Esc para parar",
   "ui.voicebar.talk": "Falar",
   "ui.voicebar.write": "Escrever ao Pylon",
   "ui.widget.calendar": "Agenda",

@@ -213,6 +213,8 @@
   "update.packaged": "Cette copie est gérée par ton gestionnaire de paquets (%s).",
   "update.packaged_hint": "Mets à jour avec lui — par exemple : pacman -Syu",
   "update.unsigned": "Les mises à jour sont désactivées dans cette version (pas de clé de signature).",
+  "voice.already_listening": "J'écoute déjà",
+  "voice.cancelled": "D'accord, laisse tomber",
   "voice.nothing_heard": "Je n'ai rien entendu",
   "voice.recording_empty": "%s : l'enregistrement est resté vide",
   "weather.code.clear": "dégagé",

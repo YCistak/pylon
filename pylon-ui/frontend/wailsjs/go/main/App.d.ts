@@ -9,6 +9,8 @@ export function AuthLogout(arg1:string):Promise<void>;
 
 export function AuthStatus(arg1:string):Promise<string>;
 
+export function CancelListen():Promise<void>;
+
 export function DaemonRunning():Promise<boolean>;
 
 export function DeleteSecret(arg1:string):Promise<void>;

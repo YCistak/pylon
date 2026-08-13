@@ -191,6 +191,8 @@
   "update.packaged": "Bu kopyayı paket yöneticin yönetiyor (%s).",
   "update.packaged_hint": "Güncellemek için onu kullan — örneğin: pacman -Syu",
   "update.unsigned": "Bu yapıda güncelleme kapalı (imza anahtarı gömülü değil).",
+  "voice.already_listening": "zaten dinliyorum",
+  "voice.cancelled": "tamam, boş ver",
   "voice.nothing_heard": "ses algılanamadı",
   "voice.recording_empty": "%s: kayıt boş kaldı",
   "weather.code.clear": "açık",

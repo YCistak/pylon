@@ -1,6 +1,6 @@
 <script>
   import { fade, fly } from 'svelte/transition'
-  import { Ask, Listen } from '../../wailsjs/go/main/App.js'
+  import { Ask, CancelListen, Listen } from '../../wailsjs/go/main/App.js'
   import { daemonOnline } from './daemon.js'
   import { t } from './i18n.js'
 
@@ -9,6 +9,7 @@
   // unplugged, so the same questions can be typed — including "brifing ver".
   let listening = false
   let asking = false
+  let stopping = false // a cancel is in flight; the turn has not ended yet
   let typed = '' // what is in the box right now
   let heard = '' // what was transcribed or typed (shown dimmer, above the reply)
   let reply = '' // Pylon's answer
@@ -43,6 +44,30 @@
       error = String(e?.message || e)
     } finally {
       listening = false
+      stopping = false
+    }
+  }
+
+  // Escape and the stop button both land here. Nothing is cleared and `listening`
+  // is left alone: the cancel only interrupts the recorder, and it is `talk`'s
+  // own promise — resolving with whatever the daemon decided the turn amounted
+  // to — that ends the state. Setting it false here would let a second turn
+  // start while the microphone was still closing.
+  async function stopTalking() {
+    if (!listening || stopping) return
+    stopping = true
+    try {
+      await CancelListen()
+    } catch (e) {
+      error = String(e?.message || e)
+      stopping = false
+    }
+  }
+
+  function onKeydown(e) {
+    if (e.key === 'Escape' && listening) {
+      e.preventDefault()
+      stopTalking()
     }
   }
 
@@ -65,16 +90,22 @@
   }
 </script>
 
+<svelte:window on:keydown={onKeydown} />
+
 <div class="voicebar">
   <div class="buttons">
+    <!-- One button, two jobs. While the microphone is open the only thing worth
+         offering there is closing it again — the alternative was a disabled
+         button reading "Listening…" and no way out but waiting for the silence
+         timer. It stays enabled during a cancel so it never looks stuck. -->
     <button
       class="btn talk"
       class:listening
-      on:click={talk}
-      disabled={busy || offline}
+      on:click={listening ? stopTalking : talk}
+      disabled={asking || offline}
     >
-      <span class="ic" aria-hidden="true">🎤</span>
-      {listening ? $t('ui.voicebar.listening') : $t('ui.voicebar.talk')}
+      <span class="ic" aria-hidden="true">{listening ? '⏹' : '🎤'}</span>
+      {listening ? $t('ui.voicebar.stop') : $t('ui.voicebar.talk')}
     </button>
   </div>
 
@@ -99,6 +130,13 @@
 
   {#if error}
     <p class="line err" in:fade>{error}</p>
+  {:else if listening}
+    <!-- Where the answer will appear, so nothing above it moves when it does.
+         The Escape hint is here rather than on the button because the button is
+         the mouse's way out and this line is the keyboard's. -->
+    <p class="line hint" in:fade>
+      {$t('ui.voicebar.listening')} · {$t('ui.voicebar.stop_hint')}
+    </p>
   {:else if reply}
     <div class="bubble" in:fly={{ y: 8, duration: 220 }}>
       {#if heard}<p class="heard">“{heard}”</p>{/if}
@@ -191,4 +229,5 @@
   .heard { margin: 0 0 6px; font-size: 13px; color: var(--text-2); font-style: italic; }
   .reply { margin: 0; font-size: 15px; line-height: 1.45; color: var(--text-1); white-space: pre-line; }
   .line.err { margin: 0; font-size: 13px; color: #f98080; }
+  .line.hint { margin: 0; font-size: 13px; color: var(--text-2); }
 </style>

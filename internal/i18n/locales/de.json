@@ -213,6 +213,8 @@
   "update.packaged": "Diese Installation verwaltet dein Paketmanager (%s).",
   "update.packaged_hint": "Aktualisiere darüber — zum Beispiel: pacman -Syu",
   "update.unsigned": "Updates sind in diesem Build deaktiviert (kein Signaturschlüssel eingebaut).",
+  "voice.already_listening": "Ich höre schon zu",
+  "voice.cancelled": "Gut, vergiss es",
   "voice.nothing_heard": "Ich habe nichts gehört",
   "voice.recording_empty": "%s: die Aufnahme blieb leer",
   "weather.code.clear": "klar",

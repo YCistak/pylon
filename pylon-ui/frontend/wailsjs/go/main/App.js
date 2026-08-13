@@ -18,6 +18,10 @@ export function AuthStatus(arg1) {
   return window['go']['main']['App']['AuthStatus'](arg1);
 }
 
+export function CancelListen() {
+  return window['go']['main']['App']['CancelListen']();
+}
+
 export function DaemonRunning() {
   return window['go']['main']['App']['DaemonRunning']();
 }

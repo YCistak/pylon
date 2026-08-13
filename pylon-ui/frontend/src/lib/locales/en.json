@@ -133,6 +133,8 @@
   "ui.voicebar.offline": "Pylon is off",
   "ui.voicebar.placeholder": "Or type…",
   "ui.voicebar.send": "Send",
+  "ui.voicebar.stop": "Stop",
+  "ui.voicebar.stop_hint": "Esc to stop",
   "ui.voicebar.talk": "Talk",
   "ui.voicebar.write": "Write to Pylon",
   "ui.widget.calendar": "Calendar",
