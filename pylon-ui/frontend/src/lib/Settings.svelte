@@ -55,6 +55,16 @@
   let returnFocus = null
   $: if (modalEl) modalEl.focus()
 
+  // Where focus goes when the trigger itself is gone by the time the dialog
+  // closes. Two ways that happens, and neither is an edge case: deleting the
+  // widget removes its row, and the pen icon on Home unmounts the whole page on
+  // its way here — that one leaves a keyboard user at the top of the document
+  // every single time, which is what `isConnected` was quietly falling back to.
+  // Landing on the row for the widget just edited puts the caret where the user
+  // is already looking.
+  let penEls = {}
+  let addEl = null
+
   function openCreate(type) {
     const entry = catalogEntry(type)
     const mode = entry.modes[0]
@@ -82,13 +92,27 @@
   $: if (editing) { activeTab = 'gorunum'; openEdit(editing); editing = null }
 
   function closeModal() {
+    const edited = draft?.id
     draft = null
     modalEl = null
     const back = returnFocus
     returnFocus = null
-    // The pen icon can be gone by now (deleting the widget removes it), so this
-    // is best effort: a missing trigger just means the browser's default.
-    if (back && back.isConnected) back.focus()
+    // The trigger first, then the row for the widget that was being edited, then
+    // the button that adds one. Something in that list is always on screen, so
+    // Tab continues from where the user was rather than from the top.
+    //
+    // Svelte has not removed the dialog yet at this point, so the fallbacks are
+    // queued for after the DOM catches up — focusing a node the framework is
+    // about to touch does not survive.
+    if (back && back.isConnected) {
+      back.focus()
+      return
+    }
+    requestAnimationFrame(() => {
+      const row = edited != null ? penEls[edited] : null
+      if (row && row.isConnected) row.focus()
+      else if (addEl && addEl.isConnected) addEl.focus()
+    })
   }
 
   // Tab must not leave a modal dialog — behind it is a page the user cannot see
@@ -191,7 +215,7 @@
         <span class="count">{$widgets.length}</span>
       </div>
       <div class="add-wrap">
-        <button class="add-btn" class:open={showPicker} on:click={() => (showPicker = !showPicker)}>
+        <button class="add-btn" class:open={showPicker} bind:this={addEl} on:click={() => (showPicker = !showPicker)}>
           <span class="plus">+</span> {$t('ui.settings.add_widget_btn')}
         </button>
         {#if showPicker}
@@ -230,7 +254,7 @@
                 {#if w.refresh > 0}<span class="chip refresh">⟳ {$t('ui.settings.minutes_short', w.refresh)}</span>{/if}
               </span>
             </div>
-            <button class="pen" on:click={() => openEdit(w)} title={$t('ui.edit')} aria-label={$t('ui.edit')}>✎</button>
+            <button class="pen" bind:this={penEls[w.id]} on:click={() => openEdit(w)} title={$t('ui.edit')} aria-label={$t('ui.edit')}>✎</button>
             <button class="del" on:click={() => widgets.remove(w.id)} title={$t('ui.delete_short')} aria-label={$t('ui.delete_short')}>✕</button>
           </li>
         {/each}

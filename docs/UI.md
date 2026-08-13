@@ -92,6 +92,20 @@ The tablist is keyboard-navigable (arrow keys, roving tabindex) and the widget
 editor is a real dialog: it takes focus, traps Tab, closes on Escape, and hands
 focus back on close.
 
+"Hands focus back" needs the trigger to still exist, and twice it does not:
+deleting the widget removes its row, and the pen icon on the home screen unmounts
+that whole page on its way to Görünüm. So the dialog walks a list — the trigger,
+then the row for the widget that was being edited, then the button that adds one —
+and something in it is always on screen. Before that, a keyboard user who opened
+the dialog from the home screen landed back at the top of the document every time.
+
+Focus itself is visible everywhere, from one `:focus-visible` rule in
+`style.css`. It used to be visible in five places (the tablist and some text
+fields) and left to the engine's default outline elsewhere, which against these
+dark surfaces is not visible at all: tabbing across the sidebar, a widget's pen
+icon or **Konuş** showed nothing. A control with its own focus treatment still
+wins — the rule is deliberately the least specific one in the interface.
+
 ### Language
 
 The GUI has no language setting of its own. `Language.svelte` calls the daemon
