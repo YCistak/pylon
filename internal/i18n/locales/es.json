@@ -126,6 +126,7 @@
   "exchange.rate_unavailable": "Ahora mismo no puedo consultar los tipos de cambio.",
   "exchange.which_coin": "¿Qué criptomoneda quieres saber?",
   "exchange.which_currency": "¿Qué moneda quieres saber?",
+  "feedback.empty": "No hay nada escrito que enviar.",
   "freshrss.none": "No tienes artículos sin leer.",
   "freshrss.unread": {
     "one": "Tienes %d artículo sin leer.",

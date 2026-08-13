@@ -17,6 +17,8 @@ export function DeleteSecret(arg1:string):Promise<void>;
 
 export function Do(arg1:string,arg2:Record<string, string>):Promise<string>;
 
+export function FeedbackEnv():Promise<string>;
+
 export function GUIVersion():Promise<string>;
 
 export function HasSecret(arg1:string):Promise<boolean>;
@@ -31,9 +33,13 @@ export function Languages():Promise<string>;
 
 export function Listen():Promise<string>;
 
+export function OpenURL(arg1:string):Promise<void>;
+
 export function Platform():Promise<string>;
 
 export function RestartDaemon():Promise<void>;
+
+export function SendFeedback(arg1:string,arg2:string):Promise<string>;
 
 export function SetHotkey(arg1:string):Promise<string>;
 

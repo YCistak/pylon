@@ -97,7 +97,7 @@ question:
 | **Görünüm** | Widget instances (add/edit/remove via a dialog) and which pages are pinned to the dock |
 | **Hesaplar** | `Accounts.svelte` (OAuth sign-in) and `ApiKeys.svelte` (vault keys) |
 | **Ses** | `VoiceSettings.svelte` — the push-to-talk shortcut |
-| **Hakkında** | `About.svelte` — what is installed, and the button that replaces it |
+| **Hakkında** | `About.svelte` and `Feedback.svelte` — what is installed, updating it, and saying something about it |
 
 Language is the first tab because it is the one setting you go looking for when
 you cannot read any of the others.
@@ -181,6 +181,36 @@ project whose only tag is an alpha reaches it too. Left raw, that reads as
 "github returned 404 Not Found" and sends the user looking for a fault on their
 own machine.
 
+### Feedback
+
+A category, a box, and Send. It becomes an issue on the project's tracker.
+
+The form is under Hakkında rather than behind a link, because a link is what was
+there before: feedback arrived only from people who already knew the project had
+a tracker, found it, and had an account — which selects for contributors and
+against exactly the users worth hearing from.
+
+Pylon has no server, so there are two ways it can be delivered and the reply
+says which happened. With a GitHub token in the vault — the one already there
+for the GitHub widget — it posts the issue directly and hands back its URL, so
+the user can go and look at what they sent. With no token, or a token that
+cannot open issues, it opens the prefilled new-issue page in the browser
+instead. Falling back rather than failing: a token's permissions are not
+something the user can fix from this screen, and their words are still worth
+delivering. Nothing else is tried — Pylon does not invent an identity to post
+under.
+
+**Nothing is sent that the user has not seen.** The diagnostics are one short
+line — version, OS, desktop, language — displayed under the box before Send is
+pressed, and `internal/feedback` builds it once so the line on screen and the
+line in the issue are the same string. No log is read, no config is attached,
+nothing is collected off disk.
+
+`feedback send` answers `<how>\t<url>`, the same shape as `update check` and for
+the same reason: the window has to act differently on the two outcomes, and
+telling them apart by matching on translated prose would break in six languages
+at once.
+
 ## Widgets
 
 A widget is an **instance**, not a toggle: you can have two GitHub cards showing
@@ -225,6 +255,8 @@ entry in the catalog so far: Docker.
 | `CancelListen()` | stop the turn that is running (Escape, the stop button) |
 | `Version()` / `GUIVersion()` | the daemon's version, and this window's |
 | `UpdateCheck()` / `UpdateApply()` | what an update would install, and installing it |
+| `FeedbackEnv()` / `SendFeedback(category, body)` | the diagnostics line shown before sending, and filing the report |
+| `OpenURL(url)` | hand a link to the desktop's browser |
 | `RestartDaemon()` | bounce the daemon so new config/credentials take effect |
 | `Platform()` | which desktop this is (`hyprland`, `sway`, `gnome`, `kde`, `macos`, `windows`, …) |
 | `Hotkey()` / `SetHotkey(combo)` | read and change the push-to-talk shortcut |

@@ -126,6 +126,7 @@
   "exchange.rate_unavailable": "I can't get exchange rates right now.",
   "exchange.which_coin": "Which cryptocurrency do you mean?",
   "exchange.which_currency": "Which currency do you mean?",
+  "feedback.empty": "There is nothing written to send.",
   "freshrss.none": "You have no unread articles.",
   "freshrss.unread": {
     "one": "You have %d unread article.",
