@@ -132,6 +132,53 @@ func (a *App) Listen() (string, error) {
 	return resp.Text, nil
 }
 
+// Version reports the daemon's version, and GUIVersion this window's. They are
+// two binaries built from one tag, and Hakkında shows both because they can come
+// apart: an update replaces the daemon first, and the GUI keeps running the old
+// code until it is closed and opened again.
+func (a *App) Version() (string, error) {
+	resp, err := send(request{Cmd: "version"})
+	if err != nil {
+		return "", err
+	}
+	if !resp.OK {
+		return "", fmt.Errorf("%s", resp.Error)
+	}
+	return resp.Text, nil
+}
+
+// GUIVersion is this binary's own, needing no daemon to answer.
+func (a *App) GUIVersion() string { return version }
+
+// UpdateCheck asks what an update would install, without installing it.
+// UpdateApply does it. They are two calls because the user has to be told what
+// is about to replace Pylon on disk before it does.
+//
+// Both run in the daemon: a process cannot overwrite the binary it is running
+// from on Windows, and cannot restart into a new one without losing its state.
+// The daemon has neither problem with the GUI, so it replaces both.
+func (a *App) UpdateCheck() (string, error) {
+	return a.update("check")
+}
+
+// UpdateApply installs the newest release over the daemon and this GUI. It
+// answers only when the download, the signature check and both swaps are done,
+// so it carries the long deadline rather than the default one.
+func (a *App) UpdateApply() (string, error) {
+	return a.update("apply")
+}
+
+func (a *App) update(op string) (string, error) {
+	resp, err := sendTimeout(request{Cmd: "update", Args: []string{op}}, 3*time.Minute)
+	if err != nil {
+		return "", err
+	}
+	if !resp.OK {
+		return "", fmt.Errorf("%s", resp.Error)
+	}
+	return resp.Text, nil
+}
+
 // CancelListen stops a push-to-talk turn that is already running — what Escape
 // and the stop button call. It cannot travel on Listen's own connection, which
 // is blocked until the turn ends, so it is a second request; the daemon matches

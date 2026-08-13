@@ -188,6 +188,7 @@
   "update.dev_build": "Bu bir geliştirme sürümü; güncelleme sadece yayınlanmış sürümler için.",
   "update.downloading": "İndiriliyor ve imzası doğrulanıyor...",
   "update.installed": "✔ %s kuruldu. Değişikliğin geçerli olması için Pylon'u yeniden başlat.",
+  "update.none_published": "Henüz güncellenecek yayınlanmış bir sürüm yok.",
   "update.packaged": "Bu kopyayı paket yöneticin yönetiyor (%s).",
   "update.packaged_hint": "Güncellemek için onu kullan — örneğin: pacman -Syu",
   "update.unsigned": "Bu yapıda güncelleme kapalı (imza anahtarı gömülü değil).",

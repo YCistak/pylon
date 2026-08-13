@@ -23,6 +23,13 @@ var (
 	ErrBadSignature = errors.New("release signature does not verify")
 	// ErrChecksumMismatch means the download does not match the signed hash.
 	ErrChecksumMismatch = errors.New("download does not match its signed checksum")
+	// ErrNoRelease means the project has published nothing to update to. The
+	// "latest" endpoint answers 404 rather than an empty list, and it skips
+	// prereleases — so a project whose only tag is an alpha looks exactly like
+	// one that has never released. Neither is a fault the user can act on, and
+	// showing them "github returned 404 Not Found" invites them to go looking
+	// for a problem with their own machine.
+	ErrNoRelease = errors.New("no published release to update to")
 )
 
 // verifySums checks that sums was signed by publicKey and returns the parsed
