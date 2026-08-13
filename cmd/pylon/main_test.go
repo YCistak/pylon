@@ -7,6 +7,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/YCistak/pylon/internal/i18n"
 )
 
 // $PYLON_CONFIG is the explicit override and must win over everything else.
@@ -210,5 +212,45 @@ func TestListenSessionUnderConcurrentClaims(t *testing.T) {
 	close(won)
 	if n := len(won); n != 1 {
 		t.Fatalf("%d goroutines claimed the microphone, want 1", n)
+	}
+}
+
+// Every command has to speak the user's language, not only the ones that reach
+// loadConfig() on their way to the socket. `pylon update` reaches neither, and
+// answered in English on a machine set to Turkish — found during the v0.1.0
+// release check, after the update path had already shipped.
+func TestSetLanguageAppliesThePreference(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "pylon.yaml"), "language: \"\"\n")
+	writeFile(t, filepath.Join(dir, i18n.PrefPath("")), "tr\n")
+	t.Setenv("PYLON_CONFIG", filepath.Join(dir, "pylon.yaml"))
+	t.Cleanup(func() { i18n.SetLanguage(i18n.Default) })
+
+	setLanguage()
+	if got := i18n.Language(); got != "tr" {
+		t.Errorf("language = %q, want %q", got, "tr")
+	}
+}
+
+// A config that will not parse must not leave the CLI speaking the wrong
+// language: the preference file and the environment do not depend on it, so
+// they still get to decide.
+func TestSetLanguageSurvivesABrokenConfig(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "pylon.yaml"), "language: [not a string\n")
+	writeFile(t, filepath.Join(dir, i18n.PrefPath("")), "tr\n")
+	t.Setenv("PYLON_CONFIG", filepath.Join(dir, "pylon.yaml"))
+	t.Cleanup(func() { i18n.SetLanguage(i18n.Default) })
+
+	setLanguage()
+	if got := i18n.Language(); got != "tr" {
+		t.Errorf("language = %q, want %q — a broken config silenced the preference", got, "tr")
+	}
+}
+
+func writeFile(t *testing.T, path, content string) {
+	t.Helper()
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
 	}
 }
