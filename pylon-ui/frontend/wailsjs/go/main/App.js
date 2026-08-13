@@ -34,6 +34,10 @@ export function Do(arg1, arg2) {
   return window['go']['main']['App']['Do'](arg1, arg2);
 }
 
+export function GUIVersion() {
+  return window['go']['main']['App']['GUIVersion']();
+}
+
 export function HasSecret(arg1) {
   return window['go']['main']['App']['HasSecret'](arg1);
 }
@@ -80,4 +84,16 @@ export function SetSecret(arg1, arg2) {
 
 export function Status() {
   return window['go']['main']['App']['Status']();
+}
+
+export function UpdateApply() {
+  return window['go']['main']['App']['UpdateApply']();
+}
+
+export function UpdateCheck() {
+  return window['go']['main']['App']['UpdateCheck']();
+}
+
+export function Version() {
+  return window['go']['main']['App']['Version']();
 }

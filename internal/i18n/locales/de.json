@@ -210,6 +210,7 @@
   "update.dev_build": "Das ist ein Entwicklungs-Build; Updates gibt es nur für veröffentlichte Versionen.",
   "update.downloading": "Wird heruntergeladen und die Signatur geprüft...",
   "update.installed": "✔ %s installiert. Starte Pylon neu, damit es wirkt.",
+  "update.none_published": "Es gibt noch keine veröffentlichte Version zum Aktualisieren.",
   "update.packaged": "Diese Installation verwaltet dein Paketmanager (%s).",
   "update.packaged_hint": "Aktualisiere darüber — zum Beispiel: pacman -Syu",
   "update.unsigned": "Updates sind in diesem Build deaktiviert (kein Signaturschlüssel eingebaut).",

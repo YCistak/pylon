@@ -268,6 +268,7 @@ func cmdStart() error {
 	registerIntent(d, cfg, database, registry, log)
 	registerSecrets(d)
 	registerAuth(d, cfg)
+	registerUpdate(d)
 	registerHotkey(d, cfg, database, log)
 	registerSTTServer(d, cfg, log)
 

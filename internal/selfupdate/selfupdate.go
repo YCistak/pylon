@@ -111,6 +111,11 @@ func (c *Client) Check(ctx context.Context, current string) (Release, bool, erro
 		return Release{}, false, fmt.Errorf("check for updates: %w", err)
 	}
 	defer resp.Body.Close()
+	// 404 is how "latest" says there is nothing published — the endpoint skips
+	// prereleases, so a project whose only tag is an alpha reaches this too.
+	if resp.StatusCode == http.StatusNotFound {
+		return Release{}, false, ErrNoRelease
+	}
 	if resp.StatusCode != http.StatusOK {
 		return Release{}, false, fmt.Errorf("check for updates: github returned %s", resp.Status)
 	}
