@@ -9,6 +9,24 @@ Cutting a release: [docs/RELEASE.md](docs/RELEASE.md).
 
 ## [Unreleased]
 
+## [0.1.0] — 2026-08-13
+
+The first stable release, and the first one `pylon update` can actually see:
+GitHub's "latest" endpoint skips prereleases, so while `v0.1.0-alpha.1` was the
+only tag it answered 404 and every update check reported an HTTP error. Nothing
+about the alpha was wrong; it was simply invisible to the thing meant to replace
+it.
+
+Alpha users update by downloading this one, the same way they installed. From
+here `pylon update` takes over — and now updates the interface as well as the
+daemon, which no release before this one did.
+
+Scope is unchanged from the alpha: developed and used daily on Linux, where
+every service works. macOS and Windows run the daemon and most services; screen
+lock, audio and media keys are Linux-only, and Docker needs `npipe` support that
+is not written. Google and Spotify still report as unavailable in published
+builds — no OAuth client is baked in.
+
 ### Added
 
 - **Feedback, from inside the window.** Saying something about Pylon meant
@@ -338,4 +356,5 @@ against:
   keys are Linux-only. See the
   [platform table](README.md#platform-support).
 
+[0.1.0]: https://github.com/YCistak/pylon/releases/tag/v0.1.0
 [0.1.0-alpha.1]: https://github.com/YCistak/pylon/releases/tag/v0.1.0-alpha.1

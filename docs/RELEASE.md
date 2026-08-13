@@ -36,7 +36,11 @@ install anything it cannot verify.
    against the ed25519 public key baked into `internal/selfupdate`.
 3. Downloads the archive named by `AssetName(version)` and checks its hash
    against that signed list.
-4. Replaces only the `pylon` binary. **The GUI is never self-updated.**
+4. Replaces `pylon`, and the `pylon-ui` sitting next to it — the daemon does
+   both, because the GUI cannot overwrite the binary it is running from. The
+   daemon is replaced first, so an interrupted update leaves an old GUI against
+   a new daemon rather than the other way round. macOS keeps only the daemon:
+   there the GUI is a `.app` bundle, not a file.
 
 So an asset filename that does not match the tag breaks self-update even though
 the release looks fine on the web page.
@@ -81,13 +85,14 @@ Worth searching for: your email, absolute home paths, `build.env`,
 `BEGIN.*PRIVATE KEY`. Test fixtures match some of these — read the hits rather
 than trusting the count.
 
-### 3. `releases/latest` ignores prereleases
+### ~~3. `releases/latest` ignores prereleases~~ — cleared by v0.1.0
 
-GitHub's "latest" endpoint excludes drafts *and* prereleases. A `-alpha.N` tag
-therefore never reaches `pylon update`, however correct the release is. The
-version comparison handles prereleases properly now, but the endpoint never
-offers it one. First stable tag fixes this by itself; until then, alpha users
-update by downloading.
+GitHub's "latest" endpoint excludes drafts *and* prereleases, so while
+`v0.1.0-alpha.1` was the only tag it answered **404** and every `pylon update`
+reported "github returned 404 Not Found". The first stable tag fixed it by
+existing. `selfupdate` now maps that 404 to "nothing published yet" rather than
+passing the HTTP error on, so a project in this state says something a user can
+act on.
 
 ### 4. No OAuth client is baked in
 
