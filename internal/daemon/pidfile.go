@@ -15,16 +15,20 @@ import (
 // ErrAlreadyRunning is returned by Run when another live daemon owns the PID file.
 var ErrAlreadyRunning = errors.New("pylon daemon already running")
 
-// ensureDirs creates the parent directory of each path. Paths sharing a parent
-// (the usual case) collapse into one harmless repeat MkdirAll.
+// ensureDirs creates the parent directory of each path, 0700 and owned by us —
+// see secureDir, which is where the checking happens. Paths sharing a parent
+// (the usual case) collapse into one harmless repeat.
+//
+// 0755 before: fine for the directory itself, but the socket inside it was then
+// protected by nothing but its own mode, which came from the umask.
 func ensureDirs(paths ...string) error {
 	for _, p := range paths {
 		dir := filepath.Dir(p)
 		if dir == "" || dir == "." {
 			continue
 		}
-		if err := os.MkdirAll(dir, 0o755); err != nil {
-			return fmt.Errorf("create %s: %w", dir, err)
+		if err := secureDir(dir); err != nil {
+			return err
 		}
 	}
 	return nil

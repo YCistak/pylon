@@ -11,6 +11,32 @@ Cutting a release: [docs/RELEASE.md](docs/RELEASE.md).
 
 ### Security
 
+- **The daemon socket has moved out of `/tmp`.** It was `/tmp/pylon.sock`,
+  chosen because `/tmp` exists on every Unix. It is also the one directory
+  every other user on the machine can write to, and the daemon authenticates
+  nobody: whatever reaches that socket can run `secret set`, `do`, and
+  `listen`, which opens the microphone. Nothing checked who owned the socket
+  either — so on a shared machine another user could bind the name first,
+  before Pylon's first run or after the daemon exits and removes it, and
+  receive `pylon secret set gemini <api-key>` in plaintext.
+
+  It now lives in a directory only its owner can write to:
+  `$XDG_RUNTIME_DIR/pylon/` on Linux, `/tmp/pylon-<uid>/` where there is no
+  such variable — the shape tmux and gpg-agent use, and for this reason. The
+  daemon refuses to start if that directory turns out to belong to somebody
+  else, the socket is `chmod 0600` rather than whatever the umask left, and
+  every client checks the socket's owner **before** dialling, since the
+  daemon's own protections are no help if the thing answering is not the
+  daemon.
+
+  **After updating, restart the daemon** (`systemctl --user restart pylon`, or
+  close and reopen the window). A daemon still listening on the old path will
+  not be found, and the CLI will report it as not running. `PYLON_SOCKET` and
+  `paths.socket` override the default exactly as before.
+
+  Single-user machines were never exposed to this. It is a shared-machine
+  problem, and it was a real one.
+
 - **"Close X" passed a language model's words to `pkill` as a regular
   expression.** `pkill` matches an extended regex against process names, and
   the name came straight from the model with no validation: `pkill .` matches

@@ -15,7 +15,7 @@ the CLI: it opens the Unix socket, sends a JSON request, reads one back.
 ```
 ┌──────────────────────┐        ┌──────────────────────────┐
 │ pylon-ui (Go + web)  │  IPC   │ pylon daemon (headless)   │
-│  own Go module       │◄──────►│  /tmp/pylon.sock          │
+│  own Go module       │◄──────►│  $XDG_RUNTIME_DIR/pylon/  │
 │  imports nothing     │ socket │  services, intent, memory │
 │  from the daemon     │        │  secrets vault            │
 └──────────────────────┘        └──────────────────────────┘

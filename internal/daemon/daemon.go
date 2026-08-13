@@ -143,6 +143,12 @@ func (d *Daemon) Run(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("listen on %s: %w", d.socketPath, err)
 	}
+	// Connecting to a Unix socket needs write permission on it, so its mode is
+	// the last gate — and it was whatever the umask happened to leave.
+	if err := secureSocket(d.socketPath); err != nil {
+		_ = ln.Close()
+		return fmt.Errorf("secure %s: %w", d.socketPath, err)
+	}
 	d.ln = ln
 	d.startedAt = time.Now()
 	d.log.Info("pylon daemon started", "socket", d.socketPath, "pid", os.Getpid())
