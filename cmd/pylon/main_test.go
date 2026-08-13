@@ -1,8 +1,10 @@
 package main
 
 import (
+	"context"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 )
@@ -140,5 +142,73 @@ func TestBriefingMissed(t *testing.T) {
 		if got := briefingMissed(c.now, 8, 0, c.lastRun); got != c.want {
 			t.Errorf("%s: briefingMissed = %v, want %v", c.name, got, c.want)
 		}
+	}
+}
+
+// The cancel arrives on a second connection while the first is still blocked in
+// the recorder, so what it interrupts is a context — not a flag some later check
+// might consult too late.
+func TestListenSessionStopCancelsTheTurn(t *testing.T) {
+	var mic listenSession
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if !mic.begin(cancel) {
+		t.Fatal("begin on an idle session returned false")
+	}
+	if !mic.stop() {
+		t.Fatal("stop on a running turn returned false")
+	}
+	select {
+	case <-ctx.Done():
+	case <-time.After(time.Second):
+		t.Fatal("stop did not cancel the turn's context")
+	}
+}
+
+// Cancelling nothing is what the GUI does whenever Escape loses the race with
+// the last word. It has to be silent, or every such press would raise an error
+// the user cannot act on.
+func TestListenSessionStopWithoutATurn(t *testing.T) {
+	var mic listenSession
+	if mic.stop() {
+		t.Fatal("stop on an idle session reported a turn")
+	}
+}
+
+// One microphone, one turn. Two overlapping captures would open the device twice
+// and leave stop no way to say which one it meant.
+func TestListenSessionIsSingleUser(t *testing.T) {
+	var mic listenSession
+	if !mic.begin(func() {}) {
+		t.Fatal("first begin returned false")
+	}
+	if mic.begin(func() {}) {
+		t.Fatal("second begin claimed a microphone that was already open")
+	}
+	mic.end()
+	if !mic.begin(func() {}) {
+		t.Fatal("begin after end returned false — the turn never released the mic")
+	}
+}
+
+// Under -race, that the claim is actually exclusive and not just checked.
+func TestListenSessionUnderConcurrentClaims(t *testing.T) {
+	var mic listenSession
+	var wg sync.WaitGroup
+	won := make(chan struct{}, 20)
+	for i := 0; i < 20; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if mic.begin(func() {}) {
+				won <- struct{}{}
+			}
+		}()
+	}
+	wg.Wait()
+	close(won)
+	if n := len(won); n != 1 {
+		t.Fatalf("%d goroutines claimed the microphone, want 1", n)
 	}
 }

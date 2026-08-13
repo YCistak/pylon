@@ -133,6 +133,8 @@
   "ui.voicebar.offline": "Pylon kapalı",
   "ui.voicebar.placeholder": "Ya da yaz…",
   "ui.voicebar.send": "Gönder",
+  "ui.voicebar.stop": "Durdur",
+  "ui.voicebar.stop_hint": "durdurmak için Esc",
   "ui.voicebar.talk": "Konuş",
   "ui.voicebar.write": "Pylon'a yaz",
   "ui.widget.calendar": "Takvim",

@@ -619,6 +619,49 @@ func registerSTTServer(d *daemon.Daemon, cfg config.Config, log *slog.Logger) {
 // command: the local Router runs first (free), and only unresolved input falls
 // back to the configured LLM chain, which tries each model in order and falls
 // through on quota/rate-limit.
+// listenSession is the microphone turn currently running inside the daemon, or
+// nothing. It holds a cancel func rather than a flag because that is what a
+// second connection needs in order to stop the first: the recorder is a
+// subprocess bound to the turn's context, so cancelling it interrupts sox and
+// lets the WAV close cleanly.
+//
+// It also makes the microphone single-user. Two overlapping turns would open the
+// device twice and leave "cancel" no way to say which one it meant.
+type listenSession struct {
+	mu     sync.Mutex
+	cancel context.CancelFunc
+}
+
+// begin claims the microphone, reporting false if a turn is already running.
+func (s *listenSession) begin(cancel context.CancelFunc) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.cancel != nil {
+		return false
+	}
+	s.cancel = cancel
+	return true
+}
+
+// end releases the microphone. The turn's own deferred cancel still runs.
+func (s *listenSession) end() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.cancel = nil
+}
+
+// stop interrupts the running turn, reporting whether there was one.
+func (s *listenSession) stop() bool {
+	s.mu.Lock()
+	cancel := s.cancel
+	s.mu.Unlock()
+	if cancel == nil {
+		return false
+	}
+	cancel()
+	return true
+}
+
 func registerIntent(d *daemon.Daemon, cfg config.Config, database *db.DB, registry *services.Registry, log *slog.Logger) {
 	router := intent.NewRouter(cfg.Intent.RouterThreshold)
 	chain := buildIntentChain(cfg, log)
@@ -756,15 +799,35 @@ func registerIntent(d *daemon.Daemon, cfg config.Config, database *db.DB, regist
 	// mic, transcribe, resolve+execute the intent, then speak the reply. The GUI's
 	// mic button calls this, so voice works from a click without a terminal. The
 	// reply text comes back prefixed with what was heard, for the UI to show.
-	d.Handle("listen", func(ipc.Request) ipc.Response {
+	//
+	// "listen cancel" stops the turn that is running. It has to be a second
+	// command on a second connection, because the first one is blocked for as
+	// long as the microphone is open — the daemon serves each connection in its
+	// own goroutine, which is what makes that possible.
+	var mic listenSession
+	d.Handle("listen", func(req ipc.Request) ipc.Response {
+		if len(req.Args) > 0 && req.Args[0] == "cancel" {
+			mic.stop() // stopping nothing is not an error: the turn may have just ended
+			return ipc.Response{OK: true}
+		}
 		if cfg.Voice.STTBin == "" || cfg.Voice.STTModel == "" {
 			return ipc.Response{OK: false, Error: "speech recognition is not configured (voice.stt_bin / stt_model)"}
 		}
 		pipe := voice.NewPipeline(voiceOptions(cfg))
 		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 		defer cancel()
+		if !mic.begin(cancel) {
+			return ipc.Response{OK: false, Error: i18n.T("voice.already_listening")}
+		}
+		defer mic.end()
 
 		heard, err := pipe.Capture(ctx)
+		// Cancellation is checked before the error is read: an interrupted
+		// recorder exits non-zero, so without this a deliberate stop would be
+		// reported as "recording failed".
+		if ctx.Err() == context.Canceled {
+			return ipc.Response{OK: true, Text: i18n.T("voice.cancelled")}
+		}
 		if voice.IsNoSpeech(err) {
 			return ipc.Response{OK: true, Text: i18n.T("voice.nothing_heard")}
 		}

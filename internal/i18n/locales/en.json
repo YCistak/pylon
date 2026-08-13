@@ -213,6 +213,8 @@
   "update.packaged": "Your package manager owns this copy (%s).",
   "update.packaged_hint": "Update through it instead — for example: pacman -Syu",
   "update.unsigned": "Updates are disabled in this build (no signing key baked in).",
+  "voice.already_listening": "I'm already listening",
+  "voice.cancelled": "Never mind, then",
   "voice.nothing_heard": "I didn't hear anything",
   "voice.recording_empty": "%s: the recording came out empty",
   "weather.code.clear": "clear",

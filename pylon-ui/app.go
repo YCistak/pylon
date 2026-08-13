@@ -132,6 +132,25 @@ func (a *App) Listen() (string, error) {
 	return resp.Text, nil
 }
 
+// CancelListen stops a push-to-talk turn that is already running — what Escape
+// and the stop button call. It cannot travel on Listen's own connection, which
+// is blocked until the turn ends, so it is a second request; the daemon matches
+// it to the microphone it has open.
+//
+// Stopping a turn that has already finished is a no-op rather than an error. The
+// race between the last word and the key is ordinary, and there is nothing the
+// user would do differently for being told about it.
+func (a *App) CancelListen() error {
+	resp, err := sendTimeout(request{Cmd: "listen", Args: []string{"cancel"}}, 5*time.Second)
+	if err != nil {
+		return err
+	}
+	if !resp.OK {
+		return fmt.Errorf("%s", resp.Error)
+	}
+	return nil
+}
+
 // Ask runs one typed command through the same intent engine the microphone
 // feeds — the daemon's "say", which is what `pylon say` uses. It exists so the
 // GUI stays usable with the mic off: in a quiet room, with the headset

@@ -133,6 +133,8 @@
   "ui.voicebar.offline": "Pylon est éteint",
   "ui.voicebar.placeholder": "Ou écrivez…",
   "ui.voicebar.send": "Envoyer",
+  "ui.voicebar.stop": "Arrêter",
+  "ui.voicebar.stop_hint": "Échap pour arrêter",
   "ui.voicebar.talk": "Parler",
   "ui.voicebar.write": "Écrire à Pylon",
   "ui.widget.calendar": "Agenda",

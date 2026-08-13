@@ -70,6 +70,19 @@ heard and what it said. The box under it calls `Ask()` — the daemon's `say`, t
 same command the CLI sends — so the GUI still works with the mic off. Both land
 in the same answer bubble, and only one can run at a time.
 
+A turn can be stopped: Escape, or the mic button, which becomes **Durdur** while
+the microphone is open. Before that there was no way out of a turn started by
+accident — Escape did nothing, the button was disabled, and the only thing that
+ended it was the silence timer. The stop cannot travel on `Listen()`'s own
+connection, which stays blocked until the turn finishes, so it is a second
+request (`listen cancel`) on a second connection; the daemon serves each
+connection in its own goroutine, which is what makes that work at all. It
+cancels the turn's context, so `sox` is interrupted rather than killed and the
+WAV still closes cleanly. Stopping a turn that has just ended is a no-op, not an
+error — Escape losing that race is ordinary. The same bookkeeping makes the
+microphone single-user: a second `listen` while one is open is refused, because
+two open devices would leave the cancel no way to say which turn it meant.
+
 **Docker page** (`DockerPage.svelte`) — a full-screen container manager, shown
 when the Docker page is pinned to the dock. List or grid, all/running filter,
 optional auto-refresh; preferences in `localStorage` under
@@ -175,6 +188,7 @@ entry in the catalog so far: Docker.
 | `Status()` | daemon status line |
 | `Do(action, params)` | run a service action, no LLM — the widget data path |
 | `Listen()` | one full push-to-talk turn |
+| `CancelListen()` | stop the turn that is running (Escape, the stop button) |
 | `RestartDaemon()` | bounce the daemon so new config/credentials take effect |
 | `Platform()` | which desktop this is (`hyprland`, `sway`, `gnome`, `kde`, `macos`, `windows`, …) |
 | `Hotkey()` / `SetHotkey(combo)` | read and change the push-to-talk shortcut |

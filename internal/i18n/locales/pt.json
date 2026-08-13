@@ -213,6 +213,8 @@
   "update.packaged": "Esta cópia é gerida pelo teu gestor de pacotes (%s).",
   "update.packaged_hint": "Atualiza através dele — por exemplo: pacman -Syu",
   "update.unsigned": "As atualizações estão desativadas nesta compilação (sem chave de assinatura).",
+  "voice.already_listening": "Já estou a ouvir",
+  "voice.cancelled": "Está bem, deixa lá",
   "voice.nothing_heard": "Não ouvi nada",
   "voice.recording_empty": "%s: a gravação ficou vazia",
   "weather.code.clear": "céu limpo",

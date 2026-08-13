@@ -11,6 +11,20 @@ Cutting a release: [docs/RELEASE.md](docs/RELEASE.md).
 
 ### Fixed
 
+- **A push-to-talk turn can be stopped.** Once the microphone opened there was
+  no way out of it: Escape did nothing, the button went disabled and read
+  "Dinliyorum…", and the only thing that ended the turn was the silence timer —
+  so a mistaken click meant sitting through a recording, a transcription, and
+  whatever the model decided to say about the room. Escape now stops it, and the
+  mic button becomes **Durdur** while it is open. The stop cannot ride on
+  `Listen()`'s own connection, which is blocked for the length of the turn, so
+  it is a second request (`listen cancel`) that cancels the turn's context —
+  interrupting `sox` rather than killing it, so the WAV still closes cleanly.
+  Cancelling a turn that has already ended is silent, because Escape losing that
+  race is ordinary and there is nothing the user would do about it. The same
+  bookkeeping makes the microphone single-user: a second `listen` while one is
+  running is refused instead of opening the device twice.
+
 - **You can see where the keyboard is now.** The interface had five `:focus`
   rules — the settings tablist and a few text fields — and left everything else
   to the engine's default outline, a thin dark line that against these surfaces
