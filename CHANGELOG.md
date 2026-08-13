@@ -9,6 +9,17 @@ Cutting a release: [docs/RELEASE.md](docs/RELEASE.md).
 
 ## [Unreleased]
 
+### Security
+
+- **Four reachable vulnerabilities closed by dependency bumps**, found by
+  `govulncheck`: two infinite loops (`golang.org/x/text` on invalid input,
+  `golang.org/x/net`'s HTTP/2 transport on a bad `SETTINGS_MAX_FRAME_SIZE`), an
+  IDNA validation failure in `x/net`, and an xDS/HTTP2 pair in
+  `google.golang.org/grpc`. All three modules are reached from Pylon's own HTTP
+  calls — the feedback POST and the Google consent server — so they were
+  reachable, not merely present. `govulncheck ./...` now reports zero for both
+  modules.
+
 ## [0.1.0] — 2026-08-13
 
 The first stable release, and the first one `pylon update` can actually see:
